@@ -112,9 +112,33 @@
     "message": "Full Select",
     "description": "Button that selects the whole screenshot area"
   },
-  "screenshotCancel": {
-    "message": "Cancel",
-    "description": "Button that cancels the screenshot"
+  "screenshotCopy": {
+    "message": "Copy",
+    "description": "Button that copies the selected screenshot area"
+  },
+  "screenshotSave": {
+    "message": "Save",
+    "description": "Button that saves the selected screenshot area"
+  },
+  "screenshotCopied": {
+    "message": "Copied",
+    "description": "Message shown when the screenshot is copied"
+  },
+  "screenshotCopyFailed": {
+    "message": "Copy failed",
+    "description": "Message shown when copying the screenshot fails"
+  },
+  "screenshotSaved": {
+    "message": "Saved",
+    "description": "Message shown when the screenshot is saved"
+  },
+  "screenshotSaveFailed": {
+    "message": "Save failed",
+    "description": "Message shown when saving the screenshot fails"
+  },
+  "screenshotFileName": {
+    "message": "Screenshot",
+    "description": "File name prefix used when saving a screenshot"
   },
   "screenshotConfirm": {
     "message": "Scan",

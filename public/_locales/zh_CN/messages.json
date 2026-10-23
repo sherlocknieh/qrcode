@@ -112,17 +112,41 @@
     "message": "全选",
     "description": "选择整个截图区域的按钮"
   },
-  "screenshotCancel": {
-    "message": "取消",
-    "description": "取消截图按钮"
+  "screenshotCopy": {
+    "message": "复制",
+    "description": "复制选区截图的按钮"
+  },
+  "screenshotSave": {
+    "message": "保存",
+    "description": "保存选区截图的按钮"
+  },
+  "screenshotCopied": {
+    "message": "已复制",
+    "description": "截图复制成功的提示"
+  },
+  "screenshotCopyFailed": {
+    "message": "复制失败",
+    "description": "截图复制失败的提示"
+  },
+  "screenshotSaved": {
+    "message": "已保存",
+    "description": "截图保存成功的提示"
+  },
+  "screenshotSaveFailed": {
+    "message": "保存失败",
+    "description": "截图保存失败的提示"
+  },
+  "screenshotFileName": {
+    "message": "截图",
+    "description": "保存截图时的文件名前缀"
   },
   "screenshotConfirm": {
     "message": "识别",
     "description": "确认选区并识别二维码的按钮"
   },
   "screenshotHint": {
-    "message": "拖动鼠标框选需要识别的区域",
-    "description": "截图界面上提示用户框选识别区域的文字"
+    "message": "拖动鼠标框选区域，可复制、保存或识别",
+    "description": "截图界面上提示用户框选区域的文字"
   },
   "confirm": {
     "message": "确定",

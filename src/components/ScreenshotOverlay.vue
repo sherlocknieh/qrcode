@@ -87,6 +87,7 @@ const cursor = ref('crosshair');
 const phase = ref<Phase>('cover');
 const flashing = ref(false);
 const settling = ref(false);
+const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
 const dpr = window.devicePixelRatio || 1;
 let image: HTMLImageElement | undefined;
@@ -363,14 +364,86 @@ const cropSelection = (rect: Rect) => {
     return output.toDataURL('image/png');
 };
 
+const dataUrlToBlob = (dataUrl: string): Blob | null => {
+    const comma = dataUrl.indexOf(',');
+    if (comma < 0) return null;
+    const mime = /data:([^;]+)/.exec(dataUrl.slice(0, comma))?.[1] ?? 'image/png';
+    try {
+        const binary = atob(dataUrl.slice(comma + 1));
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index++) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        return new Blob([bytes], { type: mime });
+    } catch {
+        return null;
+    }
+};
+
+const copyImage = async (dataUrl: string): Promise<boolean> => {
+    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
+    const blob = dataUrlToBlob(dataUrl);
+    if (!blob) return false;
+    try {
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+const saveImage = (dataUrl: string) => {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const now = new Date();
+    const stamp = [
+        now.getFullYear(),
+        pad(now.getMonth() + 1),
+        pad(now.getDate()),
+        '-',
+        pad(now.getHours()),
+        pad(now.getMinutes()),
+        pad(now.getSeconds()),
+    ].join('');
+
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `${t('screenshotFileName', 'Screenshot')}-${stamp}.png`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+};
+
 let introTimer: number | undefined;
 let introSettleTimer: number | undefined;
+let statusTimer: number | undefined;
+let closeTimer: number | undefined;
 
 const clearTimers = () => {
     if (introTimer !== undefined) window.clearTimeout(introTimer);
     if (introSettleTimer !== undefined) window.clearTimeout(introSettleTimer);
+    if (statusTimer !== undefined) window.clearTimeout(statusTimer);
+    if (closeTimer !== undefined) window.clearTimeout(closeTimer);
     introTimer = undefined;
     introSettleTimer = undefined;
+    statusTimer = undefined;
+    closeTimer = undefined;
+};
+
+// 复制/保存成功后短暂提示, 再自动关闭框选界面
+const showStatus = (text: string, kind: 'success' | 'error', autoClose = false) => {
+    status.value = { text, kind };
+    if (statusTimer !== undefined) window.clearTimeout(statusTimer);
+    statusTimer = window.setTimeout(() => {
+        statusTimer = undefined;
+        status.value = null;
+    }, 1600);
+    if (autoClose && closeTimer === undefined) {
+        closeTimer = window.setTimeout(() => {
+            closeTimer = undefined;
+            emit('cancel');
+        }, 500);
+    }
 };
 
 // 入场: 整屏截图覆盖视口并闪一下, 再收缩到居中窗口
@@ -412,6 +485,35 @@ const selectAll = () => {
         width: layout.value.width,
         height: layout.value.height,
     };
+};
+
+const getSelectionDataUrl = (): string => {
+    if (busy.value || !selection.value || !hasSelection.value) return '';
+    return cropSelection(selection.value);
+};
+
+const copySelection = async () => {
+    const dataUrl = getSelectionDataUrl();
+    if (!dataUrl) return;
+    const success = await copyImage(dataUrl);
+    showStatus(
+        success
+            ? t('screenshotCopied', 'Copied')
+            : t('screenshotCopyFailed', 'Copy failed'),
+        success ? 'success' : 'error',
+        success,
+    );
+};
+
+const saveSelection = () => {
+    const dataUrl = getSelectionDataUrl();
+    if (!dataUrl) return;
+    try {
+        saveImage(dataUrl);
+        showStatus(t('screenshotSaved', 'Saved'), 'success', true);
+    } catch {
+        showStatus(t('screenshotSaveFailed', 'Save failed'), 'error');
+    }
 };
 
 const handlePointerDown = (event: PointerEvent) => {
@@ -504,6 +606,20 @@ const handleKeyDown = (event: KeyboardEvent) => {
         event.preventDefault();
         event.stopPropagation();
         confirm();
+        return;
+    }
+    // Ctrl/Cmd+C 复制选区, Ctrl/Cmd+S 保存选区
+    if (hasSelection.value && (event.ctrlKey || event.metaKey) && !event.altKey) {
+        const key = event.key.toLowerCase();
+        if (key === 'c') {
+            event.preventDefault();
+            event.stopPropagation();
+            void copySelection();
+        } else if (key === 's') {
+            event.preventDefault();
+            event.stopPropagation();
+            saveSelection();
+        }
     }
 };
 
@@ -542,6 +658,8 @@ watch(
     },
     { flush: 'post' },
 );
+
+watch(status, () => nextTick(updateToolbarPosition), { flush: 'post' });
 
 onMounted(() => {
     window.addEventListener('pointermove', handlePointerMove);
@@ -616,11 +734,20 @@ onBeforeUnmount(() => {
         </span>
         <!-- 截图工具栏 -->
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
+            <span
+                v-if="status"
+                class="qr-shot-status"
+                :class="`qr-shot-status--${status.kind}`"
+                aria-live="polite"
+            >{{ status.text }}</span>
             <button class="qr-shot-btn" type="button" @click="selectAll">
                 {{ t('screenshotSelectAll', 'Select all') }}
             </button>
-            <button class="qr-shot-btn" type="button" @click="cancel">
-                {{ t('screenshotCancel', 'Cancel') }}
+            <button class="qr-shot-btn" type="button" @click="copySelection">
+                {{ t('screenshotCopy', 'Copy') }}
+            </button>
+            <button class="qr-shot-btn" type="button" @click="saveSelection">
+                {{ t('screenshotSave', 'Save') }}
             </button>
             <button class="qr-shot-btn primary" type="button" @click="confirm">
                 {{ t('screenshotConfirm', 'Scan') }}
@@ -825,6 +952,20 @@ onBeforeUnmount(() => {
     white-space: nowrap;
     pointer-events: none;
     transform: translateY(calc(-100% - 6px));
+}
+
+.qr-shot-status {
+    padding: 0 4px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.qr-shot-status--success {
+    color: #6ee7a8;
+}
+
+.qr-shot-status--error {
+    color: #ff9b8f;
 }
 
 .qr-shot-btn {
