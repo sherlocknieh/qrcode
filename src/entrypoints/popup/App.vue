@@ -108,6 +108,13 @@ function fetchViaBackground(url: string): Promise<string> {
     });
 }
 
+// 识别结束且 popup 不再有内容: 关闭发起识别的标签页并收起 popup。
+// 标签页由后台关闭: 点击确认打开链接时 popup 会先失去焦点关闭, 自身的异步清理会被中断。
+function closeScanWindow() {
+  void browser.runtime.sendMessage({ action: 'closeScanPage' }).catch(() => {});
+  window.close();
+}
+
 // 识别图片并展示结果, 交互与内容脚本保持一致
 async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: string) {
   fire({
@@ -132,8 +139,8 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
       text: error instanceof Error ? error.message : String(error),
       showCloseButton: true,
     });
-    // 结果通知关闭后 popup 已无内容, 点关闭按钮时一并收起窗口
-    if (response.dismiss === 'close') window.close();
+    // 结果通知确认/关闭后 popup 已无内容, 收起 popup 和发起识别的识别页
+    if (response.dismiss !== 'replaced') closeScanWindow();
     return;
   }
 
@@ -158,7 +165,7 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
       return;
     }
     // 确认/取消/关闭后 popup 已无内容, 需一并收起窗口; 被新通知替换时保持打开
-    if (response.dismiss !== 'replaced') window.close();
+    if (response.dismiss !== 'replaced') closeScanWindow();
     return;
   }
 
@@ -171,7 +178,7 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
       items: results,
       showCloseButton: true,
     });
-    if (response.dismiss === 'close') window.close();
+    if (response.dismiss !== 'replaced') closeScanWindow();
     return;
   }
 
@@ -188,20 +195,20 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
     confirmButtonText: isLink ? t('openLink') : t('copyContent'),
     cancelButtonText: isLink ? t('copyLink') : undefined,
     showCloseButton: true,
-    // 复制按钮不关闭通知, 成功后按钮文字变为已复制, 期间仍可点击打开链接
+    // 复制按钮不结束通知: 复制成功后就地显示已复制, 识别页和 popup 保持打开
     onConfirm: isLink ? undefined : () => copyText(result.text),
     onCancel: isLink ? () => copyText(result.text) : undefined,
   });
 
-  // popup 本身就是通知窗口, 点关闭按钮时只关闭通知会留下空白窗口, 因此一并收起
-  if (response.dismiss === 'close') {
-    window.close();
-    return;
-  }
+  // 被新通知替换时保持打开
+  if (response.dismiss === 'replaced') return;
 
+  // 打开链接后识别流程结束, 关闭识别页和 popup
   if (isLink && response.isConfirmed) {
     window.open(toOpenableUrl(result.text), '_blank');
   }
+
+  closeScanWindow();
 }
 
 function scanImage(imageUrl: string) {

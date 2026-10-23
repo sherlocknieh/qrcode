@@ -5,6 +5,7 @@ import {
     type PopupNoticeRecord,
 } from '@/services/popupNotice';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
+import { rememberScanTab, takeScanTabId } from '@/services/scanSession';
 
 export default defineBackground(() => {
 
@@ -338,12 +339,26 @@ export default defineBackground(() => {
         }
         // 独立识别页选好图片后, 打开 popup 并交由 popup 完成识别和结果展示
         if (request.action === "openScanPopup") {
-            openPopup()
+            // 记录发起识别的标签页, 识别结束后由 popup 通知后台关闭它
+            const tabId = _sender.tab?.id;
+            (tabId == null ? openPopup() : rememberScanTab(tabId).then(openPopup))
                 .then(() => sendResponse({ success: true }))
-                .catch((error) => sendResponse({
-                    success: false,
-                    error: error?.message ?? String(error),
-                }));
+                .catch(async (error) => {
+                    // 打开 popup 失败时清掉未使用的记录, 避免误关其他页面
+                    await takeScanTabId();
+                    sendResponse({
+                        success: false,
+                        error: error?.message ?? String(error),
+                    });
+                });
+            return true;
+        }
+        // 识别结束: 关闭发起识别的独立识别页。由后台执行, 避免 popup 失去焦点关闭后清理中断
+        if (request.action === "closeScanPage") {
+            takeScanTabId()
+                .then(tabId => tabId == null ? undefined : browser.tabs.remove(tabId).catch(() => {}))
+                .then(() => sendResponse({ success: true }))
+                .catch(() => sendResponse({ success: false }));
             return true;
         }
         // 截取当前标签页可见区域: 由后台调用可避免 getDisplayMedia 的屏幕共享提示条压缩页面视口
