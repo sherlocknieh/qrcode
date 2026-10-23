@@ -1,8 +1,11 @@
 import BarcodeFormat from '@zxing/library/esm/core/BarcodeFormat';
 import BinaryBitmap from '@zxing/library/esm/core/BinaryBitmap';
 import BitArray from '@zxing/library/esm/core/common/BitArray';
+import type BitMatrix from '@zxing/library/esm/core/common/BitMatrix';
 import DecodeHintType from '@zxing/library/esm/core/DecodeHintType';
+import type DetectorResult from '@zxing/library/esm/core/common/DetectorResult';
 import GlobalHistogramBinarizer from '@zxing/library/esm/core/common/GlobalHistogramBinarizer';
+import HybridBinarizer from '@zxing/library/esm/core/common/HybridBinarizer';
 import NotFoundException from '@zxing/library/esm/core/NotFoundException';
 import Code128Reader from '@zxing/library/esm/core/oned/Code128Reader';
 import Code39Reader from '@zxing/library/esm/core/oned/Code39Reader';
@@ -11,8 +14,15 @@ import ITFReader from '@zxing/library/esm/core/oned/ITFReader';
 import MultiFormatUPCEANReader from '@zxing/library/esm/core/oned/MultiFormatUPCEANReader';
 import OneDReader from '@zxing/library/esm/core/oned/OneDReader';
 import PlanarYUVLuminanceSource from '@zxing/library/esm/core/PlanarYUVLuminanceSource';
+import Decoder from '@zxing/library/esm/core/qrcode/decoder/Decoder';
+import Detector from '@zxing/library/esm/core/qrcode/detector/Detector';
+import type FinderPattern from '@zxing/library/esm/core/qrcode/detector/FinderPattern';
+import FinderPatternFinder from '@zxing/library/esm/core/qrcode/detector/FinderPatternFinder';
+import FinderPatternInfo from '@zxing/library/esm/core/qrcode/detector/FinderPatternInfo';
 import QRCodeReader from '@zxing/library/esm/core/qrcode/QRCodeReader';
 import Result from '@zxing/library/esm/core/Result';
+import ResultPoint from '@zxing/library/esm/core/ResultPoint';
+import type ResultPointCallback from '@zxing/library/esm/core/ResultPointCallback';
 
 // SVG 提取像素时的目标尺寸上限，避免超大 SVG 生成大量候选图后占用过多内存。
 const SVG_SCAN_DIMENSION = 512;
@@ -181,12 +191,16 @@ function decodeBarcodeWithZXing(gray: GrayImage): string | null {
 }
 
 // 行扫描只处理水平方向，因此一维识别只需要灰度图和一种二值化方式。
-function decodeOneDWithZXing(gray: GrayImage): string | null {
+function decodeOneDResultWithZXing(gray: GrayImage): Result | null {
     try {
-        return oneDReader.decode(createZXingBitmap(gray), oneDHints).getText() || null;
+        return oneDReader.decode(createZXingBitmap(gray), oneDHints);
     } catch {
         return null;
     }
+}
+
+function decodeOneDWithZXing(gray: GrayImage): string | null {
+    return decodeOneDResultWithZXing(gray)?.getText() || null;
 }
 
 // 按整数倍缩小灰度图，对每个块取平均，避免条形码的细线在缩放中丢失。
@@ -230,13 +244,17 @@ function rotateGray90(gray: GrayImage): GrayImage {
     return { data: output, width: height, height: width };
 }
 
-// 用 ZXing 识别单一灰度候选图。
-function decodeQrWithZXing(gray: GrayImage): string | null {
+// 用 ZXing 识别单一灰度候选图，结果中带有定位点，批量识别据此遮罩已找到的区域。
+function decodeQrResultWithZXing(gray: GrayImage): Result | null {
     try {
-        return qrReader.decode(createZXingBitmap(gray), zxingHints).getText() || null;
+        return qrReader.decode(createZXingBitmap(gray), zxingHints);
     } catch {
         return null;
     }
+}
+
+function decodeQrWithZXing(gray: GrayImage): string | null {
+    return decodeQrResultWithZXing(gray)?.getText() || null;
 }
 
 // 灰度图直接作为 Y 平面交给 ZXing，不需要再复制成亮度数组。
@@ -305,6 +323,306 @@ function* createQrCandidates(gray: GrayImage): Generator<GrayImage> {
 
     for (const threshold of [160, 192]) {
         yield dilateBlackPixels(thresholdGray(gray, threshold), 1);
+    }
+}
+
+// ---------------------------- 批量识别 ----------------------------
+
+// 批量识别的规模上限: 结果数、定位点数量与三角组合的尝试次数。
+// 批量模式由用户显式触发, 但仍需限流, 避免密集二维码图片让耗时失控。
+const MULTI_MAX_RESULTS = 20;
+const MULTI_MAX_BARCODE_PASS = 8;
+// 彩色标签的灰度值分布差异很大: 白底标签的条码靠原图即可识别,
+// 红/绿色底的低对比度条码往往需要较低的固定阈值才能分离出黑条。
+const BARCODE_THRESHOLDS = [48, 64];
+const MULTI_MAX_FINDER_CENTERS = 30;
+const MULTI_MAX_DECODE_ATTEMPTS = 1200;
+const MULTI_MAX_CANDIDATES = 4;
+
+// 让出主线程, 使批量识别的长计算不会冻结 popup 或页面。
+const yieldToMainThread = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+type LocatedResult = DecodeResult & { x: number; y: number };
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+// 识别一张图片中的所有二维码和条形码。
+// 二维码一次扫描整张图收集全部定位点, 再对定位点三角组合逐个解码,
+// 因此并排、堆叠或混排的多个码都能找到; 条形码则通过遮罩逐轮找出。
+export async function decodeAllFromImageData(imageData: ImageData): Promise<DecodeResult[]> {
+    const gray = toGrayImage(imageData);
+    const found: LocatedResult[] = [];
+    const seen = new Set<string>();
+
+    const add = (result: DecodeResult, x: number, y: number) => {
+        if (!result.text || found.length >= MULTI_MAX_RESULTS) return;
+        const key = `${result.kind}:${result.text}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        found.push({ ...result, x, y });
+    };
+
+    // 一维条形码先扫: 与单码流程保持一致, 命中时更省时间。
+    for (const text of decodeAllBarcodesWithZXing(gray)) {
+        add({ text, kind: 'barcode' }, 0, 0);
+    }
+    await yieldToMainThread();
+
+    let candidateIndex = 0;
+    for (const candidate of createMultiQrCandidates(gray)) {
+        if (found.length >= MULTI_MAX_RESULTS || candidateIndex >= MULTI_MAX_CANDIDATES) break;
+
+        const codes = decodeMultipleQrWithZXing(candidate);
+        if (codes.length) {
+            for (const code of codes) {
+                const bounds = code.bounds;
+                add(
+                    { text: code.text, kind: 'qr' },
+                    bounds ? (bounds.minX + bounds.maxX) / 2 : 0,
+                    bounds ? (bounds.minY + bounds.maxY) / 2 : 0,
+                );
+            }
+        } else {
+            // 定位点检测失败时退回单码识别, 兼容彩色、圆点等特殊码面。
+            const fallback = decodeQrResultWithZXing(candidate);
+            const text = fallback?.getText() ?? '';
+            if (fallback && text) {
+                const bounds = getResultBounds(fallback, candidate.width, candidate.height);
+                add(
+                    { text, kind: 'qr' },
+                    bounds ? (bounds.minX + bounds.maxX) / 2 : 0,
+                    bounds ? (bounds.minY + bounds.maxY) / 2 : 0,
+                );
+            }
+        }
+
+        candidateIndex++;
+        await yieldToMainThread();
+    }
+
+    // 按从上到下、从左到右的顺序展示。
+    found.sort((a, b) => a.y - b.y || a.x - b.x);
+    return found.map(({ text, kind }) => ({ text, kind }));
+}
+
+// 批量模式的整图候选, 按命中概率排序; 候选过多时优先处理最常见的几种。
+function* createMultiQrCandidates(gray: GrayImage): Generator<GrayImage> {
+    yield gray;
+    yield thresholdGray(gray, 160);
+    yield invertGray(gray);
+    yield dilateBlackPixels(thresholdGray(gray, 160), 1);
+}
+
+// ZXing 的 QRCodeReader 只支持单码: 图片中出现多个码时, 它可能把不同码的定位点
+// 组合在一起, 导致整图识别失败。这里改为一次收集所有定位点, 再枚举 plausible 的
+// 三角组合逐个解码, 相当于补上官方 MultiDetector 的能力。
+function decodeMultipleQrWithZXing(gray: GrayImage): { text: string; bounds: Bounds | null }[] {
+    const bitmap = createHybridBitmap(gray);
+    const matrix = bitmap.getBlackMatrix();
+    const finder = new FinderPatternFinder(matrix, noopResultPointCallback) as unknown as MultiFinderPatternFinder;
+
+    // 单码查找器凑够三个定位点就会停止; 批量识别要扫描完整张图。
+    finder.haveMultiplyConfirmedCenters = () => false;
+    finder.findRowSkip = () => 0;
+    finder.selectBestPatterns = function selectFirstPatterns(this: MultiFinderPatternFinder) {
+        return this.getPossibleCenters().slice(0, 3);
+    };
+
+    try {
+        finder.find(zxingHints);
+    } catch {
+        // 定位点不足三个时会抛出异常, 已收集到的定位点仍然可用。
+    }
+
+    const centers = finder
+        .getPossibleCenters()
+        .filter((center) => center.getEstimatedModuleSize() >= 1)
+        .sort((a, b) => b.getCount() - a.getCount())
+        .slice(0, MULTI_MAX_FINDER_CENTERS);
+
+    if (centers.length < 3) return [];
+
+    const detector = new Detector(matrix) as unknown as MultiDetector;
+    const decoder = new Decoder();
+    const results: { text: string; bounds: Bounds | null }[] = [];
+    const seen = new Set<string>();
+    let attempts = 0;
+
+    for (let i = 0; i < centers.length - 2; i++) {
+        for (let j = i + 1; j < centers.length - 1; j++) {
+            for (let k = j + 1; k < centers.length; k++) {
+                if (results.length >= MULTI_MAX_RESULTS) return results;
+
+                const points = [centers[i]!, centers[j]!, centers[k]!];
+                // 同一个二维码的三个定位点模块尺寸相近, 先排除明显不匹配的组合。
+                const sizes = points.map((point) => point.getEstimatedModuleSize());
+                if (Math.max(...sizes) > Math.min(...sizes) * 2.5) continue;
+
+                ResultPoint.orderBestPatterns(points);
+                if (!isPlausibleQrTriangle(points)) continue;
+
+                // 只统计真正进入检测/解码的尝试次数, 组合枚举本身很廉价。
+                if (attempts++ >= MULTI_MAX_DECODE_ATTEMPTS) return results;
+
+                try {
+                    const detected = detector.processFinderPatternInfo(new FinderPatternInfo(points));
+                    const text = decoder.decodeBitMatrix(detected.getBits(), zxingHints).getText();
+                    if (!text || seen.has(text)) continue;
+                    seen.add(text);
+                    results.push({
+                        text,
+                        bounds: getPointBounds(detected.getPoints(), gray.width, gray.height),
+                    });
+                } catch {
+                    // 该组合不是有效二维码, 继续尝试其它组合。
+                }
+            }
+        }
+    }
+
+    return results;
+}
+
+// 三个定位点应构成近似等腰直角三角形; 用边长比例和勾股定理排除大量无效组合。
+function isPlausibleQrTriangle(points: ResultPoint[]): boolean {
+    const bottomLeft = points[0]!;
+    const topLeft = points[1]!;
+    const topRight = points[2]!;
+    const legA = distance(bottomLeft, topLeft);
+    const legB = distance(topRight, topLeft);
+    const hypotenuse = distance(bottomLeft, topRight);
+
+    if (legA < 4 || legB < 4 || hypotenuse < 4) return false;
+    const ratio = legA / legB;
+    if (ratio < 0.4 || ratio > 2.5) return false;
+
+    const error = Math.abs(legA * legA + legB * legB - hypotenuse * hypotenuse) / (hypotenuse * hypotenuse);
+    return error < 0.5;
+}
+
+function distance(a: ResultPoint, b: ResultPoint): number {
+    return Math.hypot(a.getX() - b.getX(), a.getY() - b.getY());
+}
+
+// 批量识别使用 HybridBinarizer: 它按局部区域取阈值, 在二维码只占画面一小部分时
+// 比全局直方图更稳定。
+function createHybridBitmap(gray: GrayImage): BinaryBitmap {
+    const { data, width, height } = gray;
+    const source = new PlanarYUVLuminanceSource(data, width, height, 0, 0, width, height, false);
+    return new BinaryBitmap(new HybridBinarizer(source));
+}
+
+// ZXing 的定位点查找器和检测器把关键方法声明为 private/protected,
+// 这里用交叉类型会与原有声明冲突, 因此单独描述批量识别需要用到的方法。
+type MultiFinderPatternFinder = {
+    find(hints: Map<DecodeHintType, unknown>): FinderPatternInfo;
+    getPossibleCenters(): FinderPattern[];
+    haveMultiplyConfirmedCenters(): boolean;
+    findRowSkip(): number;
+    selectBestPatterns(): FinderPattern[];
+};
+
+type MultiDetector = {
+    processFinderPatternInfo(info: FinderPatternInfo): DetectorResult;
+};
+
+const noopResultPointCallback: ResultPointCallback = {
+    foundPossibleResultPoint: () => {},
+};
+
+// 逐个找出条形码: 一维结果只给出扫描行上的两个点, 因此需要随轮次增大竖直遮罩范围,
+// 直到同一个条形码被彻底遮住, 才能继续找到下一个。
+function decodeAllBarcodesWithZXing(gray: GrayImage): string[] {
+    const scaled = downscaleGrayToMaxDimension(gray, BARCODE_SCAN_DIMENSION);
+    const texts: string[] = [];
+    const seen = new Set<string>();
+
+    // 原图识别后保留遮罩结果: 已找到的条形码在后续阈值图中保持空白,
+    // 既能减少重复命中, 也能避免彩色背景在阈值下被误读成新的码。
+    const maskedImages = [scaled, rotateGray90(scaled)].map((base) =>
+        scanBarcodesWithMasking(cloneGray(base), texts, seen));
+
+    // 只有原图已经找到条形码时才尝试阈值图:
+    // 彩色标签上的黑色条码灰度对比度可能不足, 阈值化后能找到同图中其余低对比度的码;
+    // 完全不包含条形码的图片可以跳过这些额外扫描, 保持常规识别的速度。
+    if (texts.length) {
+        for (const masked of maskedImages) {
+            for (const threshold of BARCODE_THRESHOLDS) {
+                scanBarcodesWithMasking(thresholdGray(masked, threshold), texts, seen);
+            }
+        }
+    }
+
+    return texts;
+}
+
+function scanBarcodesWithMasking(gray: GrayImage, texts: string[], seen: Set<string>): GrayImage {
+    for (let pass = 0; pass < MULTI_MAX_BARCODE_PASS; pass++) {
+        const result = decodeOneDResultWithZXing(gray);
+        const text = result?.getText() ?? '';
+        const bounds = result ? getResultBounds(result, gray.width, gray.height) : null;
+        if (!text || !bounds) break;
+
+        if (!seen.has(text)) {
+            seen.add(text);
+            texts.push(text);
+        }
+
+        const padX = Math.max(6, Math.round(gray.width * 0.01));
+        const padY = Math.max(8, Math.round(gray.height * (0.05 + pass * 0.03)));
+        maskGrayRect(gray, bounds, padX, padY);
+    }
+
+    return gray;
+}
+
+function cloneGray(gray: GrayImage): GrayImage {
+    return { data: new Uint8ClampedArray(gray.data), width: gray.width, height: gray.height };
+}
+
+function getResultBounds(result: Result, width: number, height: number): Bounds | null {
+    return getPointBounds(result.getResultPoints(), width, height);
+}
+
+// 用定位点计算包围盒; 没有可用定位点时返回 null, 避免遮罩掉整张图。
+function getPointBounds(points: ResultPoint[] | null | undefined, width: number, height: number): Bounds | null {
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const point of points ?? []) {
+        if (!point) continue;
+        const x = point.getX();
+        const y = point.getY();
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+    }
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
+
+    return {
+        minX: clamp(Math.floor(minX), 0, width - 1),
+        minY: clamp(Math.floor(minY), 0, height - 1),
+        maxX: clamp(Math.ceil(maxX), 0, width - 1),
+        maxY: clamp(Math.ceil(maxY), 0, height - 1),
+    };
+}
+
+// 将包围盒区域涂成白色, 模拟"抹掉"已识别的码。
+function maskGrayRect(gray: GrayImage, bounds: Bounds, padX: number, padY: number) {
+    const { width, height, data } = gray;
+    const left = clamp(Math.floor(bounds.minX - padX), 0, width - 1);
+    const right = clamp(Math.ceil(bounds.maxX + padX), 0, width - 1);
+    const top = clamp(Math.floor(bounds.minY - padY), 0, height - 1);
+    const bottom = clamp(Math.ceil(bounds.maxY + padY), 0, height - 1);
+
+    for (let y = top; y <= bottom; y++) {
+        data.fill(255, y * width + left, y * width + right + 1);
     }
 }
 

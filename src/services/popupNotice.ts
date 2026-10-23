@@ -1,4 +1,4 @@
-import type { NotifyIcon } from '@/composables/useNotify';
+import type { NotifyIcon, NotifyResultItem } from '@/composables/useNotify';
 
 // 页面通知统一转发给 popup 显示, 该键保存 popup 尚未展示的最新一条通知
 export const POPUP_NOTICE_KEY = 'qrNotification';
@@ -15,6 +15,7 @@ export interface PopupNoticeOptions {
     icon?: NotifyIcon;
     title?: string;
     text?: string;
+    items?: NotifyResultItem[];
     showCloseButton?: boolean;
     showCancelButton?: boolean;
     confirmButtonText?: string;

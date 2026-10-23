@@ -3,11 +3,19 @@ import { nextTick, reactive } from 'vue';
 export type NotifyIcon = 'info' | 'success' | 'error' | 'warning';
 export type NotifyDismissReason = 'cancel' | 'close' | 'extra' | 'replaced';
 
+// 批量识别结果条目: 保持可序列化, 以便内容脚本通过 popup 通知展示
+export interface NotifyResultItem {
+    text: string;
+    kind: 'qr' | 'barcode';
+}
+
 export interface NotifyOptions {
     toast?: boolean;
     icon?: NotifyIcon;
     title?: string;
     text?: string;
+    // 多结果列表; 设置后通知主体改为逐条展示
+    items?: NotifyResultItem[];
     showCloseButton?: boolean;
     showCancelButton?: boolean;
     confirmButtonText?: string;

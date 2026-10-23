@@ -1,7 +1,11 @@
 <script lang="ts" setup>
 import { nextTick, onMounted, ref } from 'vue';
 import qrcode from 'qrcode-generator';
-import { decodeQrFromImageData, getImageDataFromDataUrl, type DecodeResult } from '@/services/qrScanner';
+import {
+  decodeAllFromImageData,
+  getImageDataFromDataUrl,
+  type DecodeResult,
+} from '@/services/qrScanner';
 import { isLinkText, toOpenableUrl } from '@/services/linkText';
 import { useNotify, notifyState } from '@/composables/useNotify';
 import { copyText } from '@/services/clipboard';
@@ -32,16 +36,23 @@ const scanActive = ref(false);
 // 生成二维码后才显示占位, 避免 popup 打开瞬间先闪一下二维码区域
 const hasQrContent = ref(false);
 
-// 读取右键菜单写入的临时图片地址, 读取后立即清除
+// 图片地址可能由旧版本以 { url } 对象形式写入, 这里统一取出地址
+function normalizeStoredImage(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const url = (value as { url?: unknown }).url;
+    if (typeof url === 'string') return url;
+  }
+  return '';
+}
+
+// 读取右键菜单或识别页写入的临时图片地址, 读取后立即清除
 async function takeStoredImageUrl(): Promise<string> {
   const storage = storageArea();
   const result = await storage.get(QR_IMAGE_KEY);
-  const value = result?.[QR_IMAGE_KEY];
-  if (typeof value === 'string' && value) {
-    await storage.remove(QR_IMAGE_KEY);
-    return value;
-  }
-  return '';
+  const value = normalizeStoredImage(result?.[QR_IMAGE_KEY]);
+  if (value) await storage.remove(QR_IMAGE_KEY);
+  return value;
 }
 
 // 读取右键菜单写入的临时文本, 读取后立即清除, 避免污染下次打开
@@ -108,10 +119,10 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
   });
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  let result: DecodeResult | null;
+  let results: DecodeResult[];
   try {
     const imageData = await getImageDataFromDataUrl(await getDataUrl());
-    result = await decodeQrFromImageData(imageData);
+    results = await decodeAllFromImageData(imageData);
   } catch (error) {
     close();
     const response = await fire({
@@ -127,7 +138,7 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
   }
 
   close();
-  if (!result) {
+  if (!results.length) {
     const response = await fire({
       toast: false,
       icon: 'warning',
@@ -151,6 +162,20 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
     return;
   }
 
+  // 批量识别到多个码时逐条列出
+  if (results.length > 1) {
+    const response = await fire({
+      toast: false,
+      icon: 'success',
+      title: t('multiScanSuccess'),
+      items: results,
+      showCloseButton: true,
+    });
+    if (response.dismiss === 'close') window.close();
+    return;
+  }
+
+  const result = results[0]!;
   // 文字结果没有可打开的链接, 只提供复制操作
   const isLink = isLinkText(result.text);
 
@@ -235,9 +260,9 @@ function onStorageChanged(
   areaName: string,
 ) {
   if (areaName !== storageAreaName()) return;
-  // 非 HTML 页面传入的图片地址优先处理
-  const imageUrl = changes[QR_IMAGE_KEY]?.newValue;
-  if (typeof imageUrl === 'string' && imageUrl) {
+  // 非 HTML 页面或识别页传入的图片地址优先处理
+  const imageUrl = normalizeStoredImage(changes[QR_IMAGE_KEY]?.newValue);
+  if (imageUrl) {
     startScan(imageUrl);
     void storageArea().remove(QR_IMAGE_KEY);
     return;

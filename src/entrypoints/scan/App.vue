@@ -12,7 +12,7 @@ import {
 import { copyText } from '@/services/clipboard';
 import { isLinkText, toOpenableUrl } from '@/services/linkText';
 import {
-    decodeQrFromImageData,
+    decodeAllFromImageData,
     getImageDataFromDataUrl,
     type DecodeResult,
 } from '@/services/qrScanner';
@@ -68,6 +68,21 @@ async function showResult(result: DecodeResult) {
     }
 }
 
+async function showResults(results: DecodeResult[]) {
+    if (results.length === 1) {
+        await showResult(results[0]!);
+        return;
+    }
+
+    await fire({
+        toast: false,
+        icon: 'success',
+        title: t('multiScanSuccess'),
+        items: results,
+        showCloseButton: true,
+    });
+}
+
 async function scanInPage(dataUrl: string) {
     void fire({
         toast: true,
@@ -80,10 +95,11 @@ async function scanInPage(dataUrl: string) {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     try {
-        const result = await decodeQrFromImageData(await getImageDataFromDataUrl(dataUrl));
+        const imageData = await getImageDataFromDataUrl(dataUrl);
+        const results = await decodeAllFromImageData(imageData);
         close();
 
-        if (!result) {
+        if (!results.length) {
             await fire({
                 toast: false,
                 icon: 'warning',
@@ -95,7 +111,7 @@ async function scanInPage(dataUrl: string) {
             return;
         }
 
-        await showResult(result);
+        await showResults(results);
     } catch (error) {
         close();
         await fire({
@@ -250,6 +266,7 @@ onBeforeUnmount(() => {
                 <h1 class="scan-title">{{ t('scanImageTitle') }}</h1>
                 <p class="scan-description">{{ t('scanImageDesc') }}</p>
             </header>
+
 
             <div
                 class="scan-dropzone"

@@ -119,6 +119,18 @@
     "message": "Copied",
     "description": "Button text after content is copied"
   },
+  "multiScanSuccess": {
+    "message": "Batch Scan Complete",
+    "description": "Title shown when several codes are recognized at once"
+  },
+  "copyItem": {
+    "message": "Copy",
+    "description": "Copy button for a single item in the batch result list"
+  },
+  "copyAll": {
+    "message": "Copy All",
+    "description": "Copy all button for the batch result list"
+  },
 
   "imageFetchFailed": {
     "message": "Couldn't Load Image",

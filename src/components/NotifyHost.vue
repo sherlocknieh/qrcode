@@ -7,18 +7,23 @@ import {
     extraNotify,
     notifyState,
 } from '@/composables/useNotify';
+import { copyText } from '@/services/clipboard';
+import { isLinkText, toOpenableUrl } from '@/services/linkText';
 
 // embedded: 在 popup 等紧凑容器中直接渲染为页面内容, 不再悬浮于内容之上
 const props = defineProps<{ embedded?: boolean }>();
 const embedded = computed(() => props.embedded === true);
 
-const t = (key: 'confirm' | 'closeBtn' | 'copied', fallback: string) =>
-    browser.i18n.getMessage(key) || fallback;
+const t = (
+    key: 'confirm' | 'closeBtn' | 'copied' | 'openLink' | 'copyItem' | 'copyAll',
+    fallback: string,
+) => browser.i18n.getMessage(key) || fallback;
 
 const options = computed(() => notifyState.options);
 const isToast = computed(() => options.value.toast === true);
-// popup 内的 toast 只是过程提示, 不渲染操作按钮
-const showActions = computed(() => !(embedded.value && isToast.value));
+const listItems = computed(() => options.value.items ?? []);
+// popup 内的 toast 只是过程提示, 不渲染操作按钮; 多结果列表使用自己的按钮
+const showActions = computed(() => !(embedded.value && isToast.value) && listItems.value.length === 0);
 const icon = computed(() => options.value.icon ?? 'info');
 const confirmText = computed(() => options.value.confirmButtonText || t('confirm', 'OK'));
 const cancelText = computed(() => options.value.cancelButtonText || 'Cancel');
@@ -27,10 +32,47 @@ const copiedText = computed(() => t('copied', 'Copied'));
 // 复制成功后仅改变对应按钮的文字, 鼠标移开后恢复
 const copiedButton = ref<'confirm' | 'cancel' | null>(null);
 const hoveredButton = ref<'confirm' | 'cancel' | null>(null);
+// 多结果列表中已复制的条目, 以及"复制全部"的反馈
+const copiedItem = ref<number | null>(null);
+const copiedAll = ref(false);
+let copiedItemTimer: number | undefined;
+
+function clearCopiedItem() {
+    if (copiedItemTimer !== undefined) {
+        window.clearTimeout(copiedItemTimer);
+        copiedItemTimer = undefined;
+    }
+    copiedItem.value = null;
+    copiedAll.value = false;
+}
+
 watch(options, () => {
     copiedButton.value = null;
     hoveredButton.value = null;
+    clearCopiedItem();
 });
+
+async function copyItem(index: number, text: string) {
+    if (!(await copyText(text))) return;
+    copiedAll.value = false;
+    copiedItem.value = index;
+    if (copiedItemTimer !== undefined) window.clearTimeout(copiedItemTimer);
+    copiedItemTimer = window.setTimeout(() => {
+        copiedItemTimer = undefined;
+        copiedItem.value = null;
+    }, 1600);
+}
+
+async function copyAll() {
+    if (!listItems.value.length) return;
+    if (!(await copyText(listItems.value.map((item) => item.text).join('\n')))) return;
+    clearCopiedItem();
+    copiedAll.value = true;
+}
+
+function openItem(text: string) {
+    window.open(toOpenableUrl(text), '_blank');
+}
 
 const confirmLabel = computed(() =>
     copiedButton.value === 'confirm' ? copiedText.value : confirmText.value,
@@ -75,7 +117,10 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', onKeydown);
+    clearCopiedItem();
+});
 </script>
 
 <template>
@@ -172,6 +217,39 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
                             <div v-if="options.text" class="qr-notify-text qr-notify-text--modal">
                                 {{ options.text }}
                             </div>
+
+                            <div v-if="listItems.length" class="qr-notify-list">
+                                <div
+                                    v-for="(item, index) in listItems"
+                                    :key="`${item.kind}-${index}`"
+                                    class="qr-notify-item"
+                                >
+                                    <span
+                                        class="qr-notify-item-badge"
+                                        :class="{ 'qr-notify-item-badge--barcode': item.kind === 'barcode' }"
+                                    >{{ item.kind === 'barcode' ? '1D' : 'QR' }}</span>
+                                    <span class="qr-notify-item-text">{{ item.text }}</span>
+                                    <span class="qr-notify-item-actions">
+                                        <button
+                                            v-if="isLinkText(item.text)"
+                                            type="button"
+                                            class="qr-notify-item-btn"
+                                            @click="openItem(item.text)"
+                                        >{{ t('openLink', 'Open') }}</button>
+                                        <button
+                                            type="button"
+                                            class="qr-notify-item-btn"
+                                            @click="copyItem(index, item.text)"
+                                        >{{ copiedItem === index ? t('copied', 'Copied') : t('copyItem', 'Copy') }}</button>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="listItems.length" class="qr-notify-actions">
+                            <button type="button" class="qr-notify-btn qr-notify-btn--primary" @click="copyAll">
+                                {{ copiedAll ? t('copied', 'Copied') : t('copyAll', 'Copy all') }}
+                            </button>
                         </div>
 
                         <div v-if="showActions" class="qr-notify-actions">
@@ -437,6 +515,78 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
     right: 4px;
     width: 28px;
     height: 28px;
+}
+
+.qr-notify-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-height: min(46vh, 320px);
+    margin-top: 14px;
+    overflow: auto;
+    text-align: left;
+}
+
+.qr-notify-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+}
+
+.qr-notify-item-badge {
+    flex: none;
+    min-width: 26px;
+    margin-top: 1px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: #dbeafe;
+    color: #2563eb;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.qr-notify-item-badge--barcode {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.qr-notify-item-text {
+    flex: 1;
+    min-width: 0;
+    color: #374151;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+.qr-notify-item-actions {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.qr-notify-item-btn {
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: #2563eb;
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.qr-notify-item-btn:hover {
+    text-decoration: underline;
 }
 
 .qr-notify-actions {

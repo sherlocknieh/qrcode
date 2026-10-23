@@ -119,6 +119,18 @@
     "message": "已复制",
     "description": "复制成功后按钮显示的文字"
   },
+  "multiScanSuccess": {
+    "message": "批量识别完成",
+    "description": "一次识别到多个二维码/条形码时的标题"
+  },
+  "copyItem": {
+    "message": "复制",
+    "description": "批量结果列表中单条内容的复制按钮"
+  },
+  "copyAll": {
+    "message": "复制全部",
+    "description": "批量结果列表的复制全部按钮"
+  },
 
   "imageFetchFailed": {
     "message": "图片加载失败",

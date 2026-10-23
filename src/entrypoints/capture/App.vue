@@ -7,7 +7,7 @@ import { useNotify } from '@/composables/useNotify';
 import { copyText } from '@/services/clipboard';
 import { isLinkText, toOpenableUrl } from '@/services/linkText';
 import {
-    decodeQrFromImageData,
+    decodeAllFromImageData,
     getImageDataFromDataUrl,
     type DecodeResult,
 } from '@/services/qrScanner';
@@ -99,9 +99,9 @@ async function handleConfirm(dataUrl: string) {
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    let result: DecodeResult | null;
+    let results: DecodeResult[];
     try {
-        result = await decodeQrFromImageData(await getImageDataFromDataUrl(dataUrl));
+        results = await decodeAllFromImageData(await getImageDataFromDataUrl(dataUrl));
     } catch (error) {
         close();
         await showError(
@@ -114,13 +114,25 @@ async function handleConfirm(dataUrl: string) {
 
     close();
 
-    if (!result) {
+    if (!results.length) {
         await showError(t('recognitionFailed'), t('recognitionFailedMsg'));
         closeTab();
         return;
     }
 
-    await showResult(result);
+    if (results.length > 1) {
+        await fire({
+            toast: false,
+            icon: 'success',
+            title: t('multiScanSuccess'),
+            items: results,
+            showCloseButton: true,
+        });
+        closeTab();
+        return;
+    }
+
+    await showResult(results[0]!);
 }
 
 async function handleLoadError() {

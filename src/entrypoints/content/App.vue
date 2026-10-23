@@ -3,7 +3,7 @@ import { onBeforeUnmount, onMounted } from 'vue';
 
 // 非UI组件
 import {
-    decodeQrFromImageData,
+    decodeAllFromImageData,
     getImageDataFromDataUrl,
     isSameOrigin,
     loadImageDataFromUrl,
@@ -84,6 +84,27 @@ async function notifyResult(result: DecodeResult) {
 // 国际化文本获取函数，提供默认值以防止缺失翻译导致的显示问题
 const t = (key: Parameters<typeof browser.i18n.getMessage>[0]) =>
     browser.i18n.getMessage(key) || String(key);
+
+// 批量识别结果: 只有一个码时沿用单码通知, 多个码时逐条列出
+async function notifyResults(results: DecodeResult[]) {
+    if (results.length === 1) {
+        await notifyResult(results[0]!);
+        return;
+    }
+
+    const payload: PopupNoticePayload = {
+        options: {
+            toast: false,
+            icon: 'success',
+            title: t('multiScanSuccess'),
+            items: results,
+            showCloseButton: true,
+        },
+    };
+
+    if (await showPopupNotice(payload)) return;
+    await fireLocal(payload);
+}
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
 const mainProcess = (message: { action?: string; imageUrl?: string }) => {
@@ -249,8 +270,8 @@ let screenshotEpoch = 0;
 async function handleScreenshot() {
     screenshotEpoch++;
     try {
-        const base64 = await startScreenshot();
-        const imageData = await getImageDataFromDataUrl(base64);
+        const dataUrl = await startScreenshot();
+        const imageData = await getImageDataFromDataUrl(dataUrl);
         await decodeAndNotify(imageData);
     } catch (error) {
         if (isScreenshotResult(error)) {
@@ -288,13 +309,13 @@ async function decodeAndNotify(imageData: ImageData, isStale?: () => boolean) {
     // 等待短暂时间以确保通知显示后再进行计算密集型的识别操作，避免界面卡顿
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // 调用二维码识别函数，获取识别结果
-    const result = await decodeQrFromImageData(imageData);
+    // 默认识别图片中的所有码, 只有一个时仍按单码通知展示
+    const results = await decodeAllFromImageData(imageData);
     if (isStale?.()) return;
 
-    if (result) {
+    if (results.length) {
         // 文字结果没有可打开的链接, 只提供复制操作
-        await notifyResult(result);
+        await notifyResults(results);
         return;
     }
 
