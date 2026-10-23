@@ -1,10 +1,12 @@
 {
+  "name": "qrcode",
+  "version": "1.4.4",
   "type": "module",
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox --mv3",
-    "zip": "wxt zip",
-    "zip:firefox": "wxt zip -b firefox --mv3",
+    "build": "wxt zip",
+    "build:firefox": "wxt zip -b firefox --mv3",
     "submit:firefox": "node scripts/submit.mjs firefox",
     "submit:edge": "node scripts/submit.mjs edge",
     "submit:chrome": "node scripts/submit.mjs chrome",

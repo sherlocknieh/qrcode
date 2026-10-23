@@ -27,10 +27,9 @@ export default defineConfig({
   manifest: {
     name: '__MSG_appName__',
     description: '__MSG_appDescription__',
-    version: '1.4.3',
     default_locale: 'en',
     author: 'sherlocknieh@gmail.com' as unknown as { email: string },
-    homepage_url: 'https://github.com/sherlocknieh/Browser-Extensions',
+    homepage_url: 'https://github.com/sherlocknieh/qrcode',
     host_permissions: ['file:///*'], // 允许访问本地文件
     permissions: [
       'contextMenus',  // 右键菜单权限
