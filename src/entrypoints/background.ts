@@ -136,6 +136,25 @@ export default defineBackground(() => {
         }
     };
 
+    // 打开独立识别页: 文件选择框会让 popup 失去焦点并关闭, 因此本地图片
+    // 和剪贴板图片都在普通标签页中处理, 入口统一为一个右键菜单项
+    const openScanPage = async () => {
+        const url = browser.runtime.getURL('/scan.html');
+        try {
+            await browser.tabs.create({ url });
+        } catch (error) {
+            await showPopupNotification({
+                options: {
+                    toast: true,
+                    icon: 'error',
+                    title: browser.i18n.getMessage('error'),
+                    text: error instanceof Error ? error.message : String(error),
+                    showCloseButton: true,
+                },
+            });
+        }
+    };
+
     // Firefox 支持为菜单项指定自定义图标 (Chrome 不支持, 因此仅在 Firefox 构建中传入);
     // 图标内嵌在 src/services/menuIcons.ts 中, 颜色跟随菜单主题自动变化
     const menuIcons = (name: MenuIconName) => import.meta.env.FIREFOX
@@ -144,7 +163,8 @@ export default defineBackground(() => {
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
     type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
-        | 'screenShot' | 'generateQR_link' | 'showPageAction' | 'hidePageAction';
+        | 'screenShot' | 'generateQR_link' | 'scanImage'
+        | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji: string) => {
         const title = browser.i18n.getMessage(key);
         return import.meta.env.FIREFOX ? title : `${emoji} ${title}`;
@@ -183,6 +203,13 @@ export default defineBackground(() => {
                 contexts: ["action", "image", "page_action"],
                 ...menuIcons("screenshot")
             });
+            // 添加菜单: 打开本地图片或剪贴板图片识别
+            browser.contextMenus.create({
+                id: "scanImage",
+                title: menuTitle("scanImage", "🖼️"),
+                contexts: ["action", "page_action"],
+                ...menuIcons("image")
+            });
             // 添加菜单: 链接生成二维码
             browser.contextMenus.create({
                 id: "generateQR_link",
@@ -209,6 +236,11 @@ export default defineBackground(() => {
             void (async () => {
                 await setPageActionVisible(!(await isPageActionVisible()));
             })();
+            return;
+        }
+        // 图片识别不依赖当前标签页, 直接打开独立识别页
+        if (info.menuItemId === "scanImage") {
+            void openScanPage();
             return;
         }
         const tabId = tab?.id;      // 获取当前标签页 ID
@@ -303,6 +335,16 @@ export default defineBackground(() => {
             void clearNoticeIfCurrent(request.id);
             sendResponse({ success: true });
             return false;
+        }
+        // 独立识别页选好图片后, 打开 popup 并交由 popup 完成识别和结果展示
+        if (request.action === "openScanPopup") {
+            openPopup()
+                .then(() => sendResponse({ success: true }))
+                .catch((error) => sendResponse({
+                    success: false,
+                    error: error?.message ?? String(error),
+                }));
+            return true;
         }
         // 截取当前标签页可见区域: 由后台调用可避免 getDisplayMedia 的屏幕共享提示条压缩页面视口
         if (request.action === "captureVisibleTab") {

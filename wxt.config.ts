@@ -38,6 +38,7 @@ export default defineConfig({
       'tabs',          // 所有标签元数据权限
       'activeTab',     // 前台标签页内容权限
       'clipboardWrite',// 复制截图到剪贴板
+      'clipboardRead', // 读取剪贴板中的图片识别二维码
     ],
     icons: {
       16: 'icon/16.png',   // 工具栏,右键菜单,标签栏图标

@@ -23,6 +23,66 @@
     "message": "Scan via Screenshot",
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
+  "scanImage": {
+    "message": "Scan Local/Clipboard Image",
+    "description": "Toolbar context menu item that opens the image scanning page (local file or clipboard)"
+  },
+  "scanImageTitle": {
+    "message": "Scan QR Code in Image",
+    "description": "Title of the local image scanning page"
+  },
+  "scanImageDesc": {
+    "message": "Choose a local image, or drop or paste an image here.",
+    "description": "Description of the local image scanning page"
+  },
+  "dropImageHint": {
+    "message": "Drop an image here, or click to choose a file",
+    "description": "Hint in the image drop area"
+  },
+  "pasteImageHint": {
+    "message": "You can also paste an image with Ctrl+V",
+    "description": "Paste hint in the image drop area"
+  },
+  "previewHint": {
+    "message": "Click the box to choose another image",
+    "description": "Hint shown after an image has been selected"
+  },
+  "chooseImage": {
+    "message": "Choose Image",
+    "description": "Button for choosing a local image file"
+  },
+  "readClipboardImage": {
+    "message": "Read Clipboard",
+    "description": "Button that reads an image from the clipboard"
+  },
+  "clipboardEmpty": {
+    "message": "No Image in Clipboard",
+    "description": "Title shown when the clipboard has no image"
+  },
+  "clipboardEmptyMsg": {
+    "message": "Copy an image first, then try again.",
+    "description": "Message shown when the clipboard has no image"
+  },
+  "clipboardReadFailed": {
+    "message": "Couldn't Read Clipboard",
+    "description": "Title shown when reading the clipboard fails"
+  },
+  "clipboardUnsupportedMsg": {
+    "message": "This browser can't read the clipboard directly. Press Ctrl+V to paste an image.",
+    "description": "Message shown when the browser does not support reading the clipboard"
+  },
+  "clipboardPermissionMsg": {
+    "message": "Allow the extension to read the clipboard, or press Ctrl+V to paste an image.",
+    "description": "Message shown when clipboard permission is denied"
+  },
+  "notImageFile": {
+    "message": "Please Choose an Image File",
+    "description": "Title shown when a non-image file is dropped"
+  },
+  "notImageFileMsg": {
+    "message": "Only image files can be scanned.",
+    "description": "Message shown when a non-image file is dropped"
+  },
   "showPageAction": {
     "message": "Show Address Bar Icon",
     "description": "Toolbar context menu item for showing the Firefox address bar icon"
