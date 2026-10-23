@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
     cancelNotify,
     closeNotify,
@@ -12,7 +12,8 @@ import {
 const props = defineProps<{ embedded?: boolean }>();
 const embedded = computed(() => props.embedded === true);
 
-const t = (key: 'confirm' | 'closeBtn', fallback: string) => browser.i18n.getMessage(key) || fallback;
+const t = (key: 'confirm' | 'closeBtn' | 'copied', fallback: string) =>
+    browser.i18n.getMessage(key) || fallback;
 
 const options = computed(() => notifyState.options);
 const isToast = computed(() => options.value.toast === true);
@@ -21,6 +22,51 @@ const showActions = computed(() => !(embedded.value && isToast.value));
 const icon = computed(() => options.value.icon ?? 'info');
 const confirmText = computed(() => options.value.confirmButtonText || t('confirm', 'OK'));
 const cancelText = computed(() => options.value.cancelButtonText || 'Cancel');
+const copiedText = computed(() => t('copied', 'Copied'));
+
+// 复制成功后仅改变对应按钮的文字, 鼠标移开后恢复
+const copiedButton = ref<'confirm' | 'cancel' | null>(null);
+const hoveredButton = ref<'confirm' | 'cancel' | null>(null);
+watch(options, () => {
+    copiedButton.value = null;
+    hoveredButton.value = null;
+});
+
+const confirmLabel = computed(() =>
+    copiedButton.value === 'confirm' ? copiedText.value : confirmText.value,
+);
+const cancelLabel = computed(() =>
+    copiedButton.value === 'cancel' ? copiedText.value : cancelText.value,
+);
+
+async function runAction(target: 'confirm' | 'cancel') {
+    const handler = target === 'confirm' ? options.value.onConfirm : options.value.onCancel;
+    if (!handler) {
+        if (target === 'confirm') confirmNotify();
+        else cancelNotify();
+        return;
+    }
+    const success = await handler();
+    // 复制完成时鼠标已移开则不再显示, 避免文字一直停留在已复制
+    if (success && hoveredButton.value === target) copiedButton.value = target;
+}
+
+function onConfirm() {
+    void runAction('confirm');
+}
+
+function onCancel() {
+    void runAction('cancel');
+}
+
+function onMouseEnter(target: 'confirm' | 'cancel') {
+    hoveredButton.value = target;
+}
+
+function onMouseLeave() {
+    hoveredButton.value = null;
+    copiedButton.value = null;
+}
 
 function onKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && notifyState.open) {
@@ -133,17 +179,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
                                 v-if="options.showCancelButton"
                                 type="button"
                                 class="qr-notify-btn"
-                                @click="cancelNotify"
+                                @click="onCancel"
+                                @mouseenter="onMouseEnter('cancel')"
+                                @mouseleave="onMouseLeave"
                             >
-                                {{ cancelText }}
+                                {{ cancelLabel }}
                             </button>
                             <button
                                 type="button"
                                 class="qr-notify-btn"
                                 :class="{ 'qr-notify-btn--primary': !options.extraButtonText }"
-                                @click="confirmNotify"
+                                @click="onConfirm"
+                                @mouseenter="onMouseEnter('confirm')"
+                                @mouseleave="onMouseLeave"
                             >
-                                {{ confirmText }}
+                                {{ confirmLabel }}
                             </button>
                             <button
                                 v-if="options.extraButtonText"

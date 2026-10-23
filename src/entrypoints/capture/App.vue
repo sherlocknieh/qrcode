@@ -4,6 +4,7 @@ import { onMounted, ref } from 'vue';
 import NotifyHost from '@/components/NotifyHost.vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
 import { useNotify } from '@/composables/useNotify';
+import { copyText } from '@/services/clipboard';
 import { isLinkText, toOpenableUrl } from '@/services/linkText';
 import {
     decodeQrFromImageData,
@@ -58,16 +59,15 @@ async function showError(title: string, text?: string) {
     });
 }
 
-async function copyText(text: string) {
-    try {
-        await navigator.clipboard.writeText(text);
-    } catch {
-        // 复制失败时保持安静, 避免再叠一层通知
-    }
-}
-
 async function showResult(result: DecodeResult) {
     const isLink = isLinkText(result.text);
+    // 复制成功后保留窗口, 通知由用户自行关闭
+    let copied = false;
+    const copy = async () => {
+        const success = await copyText(result.text);
+        if (success) copied = true;
+        return success;
+    };
     const response = await fire({
         toast: false,
         icon: 'success',
@@ -77,19 +77,15 @@ async function showResult(result: DecodeResult) {
         confirmButtonText: isLink ? t('openLink') : t('copyContent'),
         cancelButtonText: isLink ? t('copyLink') : undefined,
         showCloseButton: true,
+        onConfirm: isLink ? undefined : copy,
+        onCancel: isLink ? copy : undefined,
     });
 
-    if (response.isConfirmed) {
-        if (isLink) {
-            window.open(toOpenableUrl(result.text), '_blank');
-        } else {
-            await copyText(result.text);
-        }
-    } else if (response.dismiss === 'cancel' && isLink) {
-        await copyText(result.text);
+    if (response.isConfirmed && isLink) {
+        window.open(toOpenableUrl(result.text), '_blank');
     }
 
-    closeTab();
+    if (!copied) closeTab();
 }
 
 async function handleConfirm(dataUrl: string) {

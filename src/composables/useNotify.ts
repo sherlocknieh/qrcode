@@ -14,8 +14,13 @@ export interface NotifyOptions {
     cancelButtonText?: string;
     // 额外操作按钮, 点击后以 dismiss: 'extra' 结束通知
     extraButtonText?: string;
+    // 自定义按钮行为: 返回后通知保持打开; 返回 true 时按钮短暂显示已复制
+    onConfirm?: NotifyActionHandler;
+    onCancel?: NotifyActionHandler;
     didOpen?: () => void;
 }
+
+export type NotifyActionHandler = () => void | boolean | Promise<void | boolean>;
 
 export interface NotifyResult {
     isConfirmed: boolean;
@@ -83,4 +88,9 @@ export function useNotify() {
 
 // 供通知宿主组件读取状态与回调
 export const notifyState = state;
-export { cancel as cancelNotify, close as closeNotify, confirm as confirmNotify, extra as extraNotify };
+export {
+    cancel as cancelNotify,
+    close as closeNotify,
+    confirm as confirmNotify,
+    extra as extraNotify,
+};

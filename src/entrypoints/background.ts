@@ -190,21 +190,13 @@ export default defineBackground(() => {
                 contexts: ["link"],
                 ...menuIcons("link")
             });
-            // Firefox 地址栏图标开关: 工具栏图标右键可重新显示, 地址栏图标右键可关闭
+            // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
             if (browser.pageAction) {
                 browser.contextMenus.create({
-                    id: "showPageAction",
-                    title: menuTitle("showPageAction", "👁️"),
+                    id: "togglePageAction",
+                    title: menuTitle(pageActionVisible ? "hidePageAction" : "showPageAction", pageActionVisible ? "🚫" : "👁️"),
                     contexts: ["action"],
-                    visible: !pageActionVisible,
-                    ...menuIcons("show")
-                });
-                browser.contextMenus.create({
-                    id: "hidePageAction",
-                    title: menuTitle("hidePageAction", "🚫"),
-                    contexts: ["page_action"],
-                    visible: pageActionVisible,
-                    ...menuIcons("hide")
+                    ...menuIcons(pageActionVisible ? "hide" : "show")
                 });
             }
         });
@@ -213,12 +205,10 @@ export default defineBackground(() => {
     // 右键菜单点击事件处理
     const handleContextMenusClick = (info: Browser.contextMenus.OnClickData, tab?: Browser.tabs.Tab) => {
         // 地址栏图标开关不依赖标签页
-        if (info.menuItemId === "showPageAction") {
-            void setPageActionVisible(true);
-            return;
-        }
-        if (info.menuItemId === "hidePageAction") {
-            void confirmHidePageAction();
+        if (info.menuItemId === "togglePageAction") {
+            void (async () => {
+                await setPageActionVisible(!(await isPageActionVisible()));
+            })();
             return;
         }
         const tabId = tab?.id;      // 获取当前标签页 ID
@@ -251,11 +241,13 @@ export default defineBackground(() => {
         }
     };
 
-    // 同步"显示/关闭地址栏图标"菜单项的可见性, 只保留与当前状态对应的那一项
-    const syncPageActionMenus = async (visible?: boolean) => {
+    // 同步地址栏图标开关菜单项, 使其标题/图标与当前状态一致
+    const syncPageActionMenu = async (visible?: boolean) => {
         const current = visible ?? await isPageActionVisible();
-        browser.contextMenus.update('showPageAction', { visible: !current }).catch(() => {});
-        browser.contextMenus.update('hidePageAction', { visible: current }).catch(() => {});
+        browser.contextMenus.update('togglePageAction', {
+            title: menuTitle(current ? 'hidePageAction' : 'showPageAction', current ? '🚫' : '👁️'),
+            ...menuIcons(current ? 'hide' : 'show'),
+        }).catch(() => {});
     };
 
     // 显示/隐藏地址栏图标 (Firefox), 并记住状态
@@ -273,24 +265,7 @@ export default defineBackground(() => {
                 }
             }));
         }
-        void syncPageActionMenus(visible);
-    };
-
-    // 隐藏地址栏图标前用统一的 popup 通知确认, 并提示如何重新显示
-    const confirmHidePageAction = async () => {
-        await showPopupNotification({
-            options: {
-                toast: false,
-                icon: 'info',
-                title: browser.i18n.getMessage('hidePageActionConfirmTitle'),
-                text: browser.i18n.getMessage('hidePageActionConfirmText'),
-                showCloseButton: true,
-                showCancelButton: true,
-                confirmButtonText: browser.i18n.getMessage('hidePageActionConfirmBtn'),
-                cancelButtonText: browser.i18n.getMessage('cancelBtn'),
-            },
-            confirmAction: { kind: 'hidePageAction' },
-        });
+        void syncPageActionMenu(visible);
     };
 
     // 显示地址栏图标 (Firefox)
@@ -316,13 +291,6 @@ export default defineBackground(() => {
 
     // 内容脚本消息处理
     const handleContentScriptMessage = (request: any, _sender: Browser.runtime.MessageSender, sendResponse: (response: any) => void) => {
-        // 确认通知点击"隐藏图标"后才真正隐藏地址栏图标
-        if (request.action === "hidePageActionConfirmed") {
-            setPageActionVisible(false)
-                .then(() => sendResponse({ success: true }))
-                .catch(() => sendResponse({ success: false }));
-            return true;
-        }
         // 页面通知转发到 popup
         if (request.action === "showNotification") {
             showPopupNotification(request.payload)

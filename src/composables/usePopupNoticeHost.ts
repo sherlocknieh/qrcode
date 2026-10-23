@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted } from 'vue';
-import { useNotify } from '@/composables/useNotify';
+import { useNotify, type NotifyOptions } from '@/composables/useNotify';
+import { copyText } from '@/services/clipboard';
 import { toOpenableUrl } from '@/services/linkText';
 import {
     POPUP_NOTICE_KEY,
@@ -28,24 +29,39 @@ export function usePopupNoticeHost() {
             }
             return;
         }
-        if (action.kind === 'hidePageAction') {
-            // 用户确认后再由后台隐藏地址栏图标
-            try {
-                await browser.runtime.sendMessage({ action: 'hidePageActionConfirmed' });
-            } catch {
-                // 后台不可用时保持安静
-            }
-            return;
-        }
         if (action.kind === 'open') {
             window.open(toOpenableUrl(action.value), '_blank');
             return;
         }
-        try {
-            await navigator.clipboard.writeText(action.value);
-        } catch {
-            // 复制失败时保持安静, 避免再叠一层通知
+        await copyText(action.value);
+    }
+
+    // 复制按钮不结束通知: 复制成功后原地提示, 用户仍可点击其他按钮
+    function attachCopyHandlers(
+        options: NotifyOptions,
+        record: PopupNoticeRecord,
+    ): NotifyOptions {
+        if (record.confirmAction?.kind === 'copy') {
+            const value = record.confirmAction.value;
+            options.onConfirm = () => copyText(value);
         }
+        if (record.cancelAction?.kind === 'copy') {
+            const value = record.cancelAction.value;
+            options.onCancel = () => copyText(value);
+        }
+        return options;
+    }
+
+    // 复制按钮已就地处理, 不再重复执行对应动作
+    function resolveAction(record: PopupNoticeRecord, response: Awaited<ReturnType<typeof fire>>) {
+        const action = response.isConfirmed
+            ? record.confirmAction
+            : response.dismiss === 'cancel'
+                ? record.cancelAction
+                : response.dismiss === 'extra'
+                    ? record.extraAction
+                    : undefined;
+        return action?.kind === 'copy' ? undefined : action;
     }
 
     async function present(record?: PopupNoticeRecord) {
@@ -64,35 +80,20 @@ export function usePopupNoticeHost() {
                 activeId = null;
                 // 被后续通知替换时保持 popup 打开, 由新通知继续接管
                 if (response.dismiss === 'replaced') return;
-                const action = response.isConfirmed
-                    ? record.confirmAction
-                    : response.dismiss === 'cancel'
-                        ? record.cancelAction
-                        : response.dismiss === 'extra'
-                            ? record.extraAction
-                            : undefined;
-                await runAction(action);
+                await runAction(resolveAction(record, response));
                 void browser.runtime.sendMessage({ action: 'notificationResolved', id: record.id }).catch(() => {});
                 window.close();
             });
             return;
         }
 
-        const response = await fire({ ...options });
+        const response = await fire(attachCopyHandlers({ ...options }, record));
         if (activeId !== record.id) return;
         activeId = null;
 
-        const action = response.isConfirmed
-            ? record.confirmAction
-            : response.dismiss === 'cancel'
-                ? record.cancelAction
-                : response.dismiss === 'extra'
-                    ? record.extraAction
-                    : undefined;
-        await runAction(action);
+        await runAction(resolveAction(record, response));
 
         void browser.runtime.sendMessage({ action: 'notificationResolved', id: record.id }).catch(() => {});
-        // popup 本身就是通知窗口, 处理完直接关闭
         window.close();
     }
 

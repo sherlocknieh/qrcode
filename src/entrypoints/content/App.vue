@@ -13,7 +13,8 @@ import { isLinkText, toOpenableUrl } from '@/services/linkText';
 
 // UI组件
 import NotifyHost from '@/components/NotifyHost.vue';
-import { useNotify } from '@/composables/useNotify';
+import { useNotify, type NotifyOptions } from '@/composables/useNotify';
+import { copyText } from '@/services/clipboard';
 import { useScreenshot, type ScreenshotResult } from '@/composables/useScreenshot';
 import {
     showPopupNotice,
@@ -26,10 +27,11 @@ const { fire, showLoading } = useNotify();
 const { startScreenshot } = useScreenshot();
 
 // popup 无法显示时的页面内兜底通知
-function fireLocal(payload: PopupNoticePayload) {
+function fireLocal(payload: PopupNoticePayload, overrides: NotifyOptions = {}) {
     const { loading, ...options } = payload.options;
     return fire({
         ...options,
+        ...overrides,
         didOpen: loading ? () => showLoading() : undefined,
     });
 }
@@ -64,21 +66,18 @@ async function notifyResult(result: DecodeResult) {
     if (await showPopupNotice(payload)) return;
 
     // popup 不可用时在页面内展示并处理结果
-    const response = await fireLocal(payload);
+    const response = await fireLocal(payload, {
+        // 复制按钮不关闭通知, 成功后按钮文字变为已复制, 期间仍可点击其他按钮
+        onConfirm: payload.confirmAction?.kind === 'copy'
+            ? () => copyText(result.text)
+            : undefined,
+        onCancel: payload.cancelAction?.kind === 'copy'
+            ? () => copyText(result.text)
+            : undefined,
+    });
 
-    if (isLink) {
-        if (response.isConfirmed) {
-            window.open(toOpenableUrl(result.text), '_blank');
-            return;
-        }
-        if (response.dismiss === 'cancel') {
-            await navigator.clipboard.writeText(result.text);
-        }
-        return;
-    }
-
-    if (response.isConfirmed) {
-        await navigator.clipboard.writeText(result.text);
+    if (isLink && response.isConfirmed) {
+        window.open(toOpenableUrl(result.text), '_blank');
     }
 }
 

@@ -4,6 +4,7 @@ import qrcode from 'qrcode-generator';
 import { decodeQrFromImageData, getImageDataFromDataUrl, type DecodeResult } from '@/services/qrScanner';
 import { isLinkText, toOpenableUrl } from '@/services/linkText';
 import { useNotify, notifyState } from '@/composables/useNotify';
+import { copyText } from '@/services/clipboard';
 import { usePopupNoticeHost } from '@/composables/usePopupNoticeHost';
 import NotifyHost from '@/components/NotifyHost.vue';
 
@@ -162,6 +163,9 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
     confirmButtonText: isLink ? t('openLink') : t('copyContent'),
     cancelButtonText: isLink ? t('copyLink') : undefined,
     showCloseButton: true,
+    // 复制按钮不关闭通知, 成功后按钮文字变为已复制, 期间仍可点击打开链接
+    onConfirm: isLink ? undefined : () => copyText(result.text),
+    onCancel: isLink ? () => copyText(result.text) : undefined,
   });
 
   // popup 本身就是通知窗口, 点关闭按钮时只关闭通知会留下空白窗口, 因此一并收起
@@ -170,19 +174,8 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
     return;
   }
 
-  if (isLink) {
-    if (response.isConfirmed) {
-      window.open(toOpenableUrl(result.text), '_blank');
-      return;
-    }
-    if (response.dismiss === 'cancel') {
-      await navigator.clipboard.writeText(result.text);
-    }
-    return;
-  }
-
-  if (response.isConfirmed) {
-    await navigator.clipboard.writeText(result.text);
+  if (isLink && response.isConfirmed) {
+    window.open(toOpenableUrl(result.text), '_blank');
   }
 }
 
