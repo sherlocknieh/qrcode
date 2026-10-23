@@ -137,7 +137,7 @@
     "description": "复制按钮文字"
   },
   "recognitionFailedMsg": {
-    "message": "可能是不支持的码\n也可能是图片不够清晰\n可以尝试截图精确选区识别",
+    "message": "未识别到有效的二维码或条形码，也许是不支持的码类型\n也许是图片不清晰或码面过度扭曲\n可以试试截图精确选区识别",
     "description": "未识别到二维码或条形码时的提示"
   },
   "recognitionFailed": {

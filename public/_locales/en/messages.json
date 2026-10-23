@@ -69,7 +69,7 @@
     "description": "Generic error title"
   },
   "crossOriginNotice": {
-    "message": "Cross-Origin Image, Might Take a Minute to Load",
+    "message": "Cross-Origin Image, Might Take Seconds to Load",
     "description": "Notice for slower cross-origin fetch"
   },
   "openImage": {
@@ -97,7 +97,7 @@
     "description": "Error title for screenshot operation failure"
   },
   "screenshotFailedMsg": {
-    "message": "The Screenshot Could Not Be Captured. Make Sure the Page Is a Regular Web Page and Try Again.",
+    "message": "The screenshot could not be captured. Make sure the page is a regular web page and try again.",
     "description": "Message shown when screenshot scan fails"
   },
   "screenshotCancelled": {
@@ -121,7 +121,7 @@
     "description": "Button that confirms the selected area for QR decoding"
   },
   "screenshotHint": {
-    "message": "Select the Area You Need to Scan",
+    "message": "Select a Area to Scan",
     "description": "Hint telling the user to drag-select the area to scan"
   },
   "confirm": {
@@ -137,7 +137,7 @@
     "description": "Copy button text"
   },
   "recognitionFailedMsg": {
-    "message": "No QR Code or Barcode Found, Maybe the Image Isn't Clear Enough.\nTry Taking a Screenshot and Selecting a Smaller Area.",
+    "message": "No Valid Code Found, Maybe the image is too blurry or twisted.\nTry take a screenshot and select a more clear area.",
     "description": "Message shown when screenshot scan fails"
   },
   "recognitionFailed": {
