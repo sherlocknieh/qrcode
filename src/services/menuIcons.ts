@@ -30,6 +30,9 @@ const MENU_ICONS = {
     screenshot: icon('screenshot',
         '<path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h1.7L6 2.5h4L10.8 4h1.7A1.5 1.5 0 0 1 14 5.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>'
         + '<circle cx="8" cy="8.5" r="2.3"/>'),
+    screenshotQuick: icon('screenshotQuick',
+        '<path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h1.7L6 2.5h4L10.8 4h1.7A1.5 1.5 0 0 1 14 5.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>'
+        + '<path d="m5.8 8.6 1.5 1.5 2.9-3"/>'),
     image: icon('image',
         '<rect x="2" y="3" width="12" height="10" rx="1.5"/>'
         + '<circle cx="5.5" cy="6.5" r="1"/>'

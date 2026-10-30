@@ -2,9 +2,18 @@
 import { defineConfig } from 'wxt';
 import { resolve } from 'node:path';
 
+// dev 时每个浏览器用独立 profile 和调试端口, 多个浏览器才能同时运行
+const devBrowser = process.env.WXT_DEV_BROWSER ?? 'chrome';
+const cdpPort = process.env.WXT_DEV_CDP_PORT ?? '';
+
+const binaries: Record<string, string> = {};
+if (process.env.WXT_DEV_CHROME_BINARY) binaries.chrome = process.env.WXT_DEV_CHROME_BINARY;
+if (process.env.WXT_DEV_EDGE_BINARY) binaries.edge = process.env.WXT_DEV_EDGE_BINARY;
+if (process.env.WXT_DEV_FIREFOX_BINARY) binaries.firefox = process.env.WXT_DEV_FIREFOX_BINARY;
+
 // 确保 dev profile 目录存在
 import { mkdirSync } from 'node:fs';
-mkdirSync('.wxt/dev-profile/chrome', { recursive: true });
+mkdirSync(`.wxt/dev-profile/${devBrowser}`, { recursive: true });
 mkdirSync('.wxt/dev-profile/firefox', { recursive: true });
 
 // See https://wxt.dev/api/config.html
@@ -13,15 +22,19 @@ export default defineConfig({
   srcDir: 'src',                    // 自定义源码目录
   webExt: {
     keepProfileChanges: true,       // 记忆浏览器配置变更, 防止每次调试都打开全新无配置的浏览器
-    chromiumProfile: resolve('.wxt/dev-profile/chrome'), // 调试时 Chromium 配置文件路径
+    chromiumProfile: resolve(`.wxt/dev-profile/${devBrowser}`), // 调试时 Chromium 配置文件路径(按浏览器隔离)
     firefoxProfile: resolve('.wxt/dev-profile/firefox'), // 调试时 Firefox 配置文件路径
+    chromiumArgs: cdpPort ? [`--remote-debugging-port=${cdpPort}`] : [], // 暴露调试端口, 供 .dev/pin-dev-extension.mjs 自动固定工具栏图标
+    binaries: Object.keys(binaries).length > 0 ? binaries : undefined, // 由 .dev/dev.mjs 探测后传入
     // 调试时自动打开的页面
     startUrls: [
       'about:newtab',
+      'https://inftab.com/',
       'https://en.wikipedia.org/wiki/QR_code',
       'https://en.wikipedia.org/wiki/Barcode',
       'https://www.deepseek.com/images/app-qrcode.png',
-      'https://inftab.com/',
+      'https://pdfobject.com/pdf/sample.pdf',
+      'https://app.trakt.tv/favicon.svg',
     ],
   },
   manifest: {

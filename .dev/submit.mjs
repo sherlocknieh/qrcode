@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 跨平台提交脚本：清理旧包 -> 构建 ZIP -> 提交到商店
-// 用法: node scripts/submit.mjs [chrome|edge|firefox|all] [--dry-run ...]
+// 用法: node .dev/submit.mjs [chrome|edge|firefox|all] [--dry-run ...]
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';

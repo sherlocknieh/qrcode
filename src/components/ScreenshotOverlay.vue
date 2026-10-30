@@ -170,6 +170,9 @@ const showToolbar = computed(
     () => phase.value === 'select' && loaded.value && hasSelection.value,
 );
 
+// 全选/复制/保存与关闭按钮固定在右上角, 未框选时也可直接作用于整张截图
+const showActions = computed(() => loaded.value && !busy.value);
+
 // 入场动画结束后、尚未框选时提示用户拖动框选
 const showHint = computed(
     () => phase.value === 'select' && loaded.value && !busy.value && !hasSelection.value,
@@ -487,13 +490,18 @@ const selectAll = () => {
     };
 };
 
-const getSelectionDataUrl = (): string => {
-    if (busy.value || !selection.value || !hasSelection.value) return '';
-    return cropSelection(selection.value);
+// 有选区时输出选区, 否则输出整张截图
+const getOutputDataUrl = (): string => {
+    if (busy.value) return '';
+    const rect =
+        selection.value && hasSelection.value
+            ? selection.value
+            : { x: 0, y: 0, width: layout.value.width, height: layout.value.height };
+    return cropSelection(rect);
 };
 
 const copySelection = async () => {
-    const dataUrl = getSelectionDataUrl();
+    const dataUrl = getOutputDataUrl();
     if (!dataUrl) return;
     const success = await copyImage(dataUrl);
     showStatus(
@@ -506,7 +514,7 @@ const copySelection = async () => {
 };
 
 const saveSelection = () => {
-    const dataUrl = getSelectionDataUrl();
+    const dataUrl = getOutputDataUrl();
     if (!dataUrl) return;
     try {
         saveImage(dataUrl);
@@ -608,8 +616,8 @@ const handleKeyDown = (event: KeyboardEvent) => {
         confirm();
         return;
     }
-    // Ctrl/Cmd+C 复制选区, Ctrl/Cmd+S 保存选区
-    if (hasSelection.value && (event.ctrlKey || event.metaKey) && !event.altKey) {
+    // Ctrl/Cmd+C 复制截图(选区或整图), Ctrl/Cmd+S 保存截图
+    if ((event.ctrlKey || event.metaKey) && !event.altKey) {
         const key = event.key.toLowerCase();
         if (key === 'c') {
             event.preventDefault();
@@ -658,8 +666,6 @@ watch(
     },
     { flush: 'post' },
 );
-
-watch(status, () => nextTick(updateToolbarPosition), { flush: 'post' });
 
 onMounted(() => {
     window.addEventListener('pointermove', handlePointerMove);
@@ -732,34 +738,106 @@ onBeforeUnmount(() => {
         <span v-if="showSizeLabel" class="qr-shot-size" :style="sizeLabelStyle">
             {{ sizeLabel }}
         </span>
-        <!-- 截图工具栏 -->
-        <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
+        <!-- 截图操作组: 全选/复制/保存/关闭固定在右上角 -->
+        <div v-if="showActions" class="qr-shot-actions">
             <span
                 v-if="status"
                 class="qr-shot-status"
                 :class="`qr-shot-status--${status.kind}`"
                 aria-live="polite"
             >{{ status.text }}</span>
-            <button class="qr-shot-btn" type="button" @click="selectAll">
-                {{ t('screenshotSelectAll', 'Select all') }}
+            <button
+                class="qr-shot-btn qr-shot-btn--icon"
+                type="button"
+                :aria-label="t('screenshotSelectAll', 'Select all')"
+                :title="t('screenshotSelectAll', 'Select all')"
+                @click="selectAll"
+            >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                        d="M8 3H6.5A2.5 2.5 0 0 0 4 5.5V7m4 14H6.5A2.5 2.5 0 0 1 4 18.5V17m16-9.5V6.5A2.5 2.5 0 0 0 17.5 4H16m4 13.5v1A2.5 2.5 0 0 1 17.5 21H16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                    />
+                    <rect
+                        x="8"
+                        y="8"
+                        width="8"
+                        height="8"
+                        rx="1.4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                    />
+                </svg>
             </button>
-            <button class="qr-shot-btn" type="button" @click="copySelection">
-                {{ t('screenshotCopy', 'Copy') }}
+            <button
+                class="qr-shot-btn qr-shot-btn--icon"
+                type="button"
+                :aria-label="t('screenshotCopy', 'Copy')"
+                :title="t('screenshotCopy', 'Copy')"
+                @click="copySelection"
+            >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <rect
+                        x="9"
+                        y="9"
+                        width="11"
+                        height="11"
+                        rx="2"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                    />
+                    <path
+                        d="M15 6.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                    />
+                </svg>
             </button>
-            <button class="qr-shot-btn" type="button" @click="saveSelection">
-                {{ t('screenshotSave', 'Save') }}
+            <button
+                class="qr-shot-btn qr-shot-btn--icon"
+                type="button"
+                :aria-label="t('screenshotSave', 'Save')"
+                :title="t('screenshotSave', 'Save')"
+                @click="saveSelection"
+            >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                        d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                    <path
+                        d="M5 15.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                    />
+                </svg>
             </button>
+            <button
+                class="qr-shot-close"
+                type="button"
+                :aria-label="t('closeBtn', 'Close')"
+                @click="cancel"
+            >×</button>
+        </div>
+        <!-- 截图工具栏 -->
+        <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
             <button class="qr-shot-btn primary" type="button" @click="confirm">
                 {{ t('screenshotConfirm', 'Scan') }}
             </button>
         </div>
-        <!-- 截图关闭按钮 -->
-        <button
-            class="qr-shot-close"
-            type="button"
-            :aria-label="t('closeBtn', 'Close')"
-            @click="cancel"
-        >×</button>
     </div>
 </template>
 
@@ -898,7 +976,7 @@ onBeforeUnmount(() => {
 
 .qr-shot-hint {
     position: absolute;
-    top: 16px;
+    top: 58px;
     left: 50%;
     max-width: calc(100% - 96px);
     margin: 0;
@@ -924,6 +1002,55 @@ onBeforeUnmount(() => {
 .qr-shot-hint-fade-enter-from,
 .qr-shot-hint-fade-leave-to {
     opacity: 0;
+}
+
+.qr-shot-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: calc(100% - 20px);
+    color: #fff;
+    font: 12px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
+    white-space: nowrap;
+}
+
+.qr-shot-actions .qr-shot-btn--icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-color: rgba(255, 255, 255, 0.72);
+    border-radius: 50%;
+    background: rgba(25, 25, 25, 0.82);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.qr-shot-actions .qr-shot-btn--icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.qr-shot-actions .qr-shot-btn--icon:hover {
+    background: rgba(60, 60, 60, 0.92);
+}
+
+.qr-shot-actions .qr-shot-status {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(25, 25, 25, 0.82);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 .qr-shot-toolbar {
@@ -993,9 +1120,7 @@ onBeforeUnmount(() => {
 }
 
 .qr-shot-close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+    flex: 0 0 auto;
     width: 30px;
     height: 30px;
     padding: 0;

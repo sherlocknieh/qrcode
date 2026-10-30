@@ -23,6 +23,10 @@
     "message": "Scan via Screenshot",
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
+  "screenShotQuick": {
+    "message": "Quick Screen Scan",
+    "description": "Context menu item for capturing the screen and scanning it directly without selecting an area"
+  },
   "scanImage": {
     "message": "Scan Local/Clipboard Image",
     "description": "Toolbar context menu item that opens the image scanning page (local file or clipboard)"
@@ -131,7 +135,6 @@
     "message": "Copy All",
     "description": "Copy all button for the batch result list"
   },
-
   "imageFetchFailed": {
     "message": "Couldn't Load Image",
     "description": "Error dialog title for image loading failure"

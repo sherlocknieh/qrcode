@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { nextTick, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import qrcode from 'qrcode-generator';
 import {
   decodeAllFromImageData,
@@ -293,6 +293,38 @@ onMounted(async () => {
 
   // 左键点击工具栏图标始终执行默认操作: 生成当前页面地址的二维码
   render(await resolveQrText());
+});
+
+// popup 是独立窗口, 通知结束后若没有任何内容会留下空白窗口;
+// 只在展示过通知、且既无二维码也无识别结果时才关闭
+let hadNotice = false;
+let emptyTimer: number | undefined;
+watch(
+  () => notifyState.open,
+  (open) => {
+    if (open) {
+      hadNotice = true;
+      if (emptyTimer !== undefined) {
+        window.clearTimeout(emptyTimer);
+        emptyTimer = undefined;
+      }
+      return;
+    }
+    if (!hadNotice) return;
+    if (emptyTimer !== undefined) window.clearTimeout(emptyTimer);
+    emptyTimer = window.setTimeout(() => {
+      emptyTimer = undefined;
+      if (notifyState.open || hasQrContent.value || scanActive.value) return;
+      window.close();
+    }, 320);
+  },
+);
+
+onBeforeUnmount(() => {
+  if (emptyTimer !== undefined) {
+    window.clearTimeout(emptyTimer);
+    emptyTimer = undefined;
+  }
 });
 
 

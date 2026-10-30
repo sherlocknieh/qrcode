@@ -8,11 +8,11 @@
     "description": "应用描述"
   },
   "generateQR_link": {
-    "message": "为所选链接生成二维码",
+    "message": "链接 → 二维码",
     "description": "右键菜单项：为选中的链接生成二维码"
   },
   "generateQR_selection": {
-    "message": "为所选文字生成二维码",
+    "message": "文字 → 二维码",
     "description": "右键菜单项：为选中的文字生成二维码"
   },
   "decodeQR": {
@@ -20,8 +20,12 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "screenShot": {
-    "message": "截图扫描",
+    "message": "扫描屏幕",
     "description": "右键菜单项：截图扫描二维码/条形码"
+  },
+  "screenShotQuick": {
+    "message": "一键截屏识别",
+    "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
   },
   "scanImage": {
     "message": "识别本地/剪贴板图片",
@@ -217,7 +221,7 @@
     "description": "确认选区并识别二维码的按钮"
   },
   "screenshotHint": {
-    "message": "拖动鼠标框选区域，可复制、保存或识别",
+    "message": "拖动鼠标框选区域",
     "description": "截图界面上提示用户框选区域的文字"
   },
   "confirm": {
@@ -233,7 +237,7 @@
     "description": "复制按钮文字"
   },
   "recognitionFailedMsg": {
-    "message": "未发现有效的码",
+    "message": "未发现有效的二维码/条形码",
     "description": "识别失败的提示"
   },
   "recognitionFailed": {

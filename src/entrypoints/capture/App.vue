@@ -4,6 +4,8 @@ import { onMounted, ref } from 'vue';
 import NotifyHost from '@/components/NotifyHost.vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
 import { useNotify } from '@/composables/useNotify';
+import { useQuickScanAnimation } from '@/composables/useQuickScanAnimation';
+import { preloadImageData } from '@/services/screenshotPreload';
 import { copyText } from '@/services/clipboard';
 import { isLinkText, toOpenableUrl } from '@/services/linkText';
 import {
@@ -15,10 +17,14 @@ import {
 // background 截取视口后写入该键, 本页面读取后立即清除
 const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 
+// direct=1: 后台已判定当前页无法注入内容脚本, 直接识别整张截图, 不展示框选界面
+const directMode = new URLSearchParams(window.location.search).has('direct');
+
 // 优先使用内存态的 session 存储, 不可用时回退 local
 const storageArea = () => browser.storage.session ?? browser.storage.local;
 
 const { fire, close, showLoading } = useNotify();
+const quickScanAnimation = useQuickScanAnimation();
 
 const t = (key: Parameters<typeof browser.i18n.getMessage>[0]) =>
     browser.i18n.getMessage(key) || String(key);
@@ -88,8 +94,7 @@ async function showResult(result: DecodeResult) {
     if (!copied) closeTab();
 }
 
-async function handleConfirm(dataUrl: string) {
-    src.value = '';
+async function showDecodingNotice() {
     void fire({
         toast: true,
         icon: 'info',
@@ -97,12 +102,36 @@ async function handleConfirm(dataUrl: string) {
         didOpen: () => showLoading(),
         showCloseButton: true,
     });
+    // 等待通知渲染后再做计算密集的解码, 避免界面卡顿
     await new Promise((resolve) => setTimeout(resolve, 50));
+}
+
+async function handleConfirm(dataUrl: string) {
+    src.value = '';
+
+    // 直出模式没有框选界面: 先播放整屏扫描动画, 动画结束再弹出识别通知;
+    // 读图与动画并行, 但通知一定要等动画播完
+    let preloaded: ReturnType<typeof preloadImageData> | undefined;
+    if (directMode) {
+        preloaded = preloadImageData(dataUrl);
+        await quickScanAnimation.play();
+    }
+
+    await showDecodingNotice();
 
     let results: DecodeResult[];
     try {
-        results = await decodeAllFromImageData(await getImageDataFromDataUrl(dataUrl));
+        let imageData: ImageData;
+        if (preloaded) {
+            const settled = await preloaded;
+            if (!settled.ok) throw settled.error;
+            imageData = settled.imageData;
+        } else {
+            imageData = await getImageDataFromDataUrl(dataUrl);
+        }
+        results = await decodeAllFromImageData(imageData);
     } catch (error) {
+        quickScanAnimation.stop();
         close();
         await showError(
             t('screenshotFailed'),
@@ -112,6 +141,7 @@ async function handleConfirm(dataUrl: string) {
         return;
     }
 
+    quickScanAnimation.stop();
     close();
 
     if (!results.length) {
@@ -146,6 +176,11 @@ onMounted(async () => {
         const stored = await takeStoredImage();
         if (!stored) {
             await handleLoadError();
+            return;
+        }
+        // 直出模式跳过框选, 直接识别整张截图
+        if (directMode) {
+            await handleConfirm(stored);
             return;
         }
         src.value = stored;

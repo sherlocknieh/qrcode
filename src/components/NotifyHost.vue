@@ -306,8 +306,9 @@ onBeforeUnmount(() => {
 .qr-notify-root--embedded {
     position: relative;
     inset: auto;
-    width: 100%;
-    min-width: 300px;
+    /* 固定宽度: popup 打开后浏览器不会再缩小窗口, 宽度随内容变化会显得忽宽忽窄 */
+    width: 360px;
+    min-width: 360px;
     pointer-events: auto;
     background: #fff;
 }
@@ -598,7 +599,6 @@ onBeforeUnmount(() => {
 }
 
 .qr-notify-btn {
-    flex: 1 1 0;
     max-width: 160px;
     min-width: 92px;
     padding: 8px 16px;

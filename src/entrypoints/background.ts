@@ -31,25 +31,17 @@ export default defineBackground(() => {
 
 
     // 打开 popup 窗口
-    // 优先使用 pageAction.openPopup, 被拒绝时回退到 action.openPopup
+    // 优先使用 pageAction.openPopup, 不可用或被拒绝时回退 action.openPopup
     const openPopup = async () => {
-        type OpenPopupCapable = { openPopup?: () => Promise<void> };
-        const candidates = [
-            browser.action as unknown as OpenPopupCapable | undefined,
-            browser.pageAction as unknown as OpenPopupCapable | undefined,
-        ].filter((api): api is OpenPopupCapable => typeof api?.openPopup === 'function');
-
-        let lastError: unknown = new Error('openPopup is unavailable');
-        for (const api of candidates) {
-            try {
-                await api.openPopup!();
-                lastPopupOpenAt = Date.now();
-                return;
-            } catch (error) {
-                lastError = error;
-            }
+        // 类型声明里 pageAction 没有 openPopup, 但 Firefox 运行时提供
+        const pageAction = browser.pageAction as unknown as { openPopup?: () => Promise<void> } | undefined;
+        try {
+            if (!pageAction?.openPopup) throw new Error('unavailable');
+            await pageAction.openPopup();
+        } catch {
+            await browser.action.openPopup();
         }
-        throw lastError;
+        lastPopupOpenAt = Date.now();
     };
 
     // 页面通知先写入存储, 保证 popup 打开后能读到; 已打开的 popup 直接通过长连接推送
@@ -123,16 +115,24 @@ export default defineBackground(() => {
     };
 
     // Firefox 浏览器内置 PDF 阅读器页面无法注入内容脚本, 此时截取当前视口,
-    // 再在新标签页中框选识别
+    // 再在新标签页中框选识别; direct 为 true 时由该页直接识别整图
     const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
-    const showCropScan = async (windowId?: number): Promise<boolean> => {
+
+    // 截取当前视口 (必须在后台调用, 否则会触发屏幕共享提示并压缩视口)
+    const captureVisibleArea = (windowId?: number): Promise<string> =>
+        windowId == null
+            ? browser.tabs.captureVisibleTab({ format: 'png' })
+            : browser.tabs.captureVisibleTab(windowId, { format: 'png' });
+
+    const showCropScan = async (windowId?: number, direct = false): Promise<boolean> => {
         try {
-            const dataUrl = windowId == null
-                ? await browser.tabs.captureVisibleTab({ format: 'png' })
-                : await browser.tabs.captureVisibleTab(windowId, { format: 'png' });
+            const dataUrl = await captureVisibleArea(windowId);
             // 截图体积较大, 交给扩展页面读取后立即清除
             await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
-            await browser.tabs.create({ url: browser.runtime.getURL('/capture.html') });
+            // direct 表示整图直接识别, capture 页不再展示框选界面
+            await browser.tabs.create({
+                url: browser.runtime.getURL('/capture.html') + (direct ? '?direct=1' : ''),
+            });
             return true;
         } catch (error) {
             await showPopupNotification({
@@ -158,6 +158,30 @@ export default defineBackground(() => {
             // 内容脚本未注入, 走下面的兜底
         }
         return showCropScan(windowId);
+    };
+
+    // 一键截屏识别: 不做交互选区, 由内容脚本直接截取视口并识别整图;
+    // 无法注入内容脚本的页面 (如 Firefox 内置 PDF 阅读器) 截取视口后
+    // 直接交给 popup 就地识别, 避免为了识别整图再开一个标签页
+    const requestQuickScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
+        try {
+            const response = await browser.tabs.sendMessage(tabId, { action: "screenshotQRDirect" }) as { success?: boolean } | undefined;
+            if (response?.success !== false) return true;
+        } catch {
+            // 内容脚本未注入, 走下面的兜底
+        }
+        try {
+            const dataUrl = await captureVisibleArea(windowId);
+            // 与右键图片识别共用交接方式: 写入图片地址后由 popup 读取并识别
+            await storageArea().set({ qrImageUrl: dataUrl });
+            // popup 已打开时会通过 storage.onChanged 自动开始识别, 不要重复打开
+            if (popupPort) return true;
+            await openPopup();
+            return true;
+        } catch {
+            // popup 无法打开时退回新标签页识别
+            return showCropScan(windowId, true);
+        }
     };
 
     // 打开独立识别页: 文件选择框会让 popup 失去焦点并关闭, 因此本地图片
@@ -187,82 +211,70 @@ export default defineBackground(() => {
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
     type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
-        | 'screenShot' | 'generateQR_link' | 'scanImage'
+        | 'screenShot' | 'screenShotQuick' | 'generateQR_link' | 'scanImage'
         | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji: string) => {
         const title = browser.i18n.getMessage(key);
         return import.meta.env.FIREFOX ? title : `${emoji} ${title}`;
     };
 
-    // 重建右键菜单: 先清空再创建, 因此可以重复执行;
-    // 串行化避免两次并发执行时 removeAll/create 交错导致 "duplicate id"
-    const buildContextMenus = async () => {
+    // 右键菜单初始化
+    const addContextMenus = async () => {
         const pageActionVisible = await isPageActionVisible();
-        try {
-            // 用回调形式等待完成: 旧版本 Chrome 的 removeAll 不支持 Promise
-            await new Promise<void>((resolve) => browser.contextMenus.removeAll(() => resolve()));
-        } catch {
-            // 菜单不存在时部分浏览器会报错, 忽略即可
-        }
-        const create = (props: Browser.contextMenus.CreateProperties) => {
-            try {
-                browser.contextMenus.create(props);
-            } catch (error) {
-                console.warn('contextMenus.create failed:', props.id, error);
-            }
-        };
-
-        // 添加菜单: 识别图中二维码
-        create({
-            id: "decodeQR",
-            title: menuTitle("decodeQR", "🔍"),
-            contexts: ["image"],
-            ...menuIcons("scan")
-        });
-        // 添加菜单: 选中文字生成二维码
-        create({
-            id: "generateQR_selection",
-            title: menuTitle("generateQR_selection", "📝"),
-            contexts: ["selection"],
-            ...menuIcons("text")
-        });
-        // 添加菜单: 截屏识别二维码 (网页右键的通用入口, 默认识别框选区域)
-        create({
-            id: "screenshotQR",
-            title: menuTitle("screenShot", "📷"),
-            // 显示在: 网页右键, 图片右键, 扩展图标右键, 地址栏图标右键
-            contexts: ["page", "image", "action", "page_action"],
-            ...menuIcons("screenshot")
-        });
-        // 添加菜单: 打开本地图片或剪贴板图片识别
-        create({
-            id: "scanImage",
-            title: menuTitle("scanImage", "🖼️"),
-            contexts: ["action", "page_action"],
-            ...menuIcons("image")
-        });
-        // 添加菜单: 链接生成二维码
-        create({
-            id: "generateQR_link",
-            title: menuTitle("generateQR_link", "🔗"),
-            contexts: ["link"],
-            ...menuIcons("link")
-        });
-        // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
-        if (browser.pageAction) {
-            create({
-                id: "togglePageAction",
-                title: menuTitle(pageActionVisible ? "hidePageAction" : "showPageAction", pageActionVisible ? "🚫" : "👁️"),
-                contexts: ["action"],
-                ...menuIcons(pageActionVisible ? "hide" : "show")
+        browser.contextMenus.removeAll(() => {
+            // 添加菜单: 识别图中二维码
+            browser.contextMenus.create({
+                id: "decodeQR",
+                title: menuTitle("decodeQR", "🔍"),
+                contexts: ["image"],
+                ...menuIcons("scan")
             });
-        }
-    };
-
-    let menuQueue: Promise<void> = Promise.resolve();
-    const addContextMenus = () => {
-        menuQueue = menuQueue.then(buildContextMenus, buildContextMenus);
-        return menuQueue;
+            // 添加菜单: 选中文字生成二维码
+            browser.contextMenus.create({
+                id: "generateQR_selection",
+                title: menuTitle("generateQR_selection", "📝"),
+                contexts: ["selection"],
+                ...menuIcons("text")
+            });
+            // 添加菜单: 截屏识别二维码 (网页右键的通用入口, 默认识别框选区域)
+            browser.contextMenus.create({
+                id: "screenshotQR",
+                title: menuTitle("screenShot", "📷"),
+                // 显示在: 网页右键, 扩展图标右键, 地址栏图标右键
+                contexts: ["action", "page_action"],
+                ...menuIcons("screenshot")
+            });
+            // 添加菜单: 一键截屏识别 (直接识别整屏, 不进入选区)
+            browser.contextMenus.create({
+                id: "screenshotQRQuick",
+                title: menuTitle("screenShotQuick", "⚡"),
+                contexts: ["page", "action", "page_action"],
+                ...menuIcons("screenshotQuick")
+            });
+            // 添加菜单: 打开本地图片或剪贴板图片识别
+            browser.contextMenus.create({
+                id: "scanImage",
+                title: menuTitle("scanImage", "🖼️"),
+                contexts: ["action", "page_action"],
+                ...menuIcons("image")
+            });
+            // // 添加菜单: 链接生成二维码
+            // browser.contextMenus.create({
+            //     id: "generateQR_link",
+            //     title: menuTitle("generateQR_link", "🔗"),
+            //     contexts: ["link"],
+            //     ...menuIcons("link")
+            // });
+            // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
+            if (browser.pageAction) {
+                browser.contextMenus.create({
+                    id: "togglePageAction",
+                    title: menuTitle(pageActionVisible ? "hidePageAction" : "showPageAction", pageActionVisible ? "🚫" : "👁️"),
+                    contexts: ["action"],
+                    ...menuIcons(pageActionVisible ? "hide" : "show")
+                });
+            }
+        });
     };
 
     // 右键菜单点击事件处理
@@ -288,10 +300,14 @@ export default defineBackground(() => {
             showQRcode(info.selectionText);
         } else if (info.menuItemId === "decodeQR") {
             // 页面图片二维码识别, 识别过程的提示统一由 popup 显示
+            // 此URL是包含域名的完整URL, 无论图片是否用了相对路径
             browser.tabs.sendMessage(tabId, {
                 action: "decodeQR",
                 imageUrl: info.srcUrl
-            });   // 此URL是包含域名的完整URL, 无论图片是否用了相对路径
+            }).catch(() => {
+                // SVG 等无法注入内容脚本的页面: 交给 popup 就地识别图片地址, 不必新开标签
+                showQrFromImagePage(info.srcUrl);
+            });
         } else if (info.menuItemId === "screenshotQR") {
             // 直接打开的 SVG 文档无法框选截图, 直接解码页面地址
             if (isSvgDocumentUrl(tab?.url)) {
@@ -301,6 +317,13 @@ export default defineBackground(() => {
             // 截图识别二维码: 优先使用内容脚本的区域截图 (Chrome 的 PDF 页面也能注入);
             // 内容脚本不可用(如 Firefox 内置 PDF 阅读器)时, 改为截取视口后框选识别
             void requestAreaScreenshot(tabId, tab?.windowId);
+        } else if (info.menuItemId === "screenshotQRQuick") {
+            // 一键截屏识别: 直接识别当前视口, 全程没有框选交互
+            if (isSvgDocumentUrl(tab?.url)) {
+                showQrFromImagePage(info.pageUrl ?? tab?.url);
+                return;
+            }
+            void requestQuickScreenshot(tabId, tab?.windowId);
         } else if (info.menuItemId === "generateQR_link") {
             // 链接生成二维码
             showQRcode(info.linkUrl);
