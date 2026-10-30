@@ -24,7 +24,7 @@
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
   "scanScreenQuick": {
-    "message": "Quick Screen Scan",
+    "message": "Scan Screen",
     "description": "Context menu item for capturing the screen and scanning it directly without selecting an area"
   },
   "scanImage": {
@@ -54,30 +54,6 @@
   "chooseImage": {
     "message": "Choose Image",
     "description": "Button for choosing a local image file"
-  },
-  "readClipboardImage": {
-    "message": "Read Clipboard",
-    "description": "Button that reads an image from the clipboard"
-  },
-  "clipboardEmpty": {
-    "message": "No Image in Clipboard",
-    "description": "Title shown when the clipboard has no image"
-  },
-  "clipboardEmptyMsg": {
-    "message": "Copy an image first, then try again.",
-    "description": "Message shown when the clipboard has no image"
-  },
-  "clipboardReadFailed": {
-    "message": "Couldn't Read Clipboard",
-    "description": "Title shown when reading the clipboard fails"
-  },
-  "clipboardUnsupportedMsg": {
-    "message": "This browser can't read the clipboard directly. Press Ctrl+V to paste an image.",
-    "description": "Message shown when the browser does not support reading the clipboard"
-  },
-  "clipboardPermissionMsg": {
-    "message": "Allow the extension to read the clipboard, or press Ctrl+V to paste an image.",
-    "description": "Message shown when clipboard permission is denied"
   },
   "notImageFile": {
     "message": "Please Choose an Image File",
@@ -242,5 +218,13 @@
   "recognitionFailed": {
     "message": "Scan Failed",
     "description": "Error title after recognition fails"
+  },
+  "clearImage": {
+    "message": "Clear Image",
+    "description": "Button that clears the selected image in the image scan panel"
+  },
+  "scanNow": {
+    "message": "Scan",
+    "description": "Button that confirms and scans the selected image"
   }
 }

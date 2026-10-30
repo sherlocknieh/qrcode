@@ -5,6 +5,33 @@ import type { DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { copyText } from '@/services/clipboard';
 
+// 识别过程中的加载提示: 由调用方替换为结果通知
+export function decodingNotice(): PopupNoticePayload {
+    return {
+        options: {
+            toast: true,
+            icon: 'info',
+            title: t('decodingQR'),
+            showCloseButton: true,
+            loading: true,
+        },
+    };
+}
+
+// 通用错误提示
+export function errorNotice(title: string, text?: string): PopupNoticePayload {
+    return {
+        options: {
+            toast: false,
+            icon: 'error',
+            title,
+            text,
+            confirmButtonText: t('confirm'),
+            showCloseButton: true,
+        },
+    };
+}
+
 // 识别结果的通用通知构造: content / popup / capture 三个入口共用同一套分支
 // (无结果重试 → 多码列表 → 单码链接/复制), 避免各写一遍文案与动作
 

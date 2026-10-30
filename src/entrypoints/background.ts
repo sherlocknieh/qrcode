@@ -6,7 +6,6 @@ import {
 } from '@/services/popupNotice';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { storageArea } from '@/services/storage';
-import { rememberScanTab, takeScanTabId } from '@/services/scanSession';
 
 export default defineBackground(() => {
 
@@ -94,12 +93,57 @@ export default defineBackground(() => {
         void openPopup().catch(() => {});
     };
 
-    // 在 SVG 文档等非 HTML 页面中, 内容脚本无法创建 canvas/popup 所需的 DOM,
-    // 因此把图片地址交给 popup, 由扩展页面完成下载和识别。
+    // 把图片交给 popup 识别: 非 HTML 页面 (SVG/PDF) 与截图降级共用同一条交接方式。
+    // popup 已打开时会通过 storage.onChanged 自动开始识别, 无需重复打开。
+    const sendImageToPopup = async (imageUrl?: string): Promise<boolean> => {
+        if (!imageUrl) return false;
+        await storageArea().set({ qrImageUrl: imageUrl });
+        if (popupPort) return true;
+        await openPopup();
+        return true;
+    };
+
     const showQrFromImagePage = (imageUrl?: string) => {
-        if (!imageUrl) return;
-        void storageArea().set({ qrImageUrl: imageUrl });
-        void openPopup().catch(() => {});
+        void sendImageToPopup(imageUrl).catch(() => {});
+    };
+
+    // 后台发起操作失败时的统一提示 (toast 形态)
+    const notifyError = (title: string, text?: string) => showPopupNotification({
+        options: { toast: true, icon: 'error', title, text, showCloseButton: true },
+    });
+
+    // 打开扩展页面 (capture.html / scan.html) 并统一提示失败
+    // WXT 的 getURL 只接受已知入口路径, 这里收紧类型以便拼接查询参数
+    type ExtensionPage = `/capture.html${string}` | `/scan.html${string}`;
+    const openExtensionPage = async (path: ExtensionPage): Promise<boolean> => {
+        try {
+            await browser.tabs.create({ url: browser.runtime.getURL(path) });
+            return true;
+        } catch (error) {
+            await notifyError(
+                browser.i18n.getMessage('error'),
+                error instanceof Error ? error.message : String(error),
+            );
+            return false;
+        }
+    };
+
+    // 内容脚本可能未注入 (PDF、SVG 等), 统一处理发送异常与回执
+    const tryContentAction = async (tabId: number | undefined, action: string): Promise<boolean> => {
+        if (tabId == null) return false;
+        try {
+            const response = await browser.tabs.sendMessage(tabId, { action }) as { success?: boolean } | undefined;
+            return response?.success !== false;
+        } catch {
+            return false;
+        }
+    };
+
+    // 工具栏图标右键菜单不一定带 tab 参数, 统一兜底查询当前活动标签页
+    const resolveActiveTabId = async (tabId?: number): Promise<number | undefined> => {
+        if (tabId != null) return tabId;
+        const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+        return activeTab?.id;
     };
 
     // 直接打开的 SVG 是 XML 文档, 内容脚本无法创建 canvas 和弹窗, 需要交给 popup 处理
@@ -123,38 +167,26 @@ export default defineBackground(() => {
             : browser.tabs.captureVisibleTab(windowId, { format: 'png' });
 
     const showCropScan = async (windowId?: number, direct = false): Promise<boolean> => {
+        let dataUrl: string;
         try {
-            const dataUrl = await captureVisibleArea(windowId);
-            // 截图体积较大, 交给扩展页面读取后立即清除
-            await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
-            // direct 表示整图直接识别, capture 页不再展示框选界面
-            await browser.tabs.create({
-                url: browser.runtime.getURL('/capture.html') + (direct ? '?direct=1' : ''),
-            });
-            return true;
+            dataUrl = await captureVisibleArea(windowId);
         } catch (error) {
-            await showPopupNotification({
-                options: {
-                    toast: true,
-                    icon: 'error',
-                    title: browser.i18n.getMessage('screenshotFailed'),
-                    text: error instanceof Error ? error.message : browser.i18n.getMessage('screenshotFailedMsg'),
-                    showCloseButton: true,
-                },
-            });
+            await notifyError(
+                browser.i18n.getMessage('screenshotFailed'),
+                error instanceof Error ? error.message : browser.i18n.getMessage('screenshotFailedMsg'),
+            );
             return false;
         }
+        // 截图体积较大, 交给扩展页面读取后立即清除
+        await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
+        // direct 表示整图直接识别, capture 页不再展示框选界面
+        return openExtensionPage(direct ? '/capture.html?direct=1' : '/capture.html');
     };
 
     // 请求内容脚本开始区域截图; 内容脚本不可用 (如 Firefox 内置 PDF 阅读器) 时才回退到截取视口后框选。
     // 内容脚本必须在收到消息时立即回执, 否则浏览器会以"消息端口关闭"拒绝, 被误判为不可用。
     const requestAreaScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
-        try {
-            const response = await browser.tabs.sendMessage(tabId, { action: "screenshotQR" }) as { success?: boolean } | undefined;
-            if (response?.success !== false) return true;
-        } catch {
-            // 内容脚本未注入, 走下面的兜底
-        }
+        if (await tryContentAction(tabId, "screenshotQR")) return true;
         return showCropScan(windowId);
     };
 
@@ -162,43 +194,26 @@ export default defineBackground(() => {
     // 无法注入内容脚本的页面 (如 Firefox 内置 PDF 阅读器) 截取视口后
     // 直接交给 popup 就地识别, 避免为了识别整图再开一个标签页
     const requestQuickScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
+        if (await tryContentAction(tabId, "screenshotQRDirect")) return true;
         try {
-            const response = await browser.tabs.sendMessage(tabId, { action: "screenshotQRDirect" }) as { success?: boolean } | undefined;
-            if (response?.success !== false) return true;
-        } catch {
-            // 内容脚本未注入, 走下面的兜底
-        }
-        try {
-            const dataUrl = await captureVisibleArea(windowId);
-            // 与右键图片识别共用交接方式: 写入图片地址后由 popup 读取并识别
-            await storageArea().set({ qrImageUrl: dataUrl });
-            // popup 已打开时会通过 storage.onChanged 自动开始识别, 不要重复打开
-            if (popupPort) return true;
-            await openPopup();
-            return true;
+            // 整屏识别不需要交互: 截图后交给 popup 就地识别
+            return await sendImageToPopup(await captureVisibleArea(windowId));
         } catch {
             // popup 无法打开时退回新标签页识别
             return showCropScan(windowId, true);
         }
     };
 
-    // 打开独立识别页: 文件选择框会让 popup 失去焦点并关闭, 因此本地图片
-    // 和剪贴板图片都在普通标签页中处理, 入口统一为一个右键菜单项
-    const openScanPage = async () => {
-        const url = browser.runtime.getURL('/scan.html');
-        try {
-            await browser.tabs.create({ url });
-        } catch (error) {
-            await showPopupNotification({
-                options: {
-                    toast: true,
-                    icon: 'error',
-                    title: browser.i18n.getMessage('error'),
-                    text: error instanceof Error ? error.message : String(error),
-                    showCloseButton: true,
-                },
-            });
-        }
+    // 打开独立识别页: 页面无法注入内容脚本 (PDF、SVG 等) 时才使用
+    const openScanPage = () => openExtensionPage('/scan.html');
+
+    // 本地/剪贴板图片识别: 优先在当前页面弹出浮层, 内容脚本不可用 (如 PDF、SVG) 时
+    // 退回独立识别页, 与截图识别的降级策略保持一致。
+    // 工具栏图标的右键菜单不一定会带上 tab 参数, 因此主动查询当前活动标签页。
+    const requestInlineImageScan = async (tabId?: number): Promise<boolean> => {
+        const targetTabId = await resolveActiveTabId(tabId);
+        if (await tryContentAction(targetTabId, "scanImageInline")) return true;
+        return openScanPage();
     };
 
     // Firefox 支持为菜单项指定自定义图标 (Chrome 不支持, 因此仅在 Firefox 构建中传入);
@@ -234,6 +249,13 @@ export default defineBackground(() => {
                 contexts: ["selection"],
                 ...menuIcons("text")
             });
+            // 添加菜单: 扫描屏幕二维码 (直接识别整屏, 不进入选区)
+            browser.contextMenus.create({
+                id: "scanScreen",
+                title: menuTitle("scanScreenQuick", "⚡"),
+                contexts: ["page", "action", "page_action"],
+                ...menuIcons("scanScreenQuick")
+            });
             // 添加菜单: 截屏框选识别 (网页右键的通用入口, 默认识别框选区域)
             browser.contextMenus.create({
                 id: "screenshotQR",
@@ -241,13 +263,6 @@ export default defineBackground(() => {
                 // 显示在: 网页右键, 扩展图标右键, 地址栏图标右键
                 contexts: ["action", "page_action"],
                 ...menuIcons("screenshot")
-            });
-            // 添加菜单: 扫描屏幕二维码 (直接识别整屏, 不进入选区)
-            browser.contextMenus.create({
-                id: "scanScreen",
-                title: menuTitle("scanScreenQuick", "⚡"),
-                contexts: ["page", "action", "page_action"],
-                ...menuIcons("scanScreenQuick")
             });
             // 添加菜单: 打开本地图片或剪贴板图片识别
             browser.contextMenus.create({
@@ -284,9 +299,9 @@ export default defineBackground(() => {
             })();
             return;
         }
-        // 图片识别不依赖当前标签页, 直接打开独立识别页
+        // 图片识别优先在当前页面弹出粘贴浮层; 页面无法注入内容脚本时再开新标签页
         if (info.menuItemId === "scanImage") {
-            void openScanPage();
+            void requestInlineImageScan(tab?.id);
             return;
         }
         const tabId = tab?.id;      // 获取当前标签页 ID
@@ -390,30 +405,6 @@ export default defineBackground(() => {
             void clearNoticeIfCurrent(request.id);
             sendResponse({ success: true });
             return false;
-        }
-        // 独立识别页选好图片后, 打开 popup 并交由 popup 完成识别和结果展示
-        if (request.action === "openScanPopup") {
-            // 记录发起识别的标签页, 识别结束后由 popup 通知后台关闭它
-            const tabId = _sender.tab?.id;
-            (tabId == null ? openPopup() : rememberScanTab(tabId).then(openPopup))
-                .then(() => sendResponse({ success: true }))
-                .catch(async (error) => {
-                    // 打开 popup 失败时清掉未使用的记录, 避免误关其他页面
-                    await takeScanTabId();
-                    sendResponse({
-                        success: false,
-                        error: error?.message ?? String(error),
-                    });
-                });
-            return true;
-        }
-        // 识别结束: 关闭发起识别的独立识别页。由后台执行, 避免 popup 失去焦点关闭后清理中断
-        if (request.action === "closeScanPage") {
-            takeScanTabId()
-                .then(tabId => tabId == null ? undefined : browser.tabs.remove(tabId).catch(() => {}))
-                .then(() => sendResponse({ success: true }))
-                .catch(() => sendResponse({ success: false }));
-            return true;
         }
         // 截取当前标签页可见区域: 由后台调用可避免 getDisplayMedia 的屏幕共享提示条压缩页面视口
         if (request.action === "captureVisibleTab") {

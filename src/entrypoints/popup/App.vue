@@ -88,12 +88,6 @@ async function fetchViaBackground(url: string): Promise<string> {
   return response.dataUrl;
 }
 
-// 识别结束且 popup 不再有内容: 关闭发起识别的标签页并收起 popup。
-// 标签页由后台关闭: 点击确认打开链接时 popup 会先失去焦点关闭, 自身的异步清理会被中断。
-function closeScanWindow() {
-  void browser.runtime.sendMessage({ action: 'closeScanPage' }).catch(() => {});
-  window.close();
-}
 
 // 识别图片并展示结果, 交互与内容脚本保持一致
 async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: string) {
@@ -112,15 +106,14 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
     results = await decodeAllFromImageData(imageData);
   } catch (error) {
     close();
-    const response = await fire({
+    await fire({
       toast: true,
       icon: 'error',
       title: errorTitle,
       text: error instanceof Error ? error.message : String(error),
       showCloseButton: true,
     });
-    // 结果通知确认/关闭后 popup 已无内容, 收起 popup 和发起识别的识别页
-    if (response.dismiss !== 'replaced') closeScanWindow();
+    // 流程结束后保留窗口, 由用户自行关闭
     return;
   }
 
@@ -141,8 +134,6 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
 
   const single = results.length === 1 ? results[0]! : undefined;
   if (single && response.isConfirmed) runNoticeAction(payload.confirmAction);
-
-  closeScanWindow();
 }
 
 function scanImage(imageUrl: string) {
@@ -172,12 +163,19 @@ function prepareScanView() {
   if (document.body) document.body.style.minHeight = '220px';
 }
 
-function startScan(imageUrl: string) {
+async function startScan(imageUrl: string) {
   if (scanning) return;
   scanning = true;
   scanActive.value = true;
   prepareScanView();
-  void scanImage(imageUrl);
+  try {
+    await scanImage(imageUrl);
+  } finally {
+    // 识别流程结束就退出扫描态: 否则关掉结果通知后 popup 既没有二维码也没有内容,
+    // 空窗兜底会因为 scanActive 仍为 true 而不关闭窗口, 留下白窗
+    scanning = false;
+    scanActive.value = false;
+  }
 }
 
 let currentText = '';
