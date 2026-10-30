@@ -230,6 +230,12 @@ onBeforeUnmount(() => {
 }
 
 .qr-picker-preview {
+    /* 火狐图片文档的样式给 img 设了 position: absolute + inset: 0 + margin: auto,
+       预览图会被抽离文档流并铺满整个面板, 盖住标题与按钮。
+       火狐按用户级样式注入内容脚本 CSS, 作者级的页面规则优先, 必须加 !important 才压得住 */
+    position: static !important;
+    inset: auto !important;
+    margin: 0 !important;
     display: block;
     width: 100%;
     height: 100%;
