@@ -41,10 +41,12 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/entrypoints/scan/](./src/entrypoints/scan/) | 独立识别页 `scan.html`：本地文件 / 拖放 / 粘贴 / 剪贴板读图 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
-| [src/components/QuickScanOverlay.vue](./src/components/QuickScanOverlay.vue) | 一键截屏识别的整屏扫描动画（纯展示，不拦截交互） |
-| [src/components/ImageScanOverlay.vue](./src/components/ImageScanOverlay.vue) | 网页图片识别时覆盖在图片矩形上的扫描动画 |
-| [src/composables/useQuickScanAnimation.ts](./src/composables/useQuickScanAnimation.ts) | 整屏扫描动画，`play()` 在扫过并淡出后才 resolve，用于延后弹窗 |
-| [src/composables/useImageScanAnimation.ts](./src/composables/useImageScanAnimation.ts) | 图片区域扫描动画，`play()` 在动画结束并淡出后才 resolve |
+| [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
+| [src/composables/useScanAnimation.ts](./src/composables/useScanAnimation.ts) | 扫描动画挂载与淡出，`play()` 在扫过量并淡出后才 resolve，用于延后弹窗 |
+| [src/services/decodeResultNotice.ts](./src/services/decodeResultNotice.ts) | 识别结果通知（无结果/多码/单码）与本地动作处理，三个入口共用 |
+| [src/services/messaging.ts](./src/services/messaging.ts) | 消息发送封装（统一 lastError 与 success 判断） |
+| [src/services/i18n.ts](./src/services/i18n.ts) | `t()` 文案读取（缺失时回退） |
+| [src/services/storage.ts](./src/services/storage.ts) | 存储区选择、`takeStoredValue/String` 读后即清 |
 | [src/components/NotifyHost.vue](./src/components/NotifyHost.vue) | 本地重写的通知 UI（替代 SweetAlert2），只消费 `useNotify` 状态 |
 | [src/composables/useNotify.ts](./src/composables/useNotify.ts) | 全局单例通知状态与 `fire/close/showLoading` API |
 | [src/composables/usePopupNoticeHost.ts](./src/composables/usePopupNoticeHost.ts) | popup 侧：读取/接收通知并代内容脚本执行打开、复制、截图 |

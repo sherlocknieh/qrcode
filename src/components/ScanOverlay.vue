@@ -1,16 +1,54 @@
 <script lang="ts" setup>
-withDefaults(defineProps<{ leaving?: boolean }>(), { leaving: false });
+import { computed } from 'vue';
+
+export type ScanRect = { x: number; y: number; width: number; height: number };
+
+const props = withDefaults(
+    defineProps<{
+        // 不传表示整屏扫描; 传入矩形时只覆盖该区域 (网页图片识别)
+        rect?: ScanRect | null;
+        // 扫过动画时长, 由调用方与 composable 的等待时长保持一致
+        duration?: number;
+        leaving?: boolean;
+    }>(),
+    { rect: null, duration: 700, leaving: false },
+);
+
+const region = computed(() => props.rect !== null);
+
+const rootStyle = computed(() => {
+    const rect = props.rect;
+    const style: Record<string, string> = {
+        // 光带用 transform 位移, 距离由容器高度决定
+        '--scan-distance': rect ? `${Math.max(0, rect.height - 2)}px` : '100vh',
+        '--scan-duration': `${props.duration}ms`,
+    };
+    if (rect) {
+        style.left = `${rect.x}px`;
+        style.top = `${rect.y}px`;
+        style.width = `${rect.width}px`;
+        style.height = `${rect.height}px`;
+    }
+    return style;
+});
 </script>
 
 <template>
-    <!-- 一键截屏识别的整屏扫描动画: 纯展示, 不拦截页面交互 -->
-    <div class="qr-scan" :class="{ 'qr-scan--leaving': leaving }" aria-hidden="true">
+    <!-- 扫描动画: 整屏识别时覆盖视口, 网页图片识别时只覆盖图片区域; 纯展示, 不拦截交互 -->
+    <div
+        class="qr-scan"
+        :class="{ 'qr-scan--region': region, 'qr-scan--leaving': leaving }"
+        :style="rootStyle"
+        aria-hidden="true"
+    >
         <div class="qr-scan-mask" />
         <div class="qr-scan-beam" />
-        <span class="qr-scan-corner corner-tl" />
-        <span class="qr-scan-corner corner-tr" />
-        <span class="qr-scan-corner corner-bl" />
-        <span class="qr-scan-corner corner-br" />
+        <template v-if="!region">
+            <span class="qr-scan-corner corner-tl" />
+            <span class="qr-scan-corner corner-tr" />
+            <span class="qr-scan-corner corner-bl" />
+            <span class="qr-scan-corner corner-br" />
+        </template>
     </div>
 </template>
 
@@ -24,17 +62,28 @@ withDefaults(defineProps<{ leaving?: boolean }>(), { leaving: false });
     animation: qr-scan-fade-in 160ms ease both;
 }
 
+/* 图片区域: 只覆盖图片, 用白色描边强调范围 */
+.qr-scan--region {
+    inset: auto;
+    border-radius: 6px;
+    box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.92),
+        0 0 18px rgba(255, 255, 255, 0.55),
+        0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
 .qr-scan--leaving {
     animation: qr-scan-fade-out 200ms ease both;
 }
 
+/* 暗色遮罩让白色光带在浅色页面/图片上都清晰可见 */
 .qr-scan-mask {
     position: absolute;
     inset: 0;
     background: rgba(8, 12, 20, 0.22);
 }
 
-/* 单条白色光带自上而下扫过整个视口, 呼应"扫描整个屏幕" */
+/* 单条白色光带自上而下扫过, 只扫一次 */
 .qr-scan-beam {
     position: absolute;
     top: 0;
@@ -46,8 +95,7 @@ withDefaults(defineProps<{ leaving?: boolean }>(), { leaving: false });
         0 0 18px 2px rgba(255, 255, 255, 0.85),
         0 0 4px rgba(0, 0, 0, 0.35);
     transform: translateY(-2px);
-    /* 只扫一次: 动画结束即进入识别结果 */
-    animation: qr-scan-sweep 700ms cubic-bezier(0.3, 0.6, 0.4, 1) 80ms forwards;
+    animation: qr-scan-sweep var(--scan-duration, 700ms) cubic-bezier(0.3, 0.6, 0.4, 1) 80ms forwards;
 }
 
 .qr-scan-corner {
@@ -114,7 +162,7 @@ withDefaults(defineProps<{ leaving?: boolean }>(), { leaving: false });
         transform: translateY(-2px);
     }
     to {
-        transform: translateY(100vh);
+        transform: translateY(var(--scan-distance, 100vh));
     }
 }
 

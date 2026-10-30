@@ -20,11 +20,11 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "screenShot": {
-    "message": "扫描屏幕",
+    "message": "截图扫描",
     "description": "右键菜单项：截图扫描二维码/条形码"
   },
-  "screenShotQuick": {
-    "message": "一键截屏识别",
+  "scanScreenQuick": {
+    "message": "扫描屏幕",
     "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
   },
   "scanImage": {

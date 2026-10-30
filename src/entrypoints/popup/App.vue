@@ -6,9 +6,11 @@ import {
   getImageDataFromDataUrl,
   type DecodeResult,
 } from '@/services/qrScanner';
-import { isLinkText, toOpenableUrl } from '@/services/linkText';
+import { t } from '@/services/i18n';
+import { sendMessage, trySendMessage } from '@/services/messaging';
+import { copyHandlers, resultNotice, runNoticeAction } from '@/services/decodeResultNotice';
+import { storageArea, storageAreaName, takeStoredString, takeStoredValue } from '@/services/storage';
 import { useNotify, notifyState } from '@/composables/useNotify';
-import { copyText } from '@/services/clipboard';
 import { usePopupNoticeHost } from '@/composables/usePopupNoticeHost';
 import NotifyHost from '@/components/NotifyHost.vue';
 
@@ -19,16 +21,11 @@ const QR_TEXT_KEY = 'qrCodeText';
 // SVG 等非 HTML 页面无法使用内容脚本弹窗, 由 background 把图片地址写入该键
 const QR_IMAGE_KEY = 'qrImageUrl';
 
-// 优先使用内存态的 session 存储, 不可用时回退 local
-const storageArea = () => browser.storage.session ?? browser.storage.local;
-const storageAreaName = () => (browser.storage.session ? 'session' : 'local');
 
 const { fire, close, showLoading } = useNotify();
 // 接收内容脚本转发的通知并代为处理结果操作
 usePopupNoticeHost();
 
-const t = (key: Parameters<typeof browser.i18n.getMessage>[0]) =>
-  browser.i18n.getMessage(key) || String(key);
 
 let scanning = false;
 // 扫描期间隐藏二维码占位
@@ -48,24 +45,11 @@ function normalizeStoredImage(value: unknown): string {
 
 // 读取右键菜单或识别页写入的临时图片地址, 读取后立即清除
 async function takeStoredImageUrl(): Promise<string> {
-  const storage = storageArea();
-  const result = await storage.get(QR_IMAGE_KEY);
-  const value = normalizeStoredImage(result?.[QR_IMAGE_KEY]);
-  if (value) await storage.remove(QR_IMAGE_KEY);
-  return value;
+  return normalizeStoredImage(await takeStoredValue(QR_IMAGE_KEY));
 }
 
 // 读取右键菜单写入的临时文本, 读取后立即清除, 避免污染下次打开
-async function takeStoredText(): Promise<string> {
-  const storage = storageArea();
-  const result = await storage.get(QR_TEXT_KEY);
-  const value = result?.[QR_TEXT_KEY];
-  if (typeof value === 'string' && value) {
-    await storage.remove(QR_TEXT_KEY);
-    return value;
-  }
-  return '';
-}
+const takeStoredText = () => takeStoredString(QR_TEXT_KEY);
 
 // 优先 URL hash(新标签页兜底), 其次临时存储, 最后当前标签页 URL
 async function resolveQrText(): Promise<string> {
@@ -99,13 +83,9 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-function fetchViaBackground(url: string): Promise<string> {
-  return browser.runtime
-    .sendMessage({ action: 'fetchImage', url })
-    .then((response?: { success?: boolean; dataUrl?: string; error?: string }) => {
-      if (response?.success && response.dataUrl) return response.dataUrl;
-      throw new Error(response?.error || t('imageFetchFailed'));
-    });
+async function fetchViaBackground(url: string): Promise<string> {
+  const response = await sendMessage<{ dataUrl: string }>('fetchImage', { url });
+  return response.dataUrl;
 }
 
 // 识别结束且 popup 不再有内容: 关闭发起识别的标签页并收起 popup。
@@ -145,68 +125,22 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
   }
 
   close();
-  if (!results.length) {
-    const response = await fire({
-      toast: false,
-      icon: 'warning',
-      title: t('recognitionFailed'),
-      text: t('recognitionFailedMsg'),
-      confirmButtonText: t('confirm'),
-      extraButtonText: t('screenshotRetry'),
-      showCloseButton: true,
-    });
-    if (response.dismiss === 'extra') {
-      // popup 不是页面浮层: 交给内容脚本在页面内框选;
-      // 内容脚本不可用 (如 Firefox 的 PDF 阅读器) 时, 由后台截取视口后在新标签页中框选
-      const result = await browser.runtime
-        .sendMessage({ action: 'requestScreenshot' })
-        .catch(() => undefined as { success?: boolean } | undefined);
-      if (result?.success) window.close();
-      return;
-    }
-    // 确认/取消/关闭后 popup 已无内容, 需一并收起窗口; 被新通知替换时保持打开
-    if (response.dismiss !== 'replaced') closeScanWindow();
-    return;
-  }
+  const payload = resultNotice(results);
+  // 复制按钮不结束通知: 复制成功后按钮就地显示已复制
+  const response = await fire({ ...payload.options, ...copyHandlers(payload) });
 
-  // 批量识别到多个码时逐条列出
-  if (results.length > 1) {
-    const response = await fire({
-      toast: false,
-      icon: 'success',
-      title: t('multiScanSuccess'),
-      items: results,
-      showCloseButton: true,
-    });
-    if (response.dismiss !== 'replaced') closeScanWindow();
-    return;
-  }
-
-  const result = results[0]!;
-  // 文字结果没有可打开的链接, 只提供复制操作
-  const isLink = isLinkText(result.text);
-
-  const response = await fire({
-    toast: false,
-    icon: 'success',
-    title: t(result.kind === 'barcode' ? 'barcodeScanSuccess' : 'qrcodeScanSuccess'),
-    text: result.text,
-    showCancelButton: isLink,
-    confirmButtonText: isLink ? t('openLink') : t('copyContent'),
-    cancelButtonText: isLink ? t('copyLink') : undefined,
-    showCloseButton: true,
-    // 复制按钮不结束通知: 复制成功后就地显示已复制, 识别页和 popup 保持打开
-    onConfirm: isLink ? undefined : () => copyText(result.text),
-    onCancel: isLink ? () => copyText(result.text) : undefined,
-  });
-
-  // 被新通知替换时保持打开
   if (response.dismiss === 'replaced') return;
 
-  // 打开链接后识别流程结束, 关闭识别页和 popup
-  if (isLink && response.isConfirmed) {
-    window.open(toOpenableUrl(result.text), '_blank');
+  if (response.dismiss === 'extra') {
+    // 未识别到码时提供"重新截图": popup 不是页面浮层, 交给内容脚本在页面内框选;
+    // 内容脚本不可用 (如 PDF 阅读器) 时, 由后台截取视口后在新标签页中框选
+    const result = await trySendMessage('requestScreenshot');
+    if (result?.success) window.close();
+    return;
   }
+
+  const single = results.length === 1 ? results[0]! : undefined;
+  if (single && response.isConfirmed) runNoticeAction(payload.confirmAction);
 
   closeScanWindow();
 }
@@ -227,13 +161,9 @@ async function loadImageDataUrl(imageUrl: string): Promise<string> {
 }
 
 // 本地图片无法直接读取时, 截取当前标签页可见区域
-function captureVisibleTab(): Promise<string> {
-  return browser.runtime
-    .sendMessage({ action: 'captureVisibleTab' })
-    .then((response?: { success?: boolean; dataUrl?: string; error?: string }) => {
-      if (response?.success && response.dataUrl) return response.dataUrl;
-      throw new Error(response?.error || t('screenshotFailedMsg'));
-    });
+async function captureVisibleTab(): Promise<string> {
+  const response = await sendMessage<{ dataUrl: string }>('captureVisibleTab');
+  return response.dataUrl;
 }
 
 function prepareScanView() {

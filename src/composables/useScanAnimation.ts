@@ -1,18 +1,27 @@
 import { createApp, h, reactive, type App } from 'vue';
-import QuickScanOverlay from '@/components/QuickScanOverlay.vue';
+import ScanOverlay, { type ScanRect } from '@/components/ScanOverlay.vue';
 
-// 与 QuickScanOverlay 的动画时长保持一致: 80ms 延迟 + 700ms 扫过
-const SWEEP_DURATION = 780;
+// 扫过动画默认时长; 与 ScanOverlay 的 CSS 变量保持一致
+const DEFAULT_SWEEP_DURATION = 700;
+// 与 ScanOverlay 的淡出动画时长保持一致
 const FADE_OUT_DURATION = 200;
+// 光带启动延迟 (CSS animation-delay)
+const SWEEP_DELAY = 80;
 
-type ScanState = { leaving: boolean };
+type ScanOptions = {
+    // 不传表示整屏扫描; 传入矩形只覆盖该区域
+    rect?: ScanRect;
+    duration?: number;
+};
+
+type ScanState = ScanOptions & { leaving: boolean };
 type ScanSession = { host: HTMLDivElement; app: App; state: ScanState };
 
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
-// 一键截屏识别的整屏扫描动画: 截图完成后再挂载, 避免动画被截进图片;
+// 扫描动画: 截图/图片数据就绪后才挂载, 避免动画被截进图片;
 // play() 在扫过并淡出后才 resolve, 调用方据此延后弹窗
-export function useQuickScanAnimation() {
+export function useScanAnimation() {
     let session: ScanSession | undefined;
 
     const dispose = (current: ScanSession) => {
@@ -20,19 +29,25 @@ export function useQuickScanAnimation() {
         current.host.remove();
     };
 
-    const play = async (): Promise<void> => {
+    const play = async (options: ScanOptions = {}): Promise<void> => {
         if (session) return;
 
         const host = document.createElement('div');
         host.style.display = 'contents';
         document.body.appendChild(host);
-        const state = reactive<ScanState>({ leaving: false });
-        const app = createApp({ render: () => h(QuickScanOverlay, state) });
+        const state = reactive<ScanState>({ ...options, leaving: false });
+        const app = createApp({
+            render: () => h(ScanOverlay, {
+                rect: state.rect ?? null,
+                duration: state.duration ?? DEFAULT_SWEEP_DURATION,
+                leaving: state.leaving,
+            }),
+        });
         app.mount(host);
         const current: ScanSession = { host, app, state };
         session = current;
 
-        await delay(SWEEP_DURATION);
+        await delay((options.duration ?? DEFAULT_SWEEP_DURATION) + SWEEP_DELAY);
         if (session !== current) return;
         current.state.leaving = true;
         await delay(FADE_OUT_DURATION);

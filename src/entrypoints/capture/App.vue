@@ -4,10 +4,12 @@ import { onMounted, ref } from 'vue';
 import NotifyHost from '@/components/NotifyHost.vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
 import { useNotify } from '@/composables/useNotify';
-import { useQuickScanAnimation } from '@/composables/useQuickScanAnimation';
+import { useScanAnimation } from '@/composables/useScanAnimation';
 import { preloadImageData } from '@/services/screenshotPreload';
 import { copyText } from '@/services/clipboard';
-import { isLinkText, toOpenableUrl } from '@/services/linkText';
+import { t } from '@/services/i18n';
+import { resultNotice, runNoticeAction } from '@/services/decodeResultNotice';
+import { takeStoredString } from '@/services/storage';
 import {
     decodeAllFromImageData,
     getImageDataFromDataUrl,
@@ -20,28 +22,15 @@ const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 // direct=1: 后台已判定当前页无法注入内容脚本, 直接识别整张截图, 不展示框选界面
 const directMode = new URLSearchParams(window.location.search).has('direct');
 
-// 优先使用内存态的 session 存储, 不可用时回退 local
-const storageArea = () => browser.storage.session ?? browser.storage.local;
 
 const { fire, close, showLoading } = useNotify();
-const quickScanAnimation = useQuickScanAnimation();
+const scanAnimation = useScanAnimation();
 
-const t = (key: Parameters<typeof browser.i18n.getMessage>[0]) =>
-    browser.i18n.getMessage(key) || String(key);
 
 // 截图数据; 确认框选后清空以卸载框选界面
 const src = ref('');
 
-async function takeStoredImage(): Promise<string> {
-    const storage = storageArea();
-    const result = await storage.get(CAPTURE_IMAGE_KEY);
-    const value = result?.[CAPTURE_IMAGE_KEY];
-    if (typeof value === 'string' && value) {
-        await storage.remove(CAPTURE_IMAGE_KEY);
-        return value;
-    }
-    return '';
-}
+const takeStoredImage = () => takeStoredString(CAPTURE_IMAGE_KEY);
 
 // 标签页由扩展创建, 通常可直接关闭; 不允许时通过后台 API 关闭
 function closeTab() {
@@ -65,31 +54,24 @@ async function showError(title: string, text?: string) {
     });
 }
 
-async function showResult(result: DecodeResult) {
-    const isLink = isLinkText(result.text);
+async function showResult(results: DecodeResult[]) {
+    const payload = resultNotice(results);
     // 复制成功后保留窗口, 通知由用户自行关闭
     let copied = false;
-    const copy = async () => {
-        const success = await copyText(result.text);
-        if (success) copied = true;
-        return success;
+    const copy = (value: string) => async () => {
+        if (await copyText(value)) copied = true;
+        return copied;
     };
+    const confirmCopy = payload.confirmAction?.kind === 'copy' ? payload.confirmAction.value : undefined;
+    const cancelCopy = payload.cancelAction?.kind === 'copy' ? payload.cancelAction.value : undefined;
+
     const response = await fire({
-        toast: false,
-        icon: 'success',
-        title: t(result.kind === 'barcode' ? 'barcodeScanSuccess' : 'qrcodeScanSuccess'),
-        text: result.text,
-        showCancelButton: isLink,
-        confirmButtonText: isLink ? t('openLink') : t('copyContent'),
-        cancelButtonText: isLink ? t('copyLink') : undefined,
-        showCloseButton: true,
-        onConfirm: isLink ? undefined : copy,
-        onCancel: isLink ? copy : undefined,
+        ...payload.options,
+        onConfirm: confirmCopy ? copy(confirmCopy) : undefined,
+        onCancel: cancelCopy ? copy(cancelCopy) : undefined,
     });
 
-    if (response.isConfirmed && isLink) {
-        window.open(toOpenableUrl(result.text), '_blank');
-    }
+    if (response.isConfirmed) runNoticeAction(payload.confirmAction);
 
     if (!copied) closeTab();
 }
@@ -114,7 +96,7 @@ async function handleConfirm(dataUrl: string) {
     let preloaded: ReturnType<typeof preloadImageData> | undefined;
     if (directMode) {
         preloaded = preloadImageData(dataUrl);
-        await quickScanAnimation.play();
+        await scanAnimation.play();
     }
 
     await showDecodingNotice();
@@ -131,7 +113,7 @@ async function handleConfirm(dataUrl: string) {
         }
         results = await decodeAllFromImageData(imageData);
     } catch (error) {
-        quickScanAnimation.stop();
+        scanAnimation.stop();
         close();
         await showError(
             t('screenshotFailed'),
@@ -141,28 +123,10 @@ async function handleConfirm(dataUrl: string) {
         return;
     }
 
-    quickScanAnimation.stop();
+    scanAnimation.stop();
     close();
 
-    if (!results.length) {
-        await showError(t('recognitionFailed'), t('recognitionFailedMsg'));
-        closeTab();
-        return;
-    }
-
-    if (results.length > 1) {
-        await fire({
-            toast: false,
-            icon: 'success',
-            title: t('multiScanSuccess'),
-            items: results,
-            showCloseButton: true,
-        });
-        closeTab();
-        return;
-    }
-
-    await showResult(results[0]!);
+    await showResult(results);
 }
 
 async function handleLoadError() {

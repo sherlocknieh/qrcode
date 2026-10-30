@@ -23,7 +23,7 @@
     "message": "Scan via Screenshot",
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
-  "screenShotQuick": {
+  "scanScreenQuick": {
     "message": "Quick Screen Scan",
     "description": "Context menu item for capturing the screen and scanning it directly without selecting an area"
   },

@@ -2,13 +2,13 @@ import { onBeforeUnmount, onMounted } from 'vue';
 import { useNotify, type NotifyOptions } from '@/composables/useNotify';
 import { copyText } from '@/services/clipboard';
 import { toOpenableUrl } from '@/services/linkText';
+import { storageArea } from '@/services/storage';
 import {
     POPUP_NOTICE_KEY,
     type PopupNoticeAction,
     type PopupNoticeRecord,
 } from '@/services/popupNotice';
 
-const storageArea = () => browser.storage.session ?? browser.storage.local;
 
 // 在 popup 中展示来自内容脚本的通知, 并代替内容脚本执行打开链接/复制操作
 export function usePopupNoticeHost() {

@@ -5,12 +5,10 @@ import {
     type PopupNoticeRecord,
 } from '@/services/popupNotice';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
+import { storageArea } from '@/services/storage';
 import { rememberScanTab, takeScanTabId } from '@/services/scanSession';
 
 export default defineBackground(() => {
-
-    // 优先使用内存态的 session 存储, 不可用时回退 local
-    const storageArea = () => browser.storage.session ?? browser.storage.local;
 
     // Firefox 地址栏图标 (page action) 的显/隐状态
     const PAGE_ACTION_VISIBLE_KEY = 'pageActionVisible';
@@ -211,7 +209,7 @@ export default defineBackground(() => {
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
     type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
-        | 'screenShot' | 'screenShotQuick' | 'generateQR_link' | 'scanImage'
+        | 'screenShot' | 'scanScreenQuick' | 'generateQR_link' | 'scanImage'
         | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji: string) => {
         const title = browser.i18n.getMessage(key);
@@ -236,7 +234,7 @@ export default defineBackground(() => {
                 contexts: ["selection"],
                 ...menuIcons("text")
             });
-            // 添加菜单: 截屏识别二维码 (网页右键的通用入口, 默认识别框选区域)
+            // 添加菜单: 截屏框选识别 (网页右键的通用入口, 默认识别框选区域)
             browser.contextMenus.create({
                 id: "screenshotQR",
                 title: menuTitle("screenShot", "📷"),
@@ -244,12 +242,12 @@ export default defineBackground(() => {
                 contexts: ["action", "page_action"],
                 ...menuIcons("screenshot")
             });
-            // 添加菜单: 一键截屏识别 (直接识别整屏, 不进入选区)
+            // 添加菜单: 扫描屏幕二维码 (直接识别整屏, 不进入选区)
             browser.contextMenus.create({
-                id: "screenshotQRQuick",
-                title: menuTitle("screenShotQuick", "⚡"),
+                id: "scanScreen",
+                title: menuTitle("scanScreenQuick", "⚡"),
                 contexts: ["page", "action", "page_action"],
-                ...menuIcons("screenshotQuick")
+                ...menuIcons("scanScreenQuick")
             });
             // 添加菜单: 打开本地图片或剪贴板图片识别
             browser.contextMenus.create({
@@ -317,7 +315,7 @@ export default defineBackground(() => {
             // 截图识别二维码: 优先使用内容脚本的区域截图 (Chrome 的 PDF 页面也能注入);
             // 内容脚本不可用(如 Firefox 内置 PDF 阅读器)时, 改为截取视口后框选识别
             void requestAreaScreenshot(tabId, tab?.windowId);
-        } else if (info.menuItemId === "screenshotQRQuick") {
+        } else if (info.menuItemId === "scanScreen") {
             // 一键截屏识别: 直接识别当前视口, 全程没有框选交互
             if (isSvgDocumentUrl(tab?.url)) {
                 showQrFromImagePage(info.pageUrl ?? tab?.url);

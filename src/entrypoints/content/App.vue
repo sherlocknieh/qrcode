@@ -9,15 +9,16 @@ import {
     loadImageDataFromUrl,
     type DecodeResult,
 } from '@/services/qrScanner';
-import { isLinkText, toOpenableUrl } from '@/services/linkText';
+import { t } from '@/services/i18n';
+import { sendMessage } from '@/services/messaging';
+import { copyHandlers, resultNotice, runNoticeAction } from '@/services/decodeResultNotice';
 
 // UI组件
 import NotifyHost from '@/components/NotifyHost.vue';
 import { useNotify, type NotifyOptions } from '@/composables/useNotify';
-import { copyText } from '@/services/clipboard';
 import { useScreenshot, type ScreenshotResult } from '@/composables/useScreenshot';
-import { useQuickScanAnimation } from '@/composables/useQuickScanAnimation';
-import { useImageScanAnimation, type ScanRect } from '@/composables/useImageScanAnimation';
+import { useScanAnimation } from '@/composables/useScanAnimation';
+import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { preloadImageData } from '@/services/screenshotPreload';
 import {
     showPopupNotice,
@@ -28,8 +29,7 @@ import {
 
 const { fire, showLoading } = useNotify();
 const { startScreenshot } = useScreenshot();
-const quickScanAnimation = useQuickScanAnimation();
-const imageScanAnimation = useImageScanAnimation();
+const scanAnimation = useScanAnimation();
 
 // popup 无法显示时的页面内兜底通知
 function fireLocal(payload: PopupNoticePayload, overrides: NotifyOptions = {}) {
@@ -49,66 +49,13 @@ async function notify(payload: PopupNoticePayload): Promise<boolean> {
 }
 
 // 识别结果需要用户选择, popup 可用时由 popup 直接完成打开/复制
-async function notifyResult(result: DecodeResult) {
-    const isLink = isLinkText(result.text);
-    const payload: PopupNoticePayload = {
-        options: {
-            toast: false,
-            icon: 'success',
-            title: t(result.kind === 'barcode' ? 'barcodeScanSuccess' : 'qrcodeScanSuccess'),
-            text: result.text,
-            showCancelButton: isLink,
-            confirmButtonText: isLink ? t('openLink') : t('copyContent'),
-            cancelButtonText: isLink ? t('copyLink') : undefined,
-            showCloseButton: true,
-        },
-        confirmAction: isLink
-            ? { kind: 'open', value: result.text }
-            : { kind: 'copy', value: result.text },
-        cancelAction: isLink ? { kind: 'copy', value: result.text } : undefined,
-    };
-
-    if (await showPopupNotice(payload)) return;
-
-    // popup 不可用时在页面内展示并处理结果
-    const response = await fireLocal(payload, {
-        // 复制按钮不关闭通知, 成功后按钮文字变为已复制, 期间仍可点击其他按钮
-        onConfirm: payload.confirmAction?.kind === 'copy'
-            ? () => copyText(result.text)
-            : undefined,
-        onCancel: payload.cancelAction?.kind === 'copy'
-            ? () => copyText(result.text)
-            : undefined,
-    });
-
-    if (isLink && response.isConfirmed) {
-        window.open(toOpenableUrl(result.text), '_blank');
-    }
-}
-
-// 国际化文本获取函数，提供默认值以防止缺失翻译导致的显示问题
-const t = (key: Parameters<typeof browser.i18n.getMessage>[0]) =>
-    browser.i18n.getMessage(key) || String(key);
-
-// 批量识别结果: 只有一个码时沿用单码通知, 多个码时逐条列出
 async function notifyResults(results: DecodeResult[]) {
-    if (results.length === 1) {
-        await notifyResult(results[0]!);
-        return;
-    }
-
-    const payload: PopupNoticePayload = {
-        options: {
-            toast: false,
-            icon: 'success',
-            title: t('multiScanSuccess'),
-            items: results,
-            showCloseButton: true,
-        },
-    };
-
+    const payload = resultNotice(results);
     if (await showPopupNotice(payload)) return;
-    await fireLocal(payload);
+
+    // popup 不可用时在页面内展示: 复制按钮就地执行, 打开链接需要本进程处理
+    const response = await fireLocal(payload, copyHandlers(payload));
+    if (response.isConfirmed) runNoticeAction(payload.confirmAction);
 }
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
@@ -139,8 +86,7 @@ onMounted(() => {
 // 当组件卸载时，移除消息监听器，避免内存泄漏
 onBeforeUnmount(() => {
     browser.runtime.onMessage.removeListener(mainProcess);
-    quickScanAnimation.stop();
-    imageScanAnimation.cancel();
+    scanAnimation.stop();
 });
 
 
@@ -235,7 +181,7 @@ async function handleImageUrl(imageUrl: string) {
         if (needsProxy) await showDecodingNotice();
         if (isStale()) return;
         const rect = findImageRect(imageUrl);
-        if (rect) await imageScanAnimation.play(rect);
+        if (rect) await scanAnimation.play({ rect });
         if (isStale()) return;
         await decodeAndNotify(imageData, isStale, needsProxy);
     } catch (error) {
@@ -352,7 +298,7 @@ function notifyScreenshotError(error: unknown) {
 
 async function handleScreenshot() {
     screenshotEpoch++;
-    imageScanAnimation.cancel();
+    scanAnimation.stop();
     try {
         const dataUrl = await startScreenshot();
         const imageData = await getImageDataFromDataUrl(dataUrl);
@@ -365,24 +311,24 @@ async function handleScreenshot() {
 // 一键截屏识别: 截取当前视口后直接识别整张画面, 不进入框选交互
 async function handleQuickScreenshot() {
     screenshotEpoch++;
-    imageScanAnimation.cancel();
+    scanAnimation.stop();
     const epoch = screenshotEpoch;
     try {
         const dataUrl = await captureVisibleTab();
         // 截图完成后才开始播放动画, 动画不会被截进图片;
         // 读图与动画并行, 但通知要等动画播完再弹出
         const pending = preloadImageData(dataUrl);
-        await quickScanAnimation.play();
+        await scanAnimation.play();
         const settled = await pending;
         if (!settled.ok) throw settled.error;
         await decodeAndNotify(
             settled.imageData,
             () => epoch !== screenshotEpoch,
             false,
-            () => quickScanAnimation.stop(),
+            () => scanAnimation.stop(),
         );
     } catch (error) {
-        quickScanAnimation.stop();
+        scanAnimation.stop();
         if (epoch !== screenshotEpoch) return;
         notifyScreenshotError(error);
     }
@@ -409,24 +355,12 @@ async function decodeAndNotify(
     if (isStale?.()) return;
 
     if (results.length) {
-        // 文字结果没有可打开的链接, 只提供复制操作
         await notifyResults(results);
         return;
     }
 
-    const payload: PopupNoticePayload = {
-        options: {
-            toast: false,
-            icon: 'warning',
-            title: t('recognitionFailed'),
-            text: t('recognitionFailedMsg'),
-            confirmButtonText: t('confirm'),
-            extraButtonText: t('screenshotRetry'),
-            showCloseButton: true,
-        },
-        extraAction: { kind: 'screenshot' },
-    };
-
+    // 未识别到码时提供"重新截图"出口
+    const payload = resultNotice([]);
     if (await showPopupNotice(payload)) return;
 
     // popup 不可用时在页面内展示, 点击"尝试截图识别"直接开始区域截图
@@ -434,38 +368,16 @@ async function decodeAndNotify(
     if (response.dismiss === 'extra') void handleScreenshot();
 }
 
-// 截取当前标签页可见区域，作为本地图片无法直接读取时的兜底
-function captureVisibleTab(): Promise<string> {
-    return new Promise((resolve, reject) => {
-        browser.runtime.sendMessage({ action: 'captureVisibleTab' }, (response) => {
-            if (browser.runtime.lastError) {
-                reject(new Error(browser.runtime.lastError.message || 'Background did not respond.'));
-                return;
-            }
-            if (response?.success && response.dataUrl) {
-                resolve(response.dataUrl);
-                return;
-            }
-            reject(new Error(response?.error || t('screenshotFailedMsg')));
-        });
-    });
+// 截取当前标签页可见区域 (后台调用可避免屏幕共享提示), 作为本地图片无法读取时的兜底
+async function captureVisibleTab(): Promise<string> {
+    const response = await sendMessage<{ dataUrl: string }>('captureVisibleTab');
+    return response.dataUrl;
 }
 
 // 跨域图片获取流程，通过向背景脚本发送消息请求代理获取图片数据
-function fetchImageViaProxy(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        browser.runtime.sendMessage({ action: 'fetchImage', url }, (response) => {
-            if (browser.runtime.lastError) {
-                reject(new Error(browser.runtime.lastError.message || 'Background did not respond.'));
-                return;
-            }
-            if (response?.success && response.dataUrl) {
-                resolve(response.dataUrl);
-                return;
-            }
-            reject(new Error(response?.error || t('proxyFetchFailed')));
-        });
-    });
+async function fetchImageViaProxy(url: string): Promise<string> {
+    const response = await sendMessage<{ dataUrl: string }>('fetchImage', { url });
+    return response.dataUrl;
 }
 </script>
 
