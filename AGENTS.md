@@ -1,0 +1,124 @@
+# AGENTS.md
+
+给 AI Agent 与协作者的项目认知。修改代码前先读本文件；用户可见的说明以 [README.md](./README.md) 为准。
+
+## 一句话概述
+
+基于 **WXT + Vue 3 + TypeScript** 的跨浏览器（Chrome / Edge / Firefox）二维码扩展：生成二维码（当前页 / 选中文本 / 链接）、识别二维码与一维条形码（网页图片 / 截图 / 本地图片 / 剪贴板），并附带简易截图工具。
+
+- 版本号在 [package.json](./package.json)（发布时同步 `version`）
+- 无自动化测试；唯一的静态校验是 `pnpm compile`（`vue-tsc --noEmit`）
+
+## 常用命令
+
+```bash
+pnpm install          # 安装依赖，postinstall 会执行 wxt prepare
+pnpm dev              # Chrome 调试
+pnpm dev:firefox      # Firefox 调试（MV3）
+pnpm compile          # 类型检查（提交前必须通过）
+pnpm build            # 打包 Chrome/Edge zip
+pnpm build:firefox    # 打包 Firefox zip（含 sources zip）
+pnpm submit:chrome|edge|firefox|all   # 构建并提交商店，读取 .env.submit
+```
+
+调试时的浏览器 profile 与自动打开的测试页配置在 [wxt.config.ts](./wxt.config.ts)。
+
+## 目录导航
+
+| 路径 | 职责 |
+| --- | --- |
+| [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台脚本：右键菜单、popup 打开、通知中转、跨域取图、截图、标签页关闭、地址栏图标开关 |
+| [src/entrypoints/content/](./src/entrypoints/content/) | 注入所有页面的内容脚本 UI，处理 `decodeQR` / `screenshotQR` 消息，页面内通知兜底 |
+| [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、识别交给它的图片（`scan.html` 交接） |
+| [src/entrypoints/scan/](./src/entrypoints/scan/) | 独立识别页 `scan.html`：本地文件 / 拖放 / 粘贴 / 剪贴板读图 |
+| [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（Firefox PDF 兜底） |
+| [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
+| [src/components/NotifyHost.vue](./src/components/NotifyHost.vue) | 本地重写的通知 UI（替代 SweetAlert2），只消费 `useNotify` 状态 |
+| [src/composables/useNotify.ts](./src/composables/useNotify.ts) | 全局单例通知状态与 `fire/close/showLoading` API |
+| [src/composables/usePopupNoticeHost.ts](./src/composables/usePopupNoticeHost.ts) | popup 侧：读取/接收通知并代内容脚本执行打开、复制、截图 |
+| [src/composables/useScreenshot.ts](./src/composables/useScreenshot.ts) | 内容脚本侧的截图流程封装 |
+| [src/services/qrScanner.ts](./src/services/qrScanner.ts) | 识别核心：ZXing 深路径导入、条码优先、多码识别、SVG/彩色/倾斜/低对比度候选图 |
+| [src/services/popupNotice.ts](./src/services/popupNotice.ts) | 跨进程通知协议（可序列化 payload + `showPopupNotice`） |
+| [src/services/clipboard.ts](./src/services/clipboard.ts) | 复制文本 |
+| [src/services/clipboardImage.ts](./src/services/clipboardImage.ts) | 读剪贴板图片、从 DataTransfer 取图片、Blob→DataURL |
+| [src/services/linkText.ts](./src/services/linkText.ts) | 判断识别结果是否为链接、补协议 |
+| [src/services/menuIcons.ts](./src/services/menuIcons.ts) | Firefox 右键菜单内联 SVG 图标（跟随主题色） |
+| [src/services/scanSession.ts](./src/services/scanSession.ts) | 记录发起识别的标签页，识别后关闭 |
+| [public/_locales/](./public/_locales/) | `en` 与 `zh_CN` 文案，key 必须成对维护 |
+| [scripts/submit.mjs](./scripts/submit.mjs) | 清旧包 → 构建 → 调 `wxt submit` |
+
+`@/` 别名指向 `src/`（WXT 自动生成，见 `.wxt/tsconfig.json`）。`.wxt/`、`.output/`、`node_modules/` 都是产物目录，不要手改。
+
+## 运行时架构
+
+```mermaid
+flowchart LR
+  Menu[右键菜单/工具栏] --> BG[background.ts]
+  BG -->|qrCodeText / qrImageUrl| Popup[popup]
+  BG -->|qrCaptureImage| Capture[capture.html]
+  BG -->|openScanPopup| Scan[scan.html]
+  Content[content script] -->|showNotification| BG
+  BG -->|storage + Port| Popup
+  Popup -->|NotifyHost 展示| User[用户]
+  Content -->|popup 不可用时| NotifyHost[页面内 NotifyHost]
+  BG -->|fetchImage 代理| Content
+  Content -->|captureVisibleTab| BG
+```
+
+几个必须理解的设计：
+
+1. **通知统一走 popup**。内容脚本调 `showPopupNotice()` → 后台写入 `qrNotification` 存储并通过 `popup` 长连接推送；popup 未打开时后台用 `browser.action.openPopup()`（Firefox 优先 `action`，`pageAction` 仅兜底）。失败返回 `false`，调用方回退到页面内 `NotifyHost`。
+2. **通知参数必须可序列化**。`PopupNoticeOptions` 里只有 `loading` 标记，没有回调函数；动作通过 `PopupNoticeAction`（`open` / `copy` / `screenshot`）描述，由 popup 执行。
+3. **识别在需要 DOM 的地方完成**。SVG 文档、Firefox 内置 PDF 阅读器等无法注入内容脚本的页面，由 popup / capture 页接管。
+4. **后台负责高权限操作**：`tabs.captureVisibleTab`、`fetch` 跨域图片（返回 DataURL）、`tabs.remove`。
+5. **弹窗易失焦**：本地文件选择会让 popup 关闭，所以 `scan.html` 先选图，再把 DataURL 写入 `qrImageUrl` 并请求 `openScanPopup`，由 popup 展示结果。
+
+## 存储键（改动时需全局搜索）
+
+| 键 | 位置 | 说明 |
+| --- | --- | --- |
+| `qrCodeText` | session（回退 local） | 待生成二维码的文本 |
+| `qrImageUrl` | session（回退 local） | 待识别图片的 DataURL / 图片地址 |
+| `qrNotification` | session（回退 local） | popup 待展示的最新通知（含自增 `id` 去重） |
+| `qrCaptureImage` | session（回退 local） | 后台截取的视口图，读取后立即删除 |
+| `qrScanTabId` | session（回退 local） | 发起识别的标签页，读取即清除 |
+| `pageActionVisible` | local | Firefox 地址栏图标开关，默认显示 |
+
+统一写法：`const storageArea = () => browser.storage.session ?? browser.storage.local;`
+
+## 修改指引
+
+- **新增/调整右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加到两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
+- **识别效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。注意其 ZXing 内部模块深路径导入方式（`@zxing/library/esm/core/...`），不要改成包根导入，避免打进无关代码。
+- **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。
+- **新增 UI 文案**：`public/_locales/en/messages.json` 与 `zh_CN/messages.json` 同时添加，代码中统一用 `browser.i18n.getMessage(key)`（各入口有本地 `t()` 包装）。
+- **权限 / manifest / 图标**：只改 [wxt.config.ts](./wxt.config.ts)。
+- **截图能力**：视图层在 `ScreenshotOverlay.vue`，流程在 `useScreenshot.ts`。
+
+## 编码约定
+
+- 注释、提交信息、面向用户的说明用**中文**；标识符用英文。
+- 缩进 4 空格（Vue `<template>` 内也保持 4 空格）；字符串引号与分号跟随所在文件既有风格（新文件统一单引号 + 分号）。
+- 优先复用现有 service/composable，不要为单个页面另写一套通知、复制、识图逻辑。
+- 不引入新依赖，除非确实缺失能力；重量级库已有 `@zxing/library`、`qrcode-generator`、`vue`。
+- 改动要保持 Chrome / Edge / Firefox 行为一致；平台差异用 `import.meta.env.FIREFOX` 分支。
+- 不要提交 `.env.submit`（商店凭据），也不要改 `.env` 里的本机路径。
+- 仓库暂未提交 lockfile；安装依赖后不要顺手提交新生成的 `pnpm-lock.yaml`，除非用户明确要求。
+- `pnpm-workspace.yaml` 通过 `patchedDependencies` 打补丁（`patches/web-ext.patch` 去掉会自动添加 `navigator.webdriver` 的启动参数）；升级 `web-ext` 后需确认补丁仍能应用。
+
+## 已知坑
+
+- **Firefox popup**：截图完成等异步流程里 `pageAction.openPopup()` 会因缺少用户手势被拒，必须优先 `action.openPopup()`。
+- **`captureVisibleTab` 必须在后台调用**，否则会触发屏幕共享提示并压缩视口。
+- **大图识别会阻塞 UI**：先渲染 loading 通知，再 `await new Promise(r => setTimeout(r, 50))` 后开始解码。
+- **跨域/防盗链图片**：直接 fetch 常失败，已有"新标签打开图片"和"改用截图识别"两个出口，改动时保留兜底。
+- **`file://` 页面**：Firefox 扩展页/后台无法 fetch，但内容脚本可读已渲染图片并画到 canvas；失败再回退到截取视口。
+- **通知竞态**：后台在 `openPopup` 期间用 `popupOpening` / `POPUP_OPEN_GRACE` 防丢通知，并靠自增 `id` 做 `clearNoticeIfCurrent`，不要简化掉。
+- **旧通知清理**：popup 断开连接时后台会删 `qrNotification`，避免下次打开重复弹出。
+
+## 完成标准
+
+1. `pnpm compile` 通过。
+2. 涉及 UI/交互/识别的改动，用 `pnpm dev`（或 `dev:firefox`）实际验证至少一条主链路：生成二维码、图片识别、截图识别、本地/剪贴板识别、通知按钮。
+3. 新增文案在 `en` / `zh_CN` 两个 locale 中都存在。
+4. 不夹带无关修改；提交信息简洁说明用户可见变化。

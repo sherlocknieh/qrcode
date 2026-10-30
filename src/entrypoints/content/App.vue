@@ -107,13 +107,20 @@ async function notifyResults(results: DecodeResult[]) {
 }
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
-const mainProcess = (message: { action?: string; imageUrl?: string }) => {
+const mainProcess = (
+    message: { action?: string; imageUrl?: string },
+    _sender: Browser.runtime.MessageSender,
+    sendResponse: (response?: { success: boolean }) => void,
+) => {
     if (message.action === 'decodeQR' && message.imageUrl) {
         handleImageUrl(message.imageUrl);
     }
     if (message.action === 'screenshotQR') {
         handleScreenshot();
     }
+    // 立即回执: 后台以"是否收到回应"判断内容脚本是否可用, 不回应会被当成不可用而回退到新标签页
+    sendResponse({ success: true });
+    return false;
 };
 
 // 当组件挂载时，注册消息监听器，等待来自背景脚本的指令

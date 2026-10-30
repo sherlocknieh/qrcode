@@ -8,20 +8,20 @@
     "description": "应用描述"
   },
   "generateQR_link": {
-    "message": "生成目标链接的二维码",
+    "message": "为所选链接生成二维码",
     "description": "右键菜单项：为选中的链接生成二维码"
   },
   "generateQR_selection": {
-    "message": "生成所选文字的二维码",
+    "message": "为所选文字生成二维码",
     "description": "右键菜单项：为选中的文字生成二维码"
   },
   "decodeQR": {
-    "message": "扫描",
+    "message": "扫描图片",
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "screenShot": {
-    "message": "截图识别",
-    "description": "右键菜单项：截图识别二维码/条形码"
+    "message": "截图扫描",
+    "description": "右键菜单项：截图扫描二维码/条形码"
   },
   "scanImage": {
     "message": "识别本地/剪贴板图片",
@@ -145,7 +145,7 @@
     "description": "跨域获取图片时的提示"
   },
   "openImage": {
-    "message": "新标签打开图片",
+    "message": "新标签打开",
     "description": "跨域图片加载提示中的按钮：在新标签页打开图片"
   },
   "proxyFetchFailed": {
@@ -233,11 +233,11 @@
     "description": "复制按钮文字"
   },
   "recognitionFailedMsg": {
-    "message": "未识别到有效的二维码或条形码，也许是不支持的码类型\n也许是图片不清晰或码面过度扭曲\n可以试试截图精确选区识别",
-    "description": "未识别到二维码或条形码时的提示"
+    "message": "未发现有效的码",
+    "description": "识别失败的提示"
   },
   "recognitionFailed": {
     "message": "识别失败",
-    "description": "识别出错后的标题（二维码和条形码通用）"
+    "description": "识别出错后的标题"
   }
 }

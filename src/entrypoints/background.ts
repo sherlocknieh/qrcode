@@ -12,25 +12,26 @@ export default defineBackground(() => {
     // 优先使用内存态的 session 存储, 不可用时回退 local
     const storageArea = () => browser.storage.session ?? browser.storage.local;
 
-    // 地址栏图标 (Firefox page action) 的显示状态, 持久化保存, 默认显示
+    // Firefox 地址栏图标 (page action) 的显/隐状态
     const PAGE_ACTION_VISIBLE_KEY = 'pageActionVisible';
     const isPageActionVisible = async () => {
         const stored = await browser.storage.local.get(PAGE_ACTION_VISIBLE_KEY);
         return stored[PAGE_ACTION_VISIBLE_KEY] !== false;
     };
 
-    // popup 通过长连接告知自己的打开状态, 断开即代表已关闭
+    // popup 打开状态
     let popupPort: Browser.runtime.Port | null = null;
     // openPopup 会短暂占用弹窗, 期间到达的通知直接等待 popup 读取存储
     let popupOpening = false;
     let lastPopupOpenAt = 0;
     const POPUP_OPEN_GRACE = 1500;
 
-    // 打开扩展 popup 窗口
-    // 必须优先用 action.openPopup: Firefox 的 pageAction.openPopup 声明了 requireUserInput,
-    // 异步流程(如截图框选完成)中调用必定被拒绝; action.openPopup 只用
-    // extensions.openPopupWithoutUserGesture.enabled 开关控制(默认开启), 不受手势限制。
-    // 保留 pageAction 兜底, 以防个别构建关闭了该开关。
+
+
+
+
+    // 打开 popup 窗口
+    // 优先使用 pageAction.openPopup, 被拒绝时回退到 action.openPopup
     const openPopup = async () => {
         type OpenPopupCapable = { openPopup?: () => Promise<void> };
         const candidates = [
@@ -111,6 +112,16 @@ export default defineBackground(() => {
         void openPopup().catch(() => {});
     };
 
+    // 直接打开的 SVG 是 XML 文档, 内容脚本无法创建 canvas 和弹窗, 需要交给 popup 处理
+    const isSvgDocumentUrl = (url?: string) => {
+        if (!url) return false;
+        try {
+            return new URL(url).pathname.toLowerCase().endsWith('.svg');
+        } catch {
+            return false;
+        }
+    };
+
     // Firefox 浏览器内置 PDF 阅读器页面无法注入内容脚本, 此时截取当前视口,
     // 再在新标签页中框选识别
     const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
@@ -135,6 +146,18 @@ export default defineBackground(() => {
             });
             return false;
         }
+    };
+
+    // 请求内容脚本开始区域截图; 内容脚本不可用 (如 Firefox 内置 PDF 阅读器) 时才回退到截取视口后框选。
+    // 内容脚本必须在收到消息时立即回执, 否则浏览器会以"消息端口关闭"拒绝, 被误判为不可用。
+    const requestAreaScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
+        try {
+            const response = await browser.tabs.sendMessage(tabId, { action: "screenshotQR" }) as { success?: boolean } | undefined;
+            if (response?.success !== false) return true;
+        } catch {
+            // 内容脚本未注入, 走下面的兜底
+        }
+        return showCropScan(windowId);
     };
 
     // 打开独立识别页: 文件选择框会让 popup 失去焦点并关闭, 因此本地图片
@@ -171,63 +194,75 @@ export default defineBackground(() => {
         return import.meta.env.FIREFOX ? title : `${emoji} ${title}`;
     };
 
-    // 右键菜单初始化
-    const addContextMenus = async () => {
+    // 重建右键菜单: 先清空再创建, 因此可以重复执行;
+    // 串行化避免两次并发执行时 removeAll/create 交错导致 "duplicate id"
+    const buildContextMenus = async () => {
         const pageActionVisible = await isPageActionVisible();
-        browser.contextMenus.removeAll(() => {
-            // 添加菜单: 识别图中二维码
-            browser.contextMenus.create({
-                id: "decodeQR",
-                title: menuTitle("decodeQR", "🔍"),
-                contexts: ["image"],
-                ...menuIcons("scan")
-            });
-            // 添加菜单: 识别图中二维码 (直接打开的 SVG 是文档而非 <img>, 右键上下文为 page)
-            browser.contextMenus.create({
-                id: "decodeQRPage",
-                title: menuTitle("decodeQR", "🔍"),
-                contexts: ["page"],
-                documentUrlPatterns: ["*://*/*.svg*", "file:///*.svg*"],
-                ...menuIcons("scan")
-            });
-            // 添加菜单: 选中文字生成二维码
-            browser.contextMenus.create({
-                id: "generateQR_selection",
-                title: menuTitle("generateQR_selection", "📝"),
-                contexts: ["selection"],
-                ...menuIcons("text")
-            });
-            // 添加菜单: 截屏识别二维码
-            browser.contextMenus.create({
-                id: "screenshotQR",
-                title: menuTitle("screenShot", "📷"),
-                contexts: ["action", "image", "page_action"],
-                ...menuIcons("screenshot")
-            });
-            // 添加菜单: 打开本地图片或剪贴板图片识别
-            browser.contextMenus.create({
-                id: "scanImage",
-                title: menuTitle("scanImage", "🖼️"),
-                contexts: ["action", "page_action"],
-                ...menuIcons("image")
-            });
-            // 添加菜单: 链接生成二维码
-            browser.contextMenus.create({
-                id: "generateQR_link",
-                title: menuTitle("generateQR_link", "🔗"),
-                contexts: ["link"],
-                ...menuIcons("link")
-            });
-            // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
-            if (browser.pageAction) {
-                browser.contextMenus.create({
-                    id: "togglePageAction",
-                    title: menuTitle(pageActionVisible ? "hidePageAction" : "showPageAction", pageActionVisible ? "🚫" : "👁️"),
-                    contexts: ["action"],
-                    ...menuIcons(pageActionVisible ? "hide" : "show")
-                });
+        try {
+            // 用回调形式等待完成: 旧版本 Chrome 的 removeAll 不支持 Promise
+            await new Promise<void>((resolve) => browser.contextMenus.removeAll(() => resolve()));
+        } catch {
+            // 菜单不存在时部分浏览器会报错, 忽略即可
+        }
+        const create = (props: Browser.contextMenus.CreateProperties) => {
+            try {
+                browser.contextMenus.create(props);
+            } catch (error) {
+                console.warn('contextMenus.create failed:', props.id, error);
             }
+        };
+
+        // 添加菜单: 识别图中二维码
+        create({
+            id: "decodeQR",
+            title: menuTitle("decodeQR", "🔍"),
+            contexts: ["image"],
+            ...menuIcons("scan")
         });
+        // 添加菜单: 选中文字生成二维码
+        create({
+            id: "generateQR_selection",
+            title: menuTitle("generateQR_selection", "📝"),
+            contexts: ["selection"],
+            ...menuIcons("text")
+        });
+        // 添加菜单: 截屏识别二维码 (网页右键的通用入口, 默认识别框选区域)
+        create({
+            id: "screenshotQR",
+            title: menuTitle("screenShot", "📷"),
+            // 显示在: 网页右键, 图片右键, 扩展图标右键, 地址栏图标右键
+            contexts: ["page", "image", "action", "page_action"],
+            ...menuIcons("screenshot")
+        });
+        // 添加菜单: 打开本地图片或剪贴板图片识别
+        create({
+            id: "scanImage",
+            title: menuTitle("scanImage", "🖼️"),
+            contexts: ["action", "page_action"],
+            ...menuIcons("image")
+        });
+        // 添加菜单: 链接生成二维码
+        create({
+            id: "generateQR_link",
+            title: menuTitle("generateQR_link", "🔗"),
+            contexts: ["link"],
+            ...menuIcons("link")
+        });
+        // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
+        if (browser.pageAction) {
+            create({
+                id: "togglePageAction",
+                title: menuTitle(pageActionVisible ? "hidePageAction" : "showPageAction", pageActionVisible ? "🚫" : "👁️"),
+                contexts: ["action"],
+                ...menuIcons(pageActionVisible ? "hide" : "show")
+            });
+        }
+    };
+
+    let menuQueue: Promise<void> = Promise.resolve();
+    const addContextMenus = () => {
+        menuQueue = menuQueue.then(buildContextMenus, buildContextMenus);
+        return menuQueue;
     };
 
     // 右键菜单点击事件处理
@@ -257,17 +292,15 @@ export default defineBackground(() => {
                 action: "decodeQR",
                 imageUrl: info.srcUrl
             });   // 此URL是包含域名的完整URL, 无论图片是否用了相对路径
-        } else if (info.menuItemId === "decodeQRPage") {
-            // 直接打开的 SVG 是 XML 文档, 内容脚本无法创建 canvas 和弹窗, 交给 popup 处理
-            showQrFromImagePage(info.pageUrl ?? tab?.url);
         } else if (info.menuItemId === "screenshotQR") {
+            // 直接打开的 SVG 文档无法框选截图, 直接解码页面地址
+            if (isSvgDocumentUrl(tab?.url)) {
+                showQrFromImagePage(info.pageUrl ?? tab?.url);
+                return;
+            }
             // 截图识别二维码: 优先使用内容脚本的区域截图 (Chrome 的 PDF 页面也能注入);
             // 内容脚本不可用(如 Firefox 内置 PDF 阅读器)时, 改为截取视口后框选识别
-            browser.tabs.sendMessage(tabId, {
-                action: "screenshotQR"
-            }).catch(() => {
-                void showCropScan(tab?.windowId);
-            });
+            void requestAreaScreenshot(tabId, tab?.windowId);
         } else if (info.menuItemId === "generateQR_link") {
             // 链接生成二维码
             showQRcode(info.linkUrl);
@@ -384,12 +417,7 @@ export default defineBackground(() => {
             browser.tabs.query({ active: true, currentWindow: true })
                 .then(async ([tab]) => {
                     if (tab?.id == null) throw new Error('No active tab.');
-                    try {
-                        await browser.tabs.sendMessage(tab.id, { action: "screenshotQR" });
-                        return true;
-                    } catch {
-                        return showCropScan(tab.windowId);
-                    }
+                    return requestAreaScreenshot(tab.id, tab.windowId);
                 })
                 .then(success => sendResponse({ success }))
                 .catch(() => sendResponse({ success: false }));
@@ -426,8 +454,9 @@ export default defineBackground(() => {
             void storageArea().remove(POPUP_NOTICE_KEY).catch(() => {});
         });
     });
-    browser.runtime.onInstalled.addListener(addContextMenus);               // 扩展安装完成后, 初始化右键菜单
-    browser.runtime.onStartup.addListener(addContextMenus);                 // 浏览器启动时同步菜单可见状态
+
+    browser.runtime.onInstalled.addListener(addContextMenus);               // 扩展安装完成时, 初始化右键菜单
+    // browser.runtime.onStartup.addListener(addContextMenus);                 // 浏览器启动时, 初始化右键菜单
     browser.tabs.onUpdated.addListener((tabId) => void showPageAction(tabId)); // 标签页加载完成后, 显示地址栏图标
     browser.contextMenus.onClicked.addListener(handleContextMenusClick);    // 右键菜单点击事件处理
     browser.runtime.onMessage.addListener(handleContentScriptMessage);      // 处理内容脚本的请求

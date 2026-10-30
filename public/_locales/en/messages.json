@@ -157,7 +157,7 @@
     "description": "Hint suggesting screenshot recognition when a cross-origin image cannot be fetched"
   },
   "screenshotScan": {
-    "message": "Scan via Screenshot",
+    "message": "Screenshot Scan",
     "description": "Button that switches to screenshot scan after a cross-origin fetch failure"
   },
   "screenshotRetry": {
@@ -233,7 +233,7 @@
     "description": "Copy button text"
   },
   "recognitionFailedMsg": {
-    "message": "No Valid Code Found, Maybe the image is too blurry or twisted.\nTry take a screenshot and select a more clear area.",
+    "message": "No Valid Code Found",
     "description": "Message shown when screenshot scan fails"
   },
   "recognitionFailed": {
