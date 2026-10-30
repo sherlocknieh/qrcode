@@ -1,7 +1,7 @@
 import { nextTick, reactive } from 'vue';
 
 export type NotifyIcon = 'info' | 'success' | 'error' | 'warning';
-export type NotifyDismissReason = 'cancel' | 'close' | 'extra' | 'replaced';
+type NotifyDismissReason = 'cancel' | 'close' | 'extra' | 'replaced';
 
 // 批量识别结果条目: 保持可序列化, 以便内容脚本通过 popup 通知展示
 export interface NotifyResultItem {
@@ -28,7 +28,7 @@ export interface NotifyOptions {
     didOpen?: () => void;
 }
 
-export type NotifyActionHandler = () => void | boolean | Promise<void | boolean>;
+type NotifyActionHandler = () => void | boolean | Promise<void | boolean>;
 
 export interface NotifyResult {
     isConfirmed: boolean;

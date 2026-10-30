@@ -23,10 +23,6 @@ export default defineBackground(() => {
     let lastPopupOpenAt = 0;
     const POPUP_OPEN_GRACE = 1500;
 
-
-
-
-
     // 打开 popup 窗口
     // 优先使用 pageAction.openPopup, 不可用或被拒绝时回退 action.openPopup
     const openPopup = async () => {
@@ -224,7 +220,7 @@ export default defineBackground(() => {
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
     type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
-        | 'screenShot' | 'scanScreenQuick' | 'generateQR_link' | 'scanImage'
+        | 'screenShot' | 'scanFullScreen' | 'scanImage'
         | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji: string) => {
         const title = browser.i18n.getMessage(key);
@@ -252,9 +248,9 @@ export default defineBackground(() => {
             // 添加菜单: 扫描屏幕二维码 (直接识别整屏, 不进入选区)
             browser.contextMenus.create({
                 id: "scanScreen",
-                title: menuTitle("scanScreenQuick", "⚡"),
+                title: menuTitle("scanFullScreen", "⚡"),
                 contexts: ["page", "action", "page_action"],
-                ...menuIcons("scanScreenQuick")
+                ...menuIcons("scanFullScreen")
             });
             // 添加菜单: 截屏框选识别 (网页右键的通用入口, 默认识别框选区域)
             browser.contextMenus.create({
@@ -271,13 +267,6 @@ export default defineBackground(() => {
                 contexts: ["action", "page_action"],
                 ...menuIcons("image")
             });
-            // // 添加菜单: 链接生成二维码
-            // browser.contextMenus.create({
-            //     id: "generateQR_link",
-            //     title: menuTitle("generateQR_link", "🔗"),
-            //     contexts: ["link"],
-            //     ...menuIcons("link")
-            // });
             // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
             if (browser.pageAction) {
                 browser.contextMenus.create({
@@ -337,9 +326,6 @@ export default defineBackground(() => {
                 return;
             }
             void requestQuickScreenshot(tabId, tab?.windowId);
-        } else if (info.menuItemId === "generateQR_link") {
-            // 链接生成二维码
-            showQRcode(info.linkUrl);
         }
     };
 
@@ -401,7 +387,7 @@ export default defineBackground(() => {
             return true;
         }
         // popup 已展示通知, 清理待展示内容
-        if (request.action === "notificationResolved" || request.action === "notificationDismissed") {
+        if (request.action === "notificationResolved") {
             void clearNoticeIfCurrent(request.id);
             sendResponse({ success: true });
             return false;

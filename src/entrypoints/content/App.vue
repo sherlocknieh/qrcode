@@ -3,7 +3,6 @@ import { onBeforeUnmount, onMounted } from 'vue';
 
 // 非UI组件
 import {
-    decodeAllFromImageData,
     getImageDataFromDataUrl,
     isSameOrigin,
     loadImageDataFromUrl,
@@ -18,15 +17,12 @@ import NotifyHost from '@/components/NotifyHost.vue';
 import { useScreenshot, type ScreenshotResult } from '@/composables/useScreenshot';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
-import { errorNotice } from '@/services/decodeResultNotice';
 import { useImagePasteOverlay } from '@/composables/useImagePasteOverlay';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
 import {
     showPopupNotice,
     type PopupNoticePayload,
 } from '@/services/popupNotice';
-
-
 
 const { startScreenshot } = useScreenshot();
 const { fireLocal, notify, notifyDecoding, host } = useNoticeFallback();
@@ -67,7 +63,6 @@ onBeforeUnmount(() => {
     scanAnimation.stop();
     imagePasteOverlay.close();
 });
-
 
 // 跨域图片加载期间的提示，提供"新标签打开图片"和"改用截图识别"两个出口。
 // 提示保持加载态, 由后续的"正在识别"通知替换, 因此不会留下空白窗口。

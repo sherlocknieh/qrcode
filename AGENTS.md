@@ -4,7 +4,7 @@
 
 ## 一句话概述
 
-基于 **WXT + Vue 3 + TypeScript** 的跨浏览器（Chrome / Edge / Firefox）二维码扩展：生成二维码（当前页 / 选中文本 / 链接）、识别二维码与一维条形码（网页图片 / 截图 / 本地图片 / 剪贴板），并附带简易截图工具。
+基于 **WXT + Vue 3 + TypeScript** 的跨浏览器（Chrome / Edge / Firefox）二维码扩展：生成二维码（当前页 / 选中文本）、识别二维码与一维条形码（网页图片 / 截图 / 本地图片 / 剪贴板），并附带简易截图工具。
 
 - 版本号在 [package.json](./package.json)（发布时同步 `version`）
 - 无自动化测试；唯一的静态校验是 `pnpm compile`（`vue-tsc --noEmit`）

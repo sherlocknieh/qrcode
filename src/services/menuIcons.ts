@@ -23,14 +23,10 @@ const MENU_ICONS = {
         '<path d="M3 3h10"/>'
         + '<path d="M8 3v10"/>'
         + '<path d="M5.5 13h5"/>'),
-    link: icon('link',
-        '<path d="M6.8 9.2 9.2 6.8"/>'
-        + '<path d="M7.2 5.1 8.3 4a2.5 2.5 0 0 1 3.7 3.7l-1.1 1.1"/>'
-        + '<path d="M8.8 10.9 7.7 12a2.5 2.5 0 0 1-3.7-3.7l1.1-1.1"/>'),
     screenshot: icon('screenshot',
         '<path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h1.7L6 2.5h4L10.8 4h1.7A1.5 1.5 0 0 1 14 5.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>'
         + '<circle cx="8" cy="8.5" r="2.3"/>'),
-    scanScreenQuick: icon('scanScreenQuick',
+    scanFullScreen: icon('scanFullScreen',
         '<path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h1.7L6 2.5h4L10.8 4h1.7A1.5 1.5 0 0 1 14 5.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>'
         + '<path d="m5.8 8.6 1.5 1.5 2.9-3"/>'),
     image: icon('image',

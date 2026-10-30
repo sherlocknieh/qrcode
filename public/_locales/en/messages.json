@@ -7,10 +7,6 @@
     "message": "QR Code Generator and Scanner",
     "description": "Application description"
   },
-  "generateQR_link": {
-    "message": "Create QR Code for This Link",
-    "description": "Context menu item for generating QR code from current link"
-  },
   "generateQR_selection": {
     "message": "Create QR Code from Selected Text",
     "description": "Context menu item for generating QR code from selected text"
@@ -23,7 +19,7 @@
     "message": "Scan via Screenshot",
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
-  "scanScreenQuick": {
+  "scanFullScreen": {
     "message": "Scan Screen",
     "description": "Context menu item for capturing the screen and scanning it directly without selecting an area"
   },
@@ -126,10 +122,6 @@
   "openImage": {
     "message": "Open Image in New Tab",
     "description": "Button in the cross-origin loading notice that opens the image in a new tab"
-  },
-  "proxyFetchFailed": {
-    "message": "Failed to Load Image in the Background",
-    "description": "Error when background fetch fails"
   },
   "crossOriginScreenshotHint": {
     "message": "Try Scan via Screenshot Instead:",

@@ -1,7 +1,6 @@
 import BarcodeFormat from '@zxing/library/esm/core/BarcodeFormat';
 import BinaryBitmap from '@zxing/library/esm/core/BinaryBitmap';
 import BitArray from '@zxing/library/esm/core/common/BitArray';
-import type BitMatrix from '@zxing/library/esm/core/common/BitMatrix';
 import DecodeHintType from '@zxing/library/esm/core/DecodeHintType';
 import type DetectorResult from '@zxing/library/esm/core/common/DetectorResult';
 import GlobalHistogramBinarizer from '@zxing/library/esm/core/common/GlobalHistogramBinarizer';
@@ -88,24 +87,6 @@ export type DecodeResult = {
     kind: 'qr' | 'barcode';
 };
 
-// 优先识别一维条形码，失败后再按二维码识别。
-// 条形码只需在缩小后的灰度图上逐行扫描，命中时比二维码的多阈值候选图更快；
-// 二维码的识别全部交给 ZXing：依次尝试灰度图和不同阈值的二值化图，
-// 兼顾过曝、低对比度、圆点模块和白码黑底等情况。
-export async function decodeQrFromImageData(imageData: ImageData): Promise<DecodeResult | null> {
-    const gray = toGrayImage(imageData);
-
-    const barcode = decodeBarcodeWithZXing(gray);
-    if (barcode) return { text: barcode, kind: 'barcode' };
-
-    for (const candidate of createQrCandidates(gray)) {
-        const text = decodeQrWithZXing(candidate);
-        if (text) return { text, kind: 'qr' };
-    }
-
-    return null;
-}
-
 // 灰度图：每像素 1 字节。ZXing 只需要亮度，用灰度数据比 RGBA 少 3/4 内存，
 // 大图反复生成阈值候选图时不容易触发垃圾回收抖动。
 type GrayImage = {
@@ -177,19 +158,6 @@ const oneDReader = new SupportedOneDReader();
 // 缩小后仍可识别，但大图的逐行扫描会明显拖慢失败场景下的兜底速度。
 const BARCODE_SCAN_DIMENSION = 1600;
 
-// 扫描一维条形码：条形码印在平面上，灰度图已足够，无需像二维码那样尝试全部阈值图。
-// 一维读取器会逐行二值化，因此只需要一种二值化方式。
-// 竖拍的条形码在逐行扫描中会变成竖直条纹，因此再补一张顺时针旋转 90 度的图。
-function decodeBarcodeWithZXing(gray: GrayImage): string | null {
-    const scaled = downscaleGrayToMaxDimension(gray, BARCODE_SCAN_DIMENSION);
-
-    for (const candidate of [scaled, rotateGray90(scaled)]) {
-        const text = decodeOneDWithZXing(candidate);
-        if (text) return text;
-    }
-    return null;
-}
-
 // 行扫描只处理水平方向，因此一维识别只需要灰度图和一种二值化方式。
 function decodeOneDResultWithZXing(gray: GrayImage): Result | null {
     try {
@@ -197,10 +165,6 @@ function decodeOneDResultWithZXing(gray: GrayImage): Result | null {
     } catch {
         return null;
     }
-}
-
-function decodeOneDWithZXing(gray: GrayImage): string | null {
-    return decodeOneDResultWithZXing(gray)?.getText() || null;
 }
 
 // 按整数倍缩小灰度图，对每个块取平均，避免条形码的细线在缩放中丢失。
@@ -253,10 +217,6 @@ function decodeQrResultWithZXing(gray: GrayImage): Result | null {
     }
 }
 
-function decodeQrWithZXing(gray: GrayImage): string | null {
-    return decodeQrResultWithZXing(gray)?.getText() || null;
-}
-
 // 灰度图直接作为 Y 平面交给 ZXing，不需要再复制成亮度数组。
 function createZXingBitmap(gray: GrayImage): BinaryBitmap {
     const { data, width, height } = gray;
@@ -306,24 +266,6 @@ function dilateBlackPixels(gray: GrayImage, radius: number): GrayImage {
     }
 
     return { data: output, width, height };
-}
-
-// 二维码候选图，按命中概率排序。
-// 普通二维码在灰度图就能识别；拍摄发光的屏幕或广告牌时二维码往往过曝，
-// 用较高阈值能保留亮部区域的黑白对比；反色图兼容白码黑底；
-// 圆点型二维码需要先膨胀再识别。
-function* createQrCandidates(gray: GrayImage): Generator<GrayImage> {
-    yield gray;
-
-    for (const threshold of [192, 160, 128, 96, 224]) {
-        yield thresholdGray(gray, threshold);
-    }
-
-    yield invertGray(gray);
-
-    for (const threshold of [160, 192]) {
-        yield dilateBlackPixels(thresholdGray(gray, threshold), 1);
-    }
 }
 
 // ---------------------------- 批量识别 ----------------------------
@@ -628,7 +570,7 @@ function maskGrayRect(gray: GrayImage, bounds: Bounds, padX: number, padY: numbe
 
 // 将 HTMLImageElement 绘制到 Canvas，并提取完整像素数据。
 // SVG 会先缩放到合适的尺寸：过小则放大以保留二维码细节，过大则缩小以避免生成候选图时占用过多内存。
-export async function getImageDataFromImageElement(img: HTMLImageElement): Promise<ImageData> {
+async function getImageDataFromImageElement(img: HTMLImageElement): Promise<ImageData> {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) {

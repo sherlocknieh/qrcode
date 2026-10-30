@@ -33,7 +33,7 @@ export async function trySendMessage(
     }
 }
 
-export function toError(error: unknown, fallback: string): Error {
+function toError(error: unknown, fallback: string): Error {
     if (error instanceof Error) return error;
     if (typeof error === 'string' && error) return new Error(error);
     return new Error(fallback);

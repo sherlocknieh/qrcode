@@ -7,10 +7,6 @@
     "message": "二维码生成与识别",
     "description": "应用描述"
   },
-  "generateQR_link": {
-    "message": "链接 → 二维码",
-    "description": "右键菜单项：为选中的链接生成二维码"
-  },
   "generateQR_selection": {
     "message": "文字 → 二维码",
     "description": "右键菜单项：为选中的文字生成二维码"
@@ -20,15 +16,15 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "screenShot": {
-    "message": "截图框选",
+    "message": "截图选区",
     "description": "右键菜单项：截图扫描二维码/条形码"
   },
-  "scanScreenQuick": {
+  "scanFullScreen": {
     "message": "全屏扫描",
     "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
   },
   "scanImage": {
-    "message": "本地上传",
+    "message": "上传/粘贴",
     "description": "工具栏图标右键菜单项：打开图片识别页面（本地图片或剪贴板）"
   },
   "scanImageTitle": {
@@ -126,10 +122,6 @@
   "openImage": {
     "message": "新标签打开",
     "description": "跨域图片加载提示中的按钮：在新标签页打开图片"
-  },
-  "proxyFetchFailed": {
-    "message": "后台获取图片失败",
-    "description": "后台获取图片失败时的提示"
   },
   "crossOriginScreenshotHint": {
     "message": "可以改用截图识别:",

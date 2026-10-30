@@ -1,12 +1,6 @@
-import {
-    copyHandlers,
-    errorNotice,
-    resultNotice,
-    runNoticeAction,
-} from '@/services/decodeResultNotice';
-import { showPopupNotice, type PopupNoticePayload } from '@/services/popupNotice';
+import { errorNotice } from '@/services/decodeResultNotice';
+import type { PopupNoticePayload } from '@/services/popupNotice';
 import { decodeAllFromImageData, type DecodeResult } from '@/services/qrScanner';
-import type { NotifyOptions, NotifyResult } from '@/composables/useNotify';
 import { t } from '@/services/i18n';
 
 // 识别流程需要的能力: 只描述"怎么提示", 不关心提示显示在哪里。
@@ -88,31 +82,4 @@ export async function recognizeImage(
 
     await host.notifyResults(results);
     return { status: 'ok', results };
-}
-
-// 页面内兜底通知的适配: 把 popup 优先的逻辑包成 RecognizeHost。
-// resolveLocal 负责在本进程内展示并返回用户操作结果。
-export function createLocalHost(
-    resolveLocal: (payload: PopupNoticePayload, overrides?: NotifyOptions) => Promise<NotifyResult>,
-    notifyDecoding: () => Promise<void>,
-    notify: (payload: PopupNoticePayload) => Promise<unknown>,
-): RecognizeHost {
-    return {
-        notify,
-        notifyDecoding,
-        async notifyResults(results) {
-            const payload = resultNotice(results);
-            if (await showPopupNotice(payload)) return true;
-            const response = await resolveLocal(payload, copyHandlers(payload));
-            if (response.isConfirmed) runNoticeAction(payload.confirmAction);
-            return false;
-        },
-        async notifyNoResult(onRetry) {
-            const payload = resultNotice([]);
-            if (await showPopupNotice(payload)) return true;
-            const response = await resolveLocal(payload);
-            if (response.dismiss === 'extra') onRetry?.();
-            return false;
-        },
-    };
 }
