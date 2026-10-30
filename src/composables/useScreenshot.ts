@@ -1,5 +1,6 @@
 import { createApp, type App } from 'vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
+import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 
 export type ScreenshotResult =
     | { type: 'failed' }
@@ -23,7 +24,10 @@ async function captureVisibleTab(): Promise<string> {
 
 export function useScreenshot() {
     const startScreenshot = async (): Promise<string> => {
-        const src = await captureVisibleTab();
+        const [src, intro] = await Promise.all([
+            captureVisibleTab(),
+            getScreenshotIntroEnabled().catch(() => false),
+        ]);
 
         return new Promise<string>((resolve, reject) => {
             const host = document.createElement('div');
@@ -50,6 +54,7 @@ export function useScreenshot() {
 
             app = createApp(ScreenshotOverlay, {
                 src,
+                intro,
                 onConfirm: (dataUrl: string) => finish(() => resolve(dataUrl)),
                 onCancel: () =>
                     finish(() => reject({ type: 'cancelled', silent: true } satisfies ScreenshotResult)),

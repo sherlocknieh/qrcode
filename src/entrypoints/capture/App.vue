@@ -9,6 +9,7 @@ import { useScanAnimation } from '@/composables/useScanAnimation';
 import { t } from '@/services/i18n';
 import { errorNotice } from '@/services/decodeResultNotice';
 import { trySendMessage } from '@/services/messaging';
+import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 import { takeStoredString } from '@/services/storage';
 
 // background 截取视口后写入该键, 本页面读取后立即清除
@@ -32,6 +33,8 @@ const { scan } = useImageScan({
 
 // 截图数据; 确认框选后清空以卸载框选界面
 const src = ref('');
+// 入场动画开关, 由扩展图标右键菜单控制
+const introEnabled = ref(false);
 
 const takeStoredImage = () => takeStoredString(CAPTURE_IMAGE_KEY);
 
@@ -59,7 +62,11 @@ async function handleLoadError() {
 onMounted(async () => {
     document.title = t('appName');
     try {
-        const stored = await takeStoredImage();
+        const [stored, intro] = await Promise.all([
+            takeStoredImage(),
+            getScreenshotIntroEnabled().catch(() => false),
+        ]);
+        introEnabled.value = intro;
         if (!stored) {
             await handleLoadError();
             return;
@@ -85,6 +92,7 @@ onMounted(async () => {
     <ScreenshotOverlay
         v-if="src"
         :src="src"
+        :intro="introEnabled"
         @confirm="handleConfirm"
         @cancel="closeTab"
         @error="handleLoadError"

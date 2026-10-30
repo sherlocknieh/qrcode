@@ -16,11 +16,11 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanFullScreen": {
-    "message": "整屏扫描",
+    "message": "全屏扫描",
     "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
   },
   "screenShot": {
-    "message": "区域扫描",
+    "message": "精准选区扫描",
     "description": "右键菜单项：截图扫描二维码/条形码"
   },
   "scanImage": {
@@ -179,13 +179,13 @@
     "message": "截图",
     "description": "保存截图时的文件名前缀"
   },
-  "screenshotConfirm": {
-    "message": "识别",
-    "description": "确认选区并识别二维码的按钮"
-  },
   "screenshotHint": {
     "message": "拖动鼠标框选区域",
     "description": "截图界面上提示用户框选区域的文字"
+  },
+  "screenshotIntro": {
+    "message": "截图动画",
+    "description": "扩展图标右键菜单中控制框选界面入场动画的开关"
   },
   "confirm": {
     "message": "确定",

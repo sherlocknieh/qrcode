@@ -1,7 +1,14 @@
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const props = defineProps<{ src: string }>();
+const props = withDefaults(
+    defineProps<{
+        src: string;
+        // 是否播放"全屏闪光 -> 收缩到居中窗口"的入场动画
+        intro?: boolean;
+    }>(),
+    { intro: false },
+);
 
 const emit = defineEmits<{
     (event: 'confirm', dataUrl: string): void;
@@ -19,8 +26,9 @@ const FLOATING_VIEWPORT_HEIGHT_RATIO = 0.8;
 const MIN_SELECTION = 8;
 const HANDLE_SIZE = 6;
 const HANDLE_HIT_SIZE = 9;
-const MASK_COLOR = 'rgba(0, 0, 0, 0.4)';
 const ACCENT_COLOR = '#2CABFF';
+// 与整屏识别扫描动画的遮罩保持一致
+const MASK_COLOR = 'rgba(8, 12, 20, 0.22)';
 
 // 入场: 全屏 + 四周闪光, 再收缩到居中窗口
 const INTRO_FLASH_DURATION = 380;
@@ -78,26 +86,38 @@ const viewport = ref({
     width: Math.max(window.innerWidth, 1),
     height: Math.max(window.innerHeight, 1),
 });
-const imageAspect = ref(0);
 const imageSize = ref({ width: 0, height: 0 });
 const loaded = ref(false);
 const selection = ref<Rect | null>(null);
 const toolbarPosition = ref({ left: 0, top: 0 });
 const cursor = ref('crosshair');
-const phase = ref<Phase>('cover');
+const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
+
+// 开启且在未减少动态效果时才播放入场动画
+const introActive = computed(() => props.intro && !prefersReducedMotion);
+const phase = ref<Phase>(introActive.value ? 'cover' : 'select');
 const flashing = ref(false);
 const settling = ref(false);
-const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
 const dpr = window.devicePixelRatio || 1;
 let image: HTMLImageElement | undefined;
 let drag: DragState | null = null;
 let resizeFrame: number | undefined;
 
-// 浮窗尺寸跟随截图本身的宽高比, 避免不同 dpr / 缩放环境下把画面拉伸变形,
-// 也能保证选区坐标与截图像素之间的换算始终精确。
+// 关闭入场动画时截图铺满整个视口; 开启时收缩到按截图比例计算的居中窗口
 const layout = computed(() => {
-    const aspect = imageAspect.value > 0 ? imageAspect.value : 1;
+    if (!introActive.value) {
+        return {
+            width: Math.max(1, viewport.value.width),
+            height: Math.max(1, viewport.value.height),
+            left: 0,
+            top: 0,
+        };
+    }
+
+    const aspect = imageSize.value.width > 0 && imageSize.value.height > 0
+        ? imageSize.value.width / imageSize.value.height
+        : 1;
     const maxWidth = Math.min(
         FLOATING_MAX_WIDTH,
         Math.floor(viewport.value.width * FLOATING_VIEWPORT_WIDTH_RATIO),
@@ -128,55 +148,40 @@ const layout = computed(() => {
 const pixelWidth = computed(() => Math.max(1, Math.round(layout.value.width * dpr)));
 const pixelHeight = computed(() => Math.max(1, Math.round(layout.value.height * dpr)));
 
-// 入场动画期间浮窗从全屏收缩到居中窗口
+// 动画期间浮窗从全屏收缩到居中窗口
 const rootStyle = computed(() => {
-    if (phase.value === 'cover') {
-        return {
-            left: '0px',
-            top: '0px',
-            width: `${viewport.value.width}px`,
-            height: `${viewport.value.height}px`,
-            '--qr-shot-radius': '0px',
-        };
-    }
+    const width = phase.value === 'cover' ? viewport.value.width : layout.value.width;
+    const height = phase.value === 'cover' ? viewport.value.height : layout.value.height;
     return {
-        left: `${layout.value.left - 1}px`,
-        top: `${layout.value.top - 1}px`,
-        width: `${layout.value.width}px`,
-        height: `${layout.value.height}px`,
-        '--qr-shot-radius': '12px',
+        left: phase.value === 'cover' ? '0px' : `${layout.value.left - 1}px`,
+        top: phase.value === 'cover' ? '0px' : `${layout.value.top - 1}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+        '--qr-shot-radius': phase.value === 'cover' ? '0px' : '12px',
     };
 });
 
 const canvasStyle = computed(() => ({
-    width:
-        phase.value === 'cover'
-            ? `${viewport.value.width}px`
-            : `${layout.value.width}px`,
-    height:
-        phase.value === 'cover'
-            ? `${viewport.value.height}px`
-            : `${layout.value.height}px`,
+    width: `${phase.value === 'cover' ? viewport.value.width : layout.value.width}px`,
+    height: `${phase.value === 'cover' ? viewport.value.height : layout.value.height}px`,
 }));
 
-const busy = computed(() => phase.value === 'cover' || settling.value);
+const busy = computed(
+    () => introActive.value && (phase.value === 'cover' || settling.value),
+);
 
 const hasSelection = computed(() => {
     const rect = selection.value;
     return rect !== null && rect.width >= MIN_SELECTION && rect.height >= MIN_SELECTION;
 });
 
-const showToolbar = computed(
-    () => phase.value === 'select' && loaded.value && hasSelection.value,
-);
+const showToolbar = computed(() => loaded.value && !busy.value && hasSelection.value);
 
 // 全选/复制/保存与关闭按钮固定在右上角, 未框选时也可直接作用于整张截图
 const showActions = computed(() => loaded.value && !busy.value);
 
 // 入场动画结束后、尚未框选时提示用户拖动框选
-const showHint = computed(
-    () => phase.value === 'select' && loaded.value && !busy.value && !hasSelection.value,
-);
+const showHint = computed(() => loaded.value && !busy.value && !hasSelection.value);
 
 const toolbarStyle = computed(() => ({
     left: `${toolbarPosition.value.left}px`,
@@ -196,9 +201,7 @@ const sizeLabel = computed(() => {
     return `${Math.round(rect.width * sourceScaleX.value)} × ${Math.round(rect.height * sourceScaleY.value)}`;
 });
 
-const showSizeLabel = computed(
-    () => phase.value === 'select' && loaded.value && !busy.value && hasSelection.value,
-);
+const showSizeLabel = computed(() => loaded.value && !busy.value && hasSelection.value);
 
 // 尺寸标记独立于工具栏, 固定在选框左上方
 const sizeLabelStyle = computed(() => {
@@ -250,17 +253,17 @@ const draw = () => {
     const height = layout.value.height;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
-    // 画面始终按最终尺寸绘制, 由 CSS 过渡把全屏容器收缩到居中窗口
+    // 画面铺满视口, 再叠一层与整屏识别一致的淡遮罩, 选区处挖空
     context.drawImage(image, 0, 0, width, height);
 
+    const rect = selection.value;
     context.beginPath();
     context.rect(0, 0, width, height);
-    const rect = selection.value;
-    if (rect) {
-        context.rect(rect.x, rect.y, rect.width, rect.height);
-        context.fillStyle = MASK_COLOR;
-        context.fill('evenodd');
+    if (rect) context.rect(rect.x, rect.y, rect.width, rect.height);
+    context.fillStyle = MASK_COLOR;
+    context.fill('evenodd');
 
+    if (rect) {
         context.strokeStyle = ACCENT_COLOR;
         context.lineWidth = 1;
         context.strokeRect(
@@ -283,9 +286,6 @@ const draw = () => {
             context.fill();
             context.stroke();
         }
-    } else {
-        context.fillStyle = MASK_COLOR;
-        context.fill();
     }
 };
 
@@ -294,10 +294,10 @@ const updateToolbarPosition = () => {
     const rect = selection.value;
     if (!toolbar || !rect || !hasSelection.value) return;
 
-    // 工具栏允许溢出浮窗, 只跟随选区水平居中显示在下方
+    // 识别按钮固定在选区正中央
     toolbarPosition.value = {
-        left: Math.round(rect.x + (rect.width - toolbar.offsetWidth) / 2),
-        top: Math.round(rect.y + rect.height + 8),
+        left: rect.x + rect.width / 2,
+        top: rect.y + rect.height / 2,
     };
 };
 
@@ -451,7 +451,7 @@ const showStatus = (text: string, kind: 'success' | 'error', autoClose = false) 
 
 // 入场: 整屏截图覆盖视口并闪一下, 再收缩到居中窗口
 function startIntro() {
-    if (prefersReducedMotion) {
+    if (!introActive.value) {
         phase.value = 'select';
         return;
     }
@@ -681,7 +681,6 @@ onMounted(() => {
             width: element.naturalWidth || element.width,
             height: element.naturalHeight || element.height,
         };
-        imageAspect.value = imageSize.value.width / Math.max(1, imageSize.value.height);
         loaded.value = true;
         startIntro();
     };
@@ -709,7 +708,7 @@ onBeforeUnmount(() => {
         v-if="loaded"
         ref="rootRef"
         class="qr-shot"
-        :class="`qr-shot--${phase}`"
+        :class="{ 'qr-shot--intro': introActive }"
         :style="[rootStyle, { cursor: busy ? 'default' : cursor }]"
     >   
         <!-- 截图框选画布 -->
@@ -834,8 +833,23 @@ onBeforeUnmount(() => {
         </div>
         <!-- 截图工具栏 -->
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
-            <button class="qr-shot-btn primary" type="button" @click="confirm">
-                {{ t('screenshotConfirm', 'Scan') }}
+            <button
+                class="qr-shot-btn primary qr-shot-btn--confirm"
+                type="button"
+                :aria-label="t('confirm', 'Scan')"
+                :title="t('confirm', 'Scan')"
+                @click="confirm"
+            >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                        d="m5 12.5 4.5 4.5L19 7.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
             </button>
         </div>
     </div>
@@ -844,15 +858,23 @@ onBeforeUnmount(() => {
 <style scoped>
 .qr-shot {
     position: fixed;
-    box-sizing: content-box;
     z-index: 2147483647;
+    overflow: visible;
+    user-select: none;
+}
+
+.qr-shot-canvas {
+    display: block;
+    touch-action: none;
+}
+
+/* 入场动画开启时: 浮窗外框与收缩过渡 */
+.qr-shot--intro {
     border: 1px solid rgba(255, 255, 255, 0.7);
     border-radius: var(--qr-shot-radius, 12px);
     box-shadow:
         0 0 0 1px rgba(0, 0, 0, 0.18),
         0 20px 45px rgba(0, 0, 0, 0.42);
-    overflow: visible;
-    user-select: none;
     transform-origin: top left;
     will-change: left, top, width, height;
     transition:
@@ -863,10 +885,8 @@ onBeforeUnmount(() => {
         border-radius 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.qr-shot-canvas {
-    display: block;
+.qr-shot--intro .qr-shot-canvas {
     border-radius: inherit;
-    touch-action: none;
     transition:
         width 420ms cubic-bezier(0.22, 0.61, 0.36, 1),
         height 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -964,8 +984,8 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .qr-shot,
-    .qr-shot-canvas {
+    .qr-shot--intro,
+    .qr-shot--intro .qr-shot-canvas {
         transition: none;
     }
 
@@ -1058,13 +1078,10 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 8px;
-    border-radius: 8px;
-    background: rgba(25, 25, 25, 0.92);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
     color: #fff;
     font: 12px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
     white-space: nowrap;
+    transform: translate(-50%, -50%);
 }
 
 .qr-shot-size {
@@ -1111,12 +1128,31 @@ onBeforeUnmount(() => {
 }
 
 .qr-shot-btn.primary {
-    border-color: #2cabff;
-    background: #2cabff;
+    border-color: rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(60, 64, 72, 0.55);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(4px);
 }
 
 .qr-shot-btn.primary:hover {
-    background: #1b9be9;
+    background: rgba(80, 85, 94, 0.75);
+}
+
+.qr-shot-btn--confirm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+}
+
+.qr-shot-btn--confirm svg {
+    display: block;
+    width: 18px;
+    height: 18px;
 }
 
 .qr-shot-close {

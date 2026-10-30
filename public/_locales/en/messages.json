@@ -179,13 +179,13 @@
     "message": "Screenshot",
     "description": "File name prefix used when saving a screenshot"
   },
-  "screenshotConfirm": {
-    "message": "Scan",
-    "description": "Button that confirms the selected area for QR decoding"
-  },
   "screenshotHint": {
     "message": "Select a Area to Scan",
     "description": "Hint telling the user to drag-select the area to scan"
+  },
+  "screenshotIntro": {
+    "message": "Selection Intro Animation",
+    "description": "Toggle in the extension icon context menu for the capture selection intro animation"
   },
   "confirm": {
     "message": "OK",
