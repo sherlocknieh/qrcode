@@ -15,25 +15,21 @@
     "message": "扫描图片",
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
-  "screenShot": {
-    "message": "截图选区",
-    "description": "右键菜单项：截图扫描二维码/条形码"
-  },
   "scanFullScreen": {
-    "message": "全屏扫描",
+    "message": "整屏扫描",
     "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
   },
+  "screenShot": {
+    "message": "区域扫描",
+    "description": "右键菜单项：截图扫描二维码/条形码"
+  },
   "scanImage": {
-    "message": "上传/粘贴",
+    "message": "上传/粘贴图片",
     "description": "工具栏图标右键菜单项：打开图片识别页面（本地图片或剪贴板）"
   },
   "scanImageTitle": {
     "message": "识别图片中的二维码",
     "description": "本地图片识别页面的标题"
-  },
-  "scanImageDesc": {
-    "message": "选择一张本地图片，或直接把图片拖入、粘贴到此处。",
-    "description": "本地图片识别页面的说明"
   },
   "dropImageHint": {
     "message": "拖入图片，或点击选择文件",

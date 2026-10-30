@@ -222,9 +222,9 @@ export default defineBackground(() => {
     type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
         | 'screenShot' | 'scanFullScreen' | 'scanImage'
         | 'showPageAction' | 'hidePageAction';
-    const menuTitle = (key: MenuMessageKey, emoji: string) => {
+    const menuTitle = (key: MenuMessageKey, emoji?: string) => {
         const title = browser.i18n.getMessage(key);
-        return import.meta.env.FIREFOX ? title : `${emoji} ${title}`;
+        return import.meta.env.FIREFOX || !emoji ? title : `${emoji} ${title}`;
     };
 
     // 右键菜单初始化
@@ -234,7 +234,7 @@ export default defineBackground(() => {
             // 添加菜单: 识别图中二维码
             browser.contextMenus.create({
                 id: "decodeQR",
-                title: menuTitle("decodeQR", "🔍"),
+                title: menuTitle("decodeQR"),
                 contexts: ["image"],
                 ...menuIcons("scan")
             });
@@ -245,14 +245,14 @@ export default defineBackground(() => {
                 contexts: ["selection"],
                 ...menuIcons("text")
             });
-            // 添加菜单: 扫描屏幕二维码 (直接识别整屏, 不进入选区)
+            // 添加菜单: 整屏识别
             browser.contextMenus.create({
                 id: "scanScreen",
-                title: menuTitle("scanFullScreen", "⚡"),
+                title: menuTitle("scanFullScreen", "🖥️"),
                 contexts: ["page", "action", "page_action"],
                 ...menuIcons("scanFullScreen")
             });
-            // 添加菜单: 截屏框选识别 (网页右键的通用入口, 默认识别框选区域)
+            // 添加菜单: 框选区域识别
             browser.contextMenus.create({
                 id: "screenshotQR",
                 title: menuTitle("screenShot", "📷"),
@@ -263,7 +263,7 @@ export default defineBackground(() => {
             // 添加菜单: 打开本地图片或剪贴板图片识别
             browser.contextMenus.create({
                 id: "scanImage",
-                title: menuTitle("scanImage", "🖼️"),
+                title: menuTitle("scanImage", "📋"),
                 contexts: ["action", "page_action"],
                 ...menuIcons("image")
             });

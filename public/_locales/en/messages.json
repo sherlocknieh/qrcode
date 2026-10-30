@@ -8,20 +8,20 @@
     "description": "Application description"
   },
   "generateQR_selection": {
-    "message": "Create QR Code from Selected Text",
+    "message": "Text to QR Code",
     "description": "Context menu item for generating QR code from selected text"
   },
   "decodeQR": {
-    "message": "Scan QR Code in Image",
+    "message": "Scan Image",
     "description": "Context menu item for recognizing QR code in image"
-  },
-  "screenShot": {
-    "message": "Scan via Screenshot",
-    "description": "Context menu item for taking screenshot to recognize QR code"
   },
   "scanFullScreen": {
     "message": "Scan Screen",
     "description": "Context menu item for capturing the screen and scanning it directly without selecting an area"
+  },
+  "screenShot": {
+    "message": "Scan Area",
+    "description": "Context menu item for taking screenshot to recognize QR code"
   },
   "scanImage": {
     "message": "Scan Local/Clipboard Image",
@@ -30,10 +30,6 @@
   "scanImageTitle": {
     "message": "Scan QR Code in Image",
     "description": "Title of the local image scanning page"
-  },
-  "scanImageDesc": {
-    "message": "Choose a local image, or drop or paste an image here.",
-    "description": "Description of the local image scanning page"
   },
   "dropImageHint": {
     "message": "Drop an image here, or click to choose a file",
@@ -124,7 +120,7 @@
     "description": "Button in the cross-origin loading notice that opens the image in a new tab"
   },
   "crossOriginScreenshotHint": {
-    "message": "Try Scan via Screenshot Instead:",
+    "message": "Try Screenshot Scan Instead:",
     "description": "Hint suggesting screenshot recognition when a cross-origin image cannot be fetched"
   },
   "screenshotScan": {

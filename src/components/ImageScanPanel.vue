@@ -64,7 +64,6 @@ onBeforeUnmount(() => {
                     <component :is="overlay ? 'p' : 'h1'" class="qr-scan-panel-title">
                         {{ t('scanImageTitle') }}
                     </component>
-                    <p v-if="!overlay" class="qr-scan-panel-desc">{{ t('scanImageDesc') }}</p>
                 </header>
 
                 <div ref="pickerRef">
