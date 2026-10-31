@@ -8,6 +8,7 @@ import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { t } from '@/services/i18n';
 import { errorNotice } from '@/services/decodeResultNotice';
+import { sendMessage } from '@/services/messaging';
 import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 import { takeStoredString } from '@/services/storage';
 
@@ -18,12 +19,18 @@ const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 const directMode = new URLSearchParams(window.location.search).has('direct');
 
 
-const { notify } = useNoticeFallback();
+// 通知结束后即视为本次识别结束: 交给 popup 时由后台关闭标签页, 退回页面内时由本页自己关
+const noticeOptions = {
+    closeOriginTab: true,
+    onLocalNoticeDone: () => closeTab(),
+};
+const { notify } = useNoticeFallback(noticeOptions);
 const scanAnimation = useScanAnimation();
 
 // 解码流程与其它入口共用; 直出模式在解码前播放整屏扫描动画
 const { scan } = useImageScan({
     errorTitle: t('screenshotFailed'),
+    notice: noticeOptions,
     beforeNotice: directMode ? () => scanAnimation.play() : undefined,
     afterDecode: directMode ? () => scanAnimation.stop() : undefined,
 });
@@ -38,15 +45,11 @@ const introEnabled = ref(false);
 
 const takeStoredImage = () => takeStoredString(CAPTURE_IMAGE_KEY);
 
-// 标签页由扩展创建, 通常可直接关闭; 不允许时通过后台 API 关闭
+// 关闭本标签页: 交给后台先切回来源页面再关闭, 否则浏览器会落到相邻标签页
 function closeTab() {
-    window.close();
-    void browser.tabs
-        .getCurrent()
-        .then((tab) => (tab?.id != null ? browser.tabs.remove(tab.id) : undefined))
-        .catch(() => {
-            // 标签页已关闭时忽略
-        });
+    void sendMessage('closeExtensionTab')
+        .then(() => undefined)
+        .catch(() => window.close());
 }
 
 // 框选确认: 只卸载框选层, 保留截图作为页面内容, 再交给统一识别流程

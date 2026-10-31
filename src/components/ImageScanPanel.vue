@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ImagePicker from '@/components/ImagePicker.vue';
 import { useImageScan } from '@/composables/useImageScan';
 import { useScanAnimation } from '@/composables/useScanAnimation';
@@ -32,6 +32,14 @@ const { busy, previewUrl, loadBlob, scanPreview, clear } = useImageScan({
     // 页面内浮层可以真的去截当前页; 独立识别页截图只会截到自己, 不给这个出口
     onRetry: overlay ? () => void trySendMessage('requestScreenshot') : undefined,
 });
+
+// 取到图片立即识别, 不用再点一次"扫描"; 预览先渲染出来, 扫描动画才能定位到图片区域
+async function handleFile(blob: Blob) {
+    await loadBlob(blob);
+    if (!previewUrl.value || busy.value) return;
+    await nextTick();
+    await scanPreview();
+}
 
 function onKeydown(event: KeyboardEvent) {
     if (!overlay || event.key !== 'Escape') return;
@@ -71,12 +79,12 @@ onBeforeUnmount(() => {
                         :preview-url="previewUrl"
                         :busy="busy"
                         :variant="overlay ? 'overlay' : 'page'"
-                        @file="loadBlob"
+                        @file="handleFile"
                         @close="emit('close')"
                     />
                 </div>
 
-                <!-- 选中图片后才出现操作按钮: 清空重新选择, 或确认识别 -->
+                <!-- 选中图片后自动识别, 按钮只用于清空重选或重新识别 -->
                 <div v-if="previewUrl" class="qr-scan-panel-actions">
                     <button
                         type="button"

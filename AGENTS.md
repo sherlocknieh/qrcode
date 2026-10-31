@@ -37,12 +37,12 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | --- | --- |
 | [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台脚本：右键菜单、popup 打开、通知中转、跨域取图、截图、标签页关闭、地址栏图标开关 |
 | [src/entrypoints/content/](./src/entrypoints/content/) | 注入所有页面的内容脚本 UI，处理 `decodeQR` / `screenshotQR` / `screenshotQRDirect` / `scanImageInline` 消息，页面内通知兜底 |
-| [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、识别交给它的图片（`scan.html` 交接） |
-| [src/entrypoints/scan/](./src/entrypoints/scan/) | 独立识别页 `scan.html`：整页居中布局 + `ImageScanPanel`；仅在页面无法注入内容脚本时作为兜底 |
+| [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、识别交给它的图片（`upload.html` 交接） |
+| [src/entrypoints/upload/](./src/entrypoints/upload/) | 上传图片识别页 `upload.html`：整页居中布局 + `ImageScanPanel`；仅在页面无法注入内容脚本时作为兜底 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF、SVG 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
-| [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
+| [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，取到图片（上传/粘贴/拖放）即自动识别；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），供面板复用 |
 | [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ImageScanPanel, { variant: 'overlay' })` 挂载/卸载 |
 | [src/composables/useScanAnimation.ts](./src/composables/useScanAnimation.ts) | 扫描动画挂载与淡出，`play()` 在扫过量并淡出后才 resolve，用于延后弹窗 |
@@ -88,12 +88,12 @@ flowchart LR
 
 几个必须理解的设计：
 
-1. **特殊页面优先就地处理**。网页图片识别与本地/剪贴板图片识别优先在当前页处理（`decodeQR` / `scanImageInline`）；直接打开的 SVG 无法注入内容脚本，图片识别交给 popup，截图识别与一键截屏识别则截取视口后开 `capture.html`（`?direct=1` 表示直接识别整图）；PDF 阅读器同样由 `capture.html` 接管。降级分发统一由 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage` 完成。
-2. **通知统一走 popup**。内容脚本调 `showPopupNotice()` → 后台写入 `qrNotification` 存储并通过 `popup` 长连接推送；popup 未打开时后台用 `browser.action.openPopup()`（Firefox 优先 `action`，`pageAction` 仅兜底）。失败返回 `false`，调用方回退到页面内 `NotifyHost`。
+1. **特殊页面优先就地处理**。网页图片识别与本地/剪贴板图片识别优先在当前页处理（`decodeQR` / `scanImageInline`）；直接打开的 SVG 无法注入内容脚本，图片识别交给 popup，截图识别与一键截屏识别则截取视口后开 `capture.html`（`?direct=1` 表示直接识别整图）；无法注入内容脚本的 PDF 阅读器（Firefox 内置阅读器）同样由 `capture.html` 接管，框选与一键全屏识别都不再走 popup。降级分发统一由 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage` 完成。
+2. **通知统一走 popup**。内容脚本调 `showPopupNotice()` → 后台写入 `qrNotification` 存储并通过 `popup` 长连接推送；popup 未打开时后台用 `browser.action.openPopup()`（Firefox 优先 `action`，`pageAction` 仅兜底）。失败返回 `false`，调用方回退到页面内 `NotifyHost`。独立识别页 (`capture.html`) 在 payload 里带 `closeOriginTab`，后台把它发起标签页记进 `originTabId`，通知结束（`notificationResolved` 或 popup 关闭）时一并关掉该标签页。
 3. **通知参数必须可序列化**。`PopupNoticeOptions` 里只有 `loading` 标记，没有回调函数；动作通过 `PopupNoticeAction`（`open` / `copy` / `screenshot`）描述，由 popup 执行。不要为“主动收起通知”单独加消息：popup 窗口被保留而通知已结束时会出现空白窗口；正确做法是用下一条通知（如 `decodingQR`）替换旧通知。popup 里 `notifyState.open` 由 true 变 false 且没有任何内容时会自行关闭窗口。
 4. **识别在需要 DOM 的地方完成**。SVG 文档的图片交给 popup，SVG 与 Firefox 内置 PDF 阅读器等页面的截图识别由 `capture.html` 接管。
 5. **后台负责高权限操作**：`tabs.captureVisibleTab`、`fetch` 跨域图片（返回 DataURL）、`tabs.remove`。
-6. **弹窗易失焦**：本地文件选择会让 popup 关闭，因此 `scan.html` 与 `capture.html` 都在自己页面里取图，识别结果仍走 `useNoticeFallback`（popup 优先、页面内兜底）。识别流程结束后**不要自动关闭** popup / scan / capture 页面，窗口一律由用户自行关闭；唯一例外是 popup 里"尝试截图识别"需要让出焦点给页面框选。
+6. **弹窗易失焦**：本地文件选择会让 popup 关闭，因此 `upload.html` 与 `capture.html` 都在自己页面里取图，识别结果仍走 `useNoticeFallback`（popup 优先、页面内兜底）。popup / `upload.html` 识别结束后**不要自动关闭**，窗口由用户自行关闭；唯一例外是 popup 里"尝试截图识别"需要让出焦点给页面框选。`capture.html` 是临时标签页：通知结束即关闭自身——通知在 popup 里时由后台按 `closeTabId` 关闭，退回页面内时由 `onLocalNoticeDone` 关闭（被后续通知替换不算结束）。两个临时页都由 `openExtensionPage` 打开：`tabs.create` 带上来源页的 `windowId` 与 `index + 1`，新标签才会紧挨原页面而不是追加到标签栏末尾，同时在 `qrExtensionOriginTabs` 里登记来源页：关闭时走后台 `closeTabAndReturn`（先 `tabs.update(来源页, { active: true })` 再 `tabs.remove`），用户手动点 X 关掉时由 `tabs.onRemoved` 做同样的切回，避免浏览器把焦点落到相邻标签页。
 
 ## 存储键（改动时需全局搜索）
 
@@ -103,6 +103,7 @@ flowchart LR
 | `qrImageUrl` | session（回退 local） | 待识别图片的 DataURL / 图片地址 |
 | `qrNotification` | session（回退 local） | popup 待展示的最新通知（含自增 `id` 去重） |
 | `qrCaptureImage` | session（回退 local） | 后台截取的视口图，读取后立即删除 |
+| `qrExtensionOriginTabs` | session（回退 local） | 临时扩展页（capture / scan）标签 id → 来源标签页 id，关闭该页前切回去，关闭后清除 |
 | `pageActionVisible` | local | Firefox 地址栏图标开关，默认显示 |
 
 统一写法：`const storageArea = () => browser.storage.session ?? browser.storage.local;`

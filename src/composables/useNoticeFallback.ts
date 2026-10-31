@@ -13,8 +13,26 @@ import { t } from '@/services/i18n';
 
 // 通知统一策略: 优先在 popup 中展示, 失败时回退到当前页面。
 // 内容脚本与独立识别页共用, 保证两种入口的提示行为一致。
-export function useNoticeFallback() {
+export type NoticeFallbackOptions = {
+    // 独立识别页使用: 交给 popup 的通知带上标记, 由后台在通知结束后关闭本标签页
+    closeOriginTab?: boolean;
+    // 通知退回页面内展示时, 在用户结束通知后调用 (被新通知替换不算结束)
+    onLocalNoticeDone?: () => void;
+};
+
+export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     const { fire, showLoading } = useNotify();
+
+    // 标记来源, 由后台在通知结束时关闭该标签页
+    function tag(payload: PopupNoticePayload): PopupNoticePayload {
+        return options.closeOriginTab ? { ...payload, closeOriginTab: true } : payload;
+    }
+
+    // 页面内通知结束: 被后续通知替换时标签页仍有内容, 只有真正结束才回调
+    function settleLocal(response: { dismiss?: string }) {
+        if (response.dismiss === 'replaced') return;
+        options.onLocalNoticeDone?.();
+    }
 
     // popup 无法显示时的页面内兜底通知
     function fireLocal(payload: PopupNoticePayload, overrides: NotifyOptions = {}) {
@@ -28,14 +46,16 @@ export function useNoticeFallback() {
 
     // 统一投递: 先交给 popup, 不可用时在页面内展示。
     // 带动作按钮的通知要等用户选择, 纯提示则不阻塞流程。
-    async function deliver(payload: PopupNoticePayload, onRetry?: () => void): Promise<boolean> {
+    async function deliver(rawPayload: PopupNoticePayload, onRetry?: () => void): Promise<boolean> {
+        const payload = tag(rawPayload);
         if (await showPopupNotice(payload)) return true;
 
         const interactive = Boolean(
             payload.confirmAction || payload.cancelAction || payload.extraAction,
         );
         if (!interactive) {
-            void fireLocal(payload);
+            // 纯提示不阻塞流程, 但仍要等用户结束通知后再回调
+            void fireLocal(payload).then(settleLocal);
             return false;
         }
 
@@ -44,6 +64,7 @@ export function useNoticeFallback() {
         // 复制按钮已在页面内就地处理, 打开类动作由本进程执行
         if (response.isConfirmed) runNoticeAction(payload.confirmAction);
         if (response.dismiss === 'cancel') runNoticeAction(payload.cancelAction);
+        settleLocal(response);
         return false;
     }
 

@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { useNoticeFallback } from '@/composables/useNoticeFallback';
+import { useNoticeFallback, type NoticeFallbackOptions } from '@/composables/useNoticeFallback';
 import { blobToDataUrl } from '@/services/clipboardImage';
 import { errorNotice } from '@/services/decodeResultNotice';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
@@ -15,12 +15,14 @@ type ImageScanOptions = {
     afterDecode?: () => void;
     // 未识别到码时点击"尝试截图识别"的处理
     onRetry?: () => void;
+    // 通知策略透传, 供独立识别页控制通知结束后的行为
+    notice?: NoticeFallbackOptions;
 };
 
 // 图片识别的完整流程: 预览 → 加载提示 → 解码 → 结果/无结果/错误。
 // 页面内浮层、独立识别页、capture 页共用同一份实现, 各自只负责承载 UI。
 export function useImageScan(options: ImageScanOptions = {}) {
-    const { host, notify } = useNoticeFallback();
+    const { host, notify } = useNoticeFallback(options.notice);
 
     const busy = ref(false);
     const previewUrl = ref('');

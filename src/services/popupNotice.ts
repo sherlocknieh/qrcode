@@ -30,10 +30,15 @@ export interface PopupNoticePayload {
     confirmAction?: PopupNoticeAction;
     cancelAction?: PopupNoticeAction;
     extraAction?: PopupNoticeAction;
+    // 独立识别页 (capture.html) 使用: 通知结束后关闭发起它的标签页,
+    // 符合"在临时标签页里识别完就收摊"的预期
+    closeOriginTab?: boolean;
 }
 
 export interface PopupNoticeRecord extends PopupNoticePayload {
     id: number;
+    // 通知结束后要关闭的标签页, 仅在 closeOriginTab 为 true 时记录
+    closeTabId?: number;
 }
 
 // 交给 popup 显示; 返回 false 表示 popup 不可用, 调用方应回退到页面内通知

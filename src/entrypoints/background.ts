@@ -45,12 +45,32 @@ export default defineBackground(() => {
         if (current?.id === id) await storageArea().remove(POPUP_NOTICE_KEY);
     };
 
+    // 通知结束 (popup 展示完毕或 popup 被关闭) 后清理记录;
+    // 独立识别页 (capture.html) 发起的通知会把该标签页一并关闭, 并切回来源页面
+    const finishNotice = async (id?: number) => {
+        const stored = await storageArea().get(POPUP_NOTICE_KEY);
+        const current = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
+        if (!current) return;
+        if (id != null && current.id !== id) return;
+        await storageArea().remove(POPUP_NOTICE_KEY);
+        if (current.closeTabId != null) {
+            await closeTabAndReturn(current.closeTabId);
+        }
+    };
+
     // 返回 false 表示当前无法显示 popup, 内容脚本将回退到页面内通知
-    const showPopupNotification = async (payload?: PopupNoticePayload): Promise<boolean> => {
+    const showPopupNotification = async (
+        payload?: PopupNoticePayload,
+        sourceTabId?: number,
+    ): Promise<boolean> => {
         if (!payload?.options) return false;
 
         // 通知总是先落盘, 无论 popup 是否已打开都能读到最新一条
-        const record: PopupNoticeRecord = { ...payload, id: ++noticeSeq };
+        const record: PopupNoticeRecord = {
+            ...payload,
+            id: ++noticeSeq,
+            closeTabId: payload.closeOriginTab ? sourceTabId : undefined,
+        };
         await storageArea().set({ [POPUP_NOTICE_KEY]: record });
 
         if (popupPort) {
@@ -108,12 +128,31 @@ export default defineBackground(() => {
         options: { toast: true, icon: 'error', title, text, showCloseButton: true },
     });
 
-    // 打开扩展页面 (capture.html / scan.html) 并统一提示失败
+    // 打开扩展页面 (capture.html / upload.html) 并统一提示失败。
+    // originTabId 是发起操作的页面: 新标签紧挨着它打开, 关闭后也回到它, 而不是相邻标签页。
     // WXT 的 getURL 只接受已知入口路径, 这里收紧类型以便拼接查询参数
-    type ExtensionPage = `/capture.html${string}` | `/scan.html${string}`;
-    const openExtensionPage = async (path: ExtensionPage): Promise<boolean> => {
+    type ExtensionPage = `/capture.html${string}` | `/upload.html${string}`;
+
+    // 取来源页的窗口与位置: 传了 index 才会紧挨源页, 否则 tabs.create 会追加到标签栏末尾
+    const resolveOriginPlacement = async (
+        originTabId?: number,
+    ): Promise<{ windowId?: number; index?: number }> => {
+        if (originTabId == null) return {};
         try {
-            await browser.tabs.create({ url: browser.runtime.getURL(path) });
+            const tab = await browser.tabs.get(originTabId);
+            return typeof tab?.index === 'number'
+                ? { windowId: tab.windowId, index: tab.index + 1 }
+                : {};
+        } catch {
+            return {};
+        }
+    };
+
+    const openExtensionPage = async (path: ExtensionPage, originTabId?: number): Promise<boolean> => {
+        try {
+            const placement = await resolveOriginPlacement(originTabId);
+            const tab = await browser.tabs.create({ url: browser.runtime.getURL(path), ...placement });
+            if (tab?.id != null) await rememberOriginTab(tab.id, originTabId);
             return true;
         } catch (error) {
             await notifyError(
@@ -122,6 +161,43 @@ export default defineBackground(() => {
             );
             return false;
         }
+    };
+
+    // 临时扩展页 (capture / scan) 关闭后要回到的页面。
+    // tabs.remove 只会切到相邻标签, 需要记录来源页并手动切回去
+    const ORIGIN_TABS_KEY = 'qrExtensionOriginTabs';
+
+    // 按扩展页标签 id 记录来源页, 允许同时存在多个临时标签页
+    const rememberOriginTab = async (extensionTabId: number, originTabId?: number) => {
+        if (originTabId == null) return;
+        const stored = await storageArea().get(ORIGIN_TABS_KEY);
+        const map = { ...(stored?.[ORIGIN_TABS_KEY] as Record<string, number> | undefined) };
+        map[String(extensionTabId)] = originTabId;
+        await storageArea().set({ [ORIGIN_TABS_KEY]: map }).catch(() => {});
+    };
+
+    // 取出并清除某个扩展页记录的来源页
+    const takeOriginTab = async (extensionTabId: number): Promise<number | undefined> => {
+        const stored = await storageArea().get(ORIGIN_TABS_KEY);
+        const map = { ...(stored?.[ORIGIN_TABS_KEY] as Record<string, number> | undefined) };
+        const originTabId = map[String(extensionTabId)];
+        delete map[String(extensionTabId)];
+        if (Object.keys(map).length) {
+            await storageArea().set({ [ORIGIN_TABS_KEY]: map }).catch(() => {});
+        } else {
+            await storageArea().remove(ORIGIN_TABS_KEY).catch(() => {});
+        }
+        return typeof originTabId === 'number' ? originTabId : undefined;
+    };
+
+    // 关闭临时标签页并把焦点还给打开它的页面
+    const closeTabAndReturn = async (closingTabId: number) => {
+        const originTabId = await takeOriginTab(closingTabId);
+        if (originTabId != null && originTabId !== closingTabId) {
+            // 先激活来源页再关闭, 否则浏览器会自己挑一个相邻标签
+            await browser.tabs.update(originTabId, { active: true }).catch(() => {});
+        }
+        await browser.tabs.remove(closingTabId).catch(() => {});
     };
 
     // 内容脚本可能未注入 (PDF、SVG 等), 统一处理发送异常与回执
@@ -163,7 +239,12 @@ export default defineBackground(() => {
             ? browser.tabs.captureVisibleTab({ format: 'png' })
             : browser.tabs.captureVisibleTab(windowId, { format: 'png' });
 
-    const showCropScan = async (windowId?: number, direct = false): Promise<boolean> => {
+    // originTabId 用于关闭 capture 页时切回来源页面, 否则浏览器会切到相邻标签
+    const showCropScan = async (
+        originTabId?: number,
+        windowId?: number,
+        direct = false,
+    ): Promise<boolean> => {
         let dataUrl: string;
         try {
             dataUrl = await captureVisibleArea(windowId);
@@ -177,32 +258,27 @@ export default defineBackground(() => {
         // 截图体积较大, 交给扩展页面读取后立即清除
         await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
         // direct 表示整图直接识别, capture 页不再展示框选界面
-        return openExtensionPage(direct ? '/capture.html?direct=1' : '/capture.html');
+        return openExtensionPage(direct ? '/capture.html?direct=1' : '/capture.html', originTabId);
     };
 
     // 请求内容脚本开始区域截图; 内容脚本不可用 (如 Firefox 内置 PDF 阅读器) 时才回退到截取视口后框选。
     // 内容脚本必须在收到消息时立即回执, 否则浏览器会以"消息端口关闭"拒绝, 被误判为不可用。
     const requestAreaScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
         if (await tryContentAction(tabId, "screenshotQR")) return true;
-        return showCropScan(windowId);
+        return showCropScan(tabId, windowId);
     };
 
     // 一键截屏识别: 不做交互选区, 由内容脚本直接截取视口并识别整图;
-    // 无法注入内容脚本的页面 (如 Firefox 内置 PDF 阅读器) 截取视口后
-    // 直接交给 popup 就地识别, 避免为了识别整图再开一个标签页
+    // 无法注入内容脚本的页面 (如 Firefox 内置 PDF 阅读器) 由后台截取视口后
+    // 在新标签页 (capture.html?direct=1) 直接识别整图, 与 SVG 页面保持一致
     const requestQuickScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
         if (await tryContentAction(tabId, "screenshotQRDirect")) return true;
-        try {
-            // 整屏识别不需要交互: 截图后交给 popup 就地识别
-            return await sendImageToPopup(await captureVisibleArea(windowId));
-        } catch {
-            // popup 无法打开时退回新标签页识别
-            return showCropScan(windowId, true);
-        }
+        return showCropScan(tabId, windowId, true);
     };
 
-    // 打开独立识别页: 页面无法注入内容脚本 (PDF、SVG 等) 时才使用
-    const openScanPage = () => openExtensionPage('/scan.html');
+    // 打开上传图片识别页 (upload.html): 页面无法注入内容脚本 (PDF、SVG 等) 时才使用
+    const openLocalFilePage = (originTabId?: number) =>
+        openExtensionPage('/upload.html', originTabId);
 
     // 本地/剪贴板图片识别: 优先在当前页面弹出浮层, 内容脚本不可用 (如 PDF、SVG) 时
     // 退回独立识别页, 与截图识别的降级策略保持一致。
@@ -210,7 +286,7 @@ export default defineBackground(() => {
     const requestInlineImageScan = async (tabId?: number): Promise<boolean> => {
         const targetTabId = await resolveActiveTabId(tabId);
         if (await tryContentAction(targetTabId, "scanImageInline")) return true;
-        return openScanPage();
+        return openLocalFilePage(targetTabId);
     };
 
     // Firefox 支持为菜单项指定自定义图标 (Chrome 不支持, 因此仅在 Firefox 构建中传入);
@@ -316,7 +392,7 @@ export default defineBackground(() => {
             // 内容脚本不可用 (如 Firefox 内置 PDF 阅读器、SVG 文档) 时,
             // 改为截取视口后在新标签页中框选识别, 不在 popup 里就地处理
             if (isSvgDocumentUrl(tab?.url)) {
-                void showCropScan(tab?.windowId);
+                void showCropScan(tabId, tab?.windowId);
                 return;
             }
             void requestAreaScreenshot(tabId, tab?.windowId);
@@ -324,7 +400,7 @@ export default defineBackground(() => {
             // 一键截屏识别: 直接识别当前视口, 全程没有框选交互
             // SVG 文档同样截取视口后在新标签页直接识别整图, 避免 popup 窗口裁掉页面内容
             if (isSvgDocumentUrl(tab?.url)) {
-                void showCropScan(tab?.windowId, true);
+                void showCropScan(tabId, tab?.windowId, true);
                 return;
             }
             void requestQuickScreenshot(tabId, tab?.windowId);
@@ -381,18 +457,30 @@ export default defineBackground(() => {
 
     // 内容脚本消息处理
     const handleContentScriptMessage = (request: any, _sender: Browser.runtime.MessageSender, sendResponse: (response: any) => void) => {
-        // 页面通知转发到 popup
+        // 页面通知转发到 popup; 独立识别页会带上 closeOriginTab, 记录发起它的标签页
         if (request.action === "showNotification") {
-            showPopupNotification(request.payload)
+            showPopupNotification(request.payload, _sender.tab?.id)
                 .then(success => sendResponse({ success }))
                 .catch(() => sendResponse({ success: false }));
             return true;
         }
-        // popup 已展示通知, 清理待展示内容
+        // popup 已展示通知, 清理待展示内容 (需要时一并关闭发起它的标签页)
         if (request.action === "notificationResolved") {
-            void clearNoticeIfCurrent(request.id);
+            void finishNotice(request.id);
             sendResponse({ success: true });
             return false;
+        }
+        // 临时扩展页请求关闭自己 (框选取消 / 页面内通知结束), 由后台切回来源页再关闭
+        if (request.action === "closeExtensionTab") {
+            const tabId = _sender.tab?.id;
+            if (tabId == null) {
+                sendResponse({ success: false });
+                return false;
+            }
+            closeTabAndReturn(tabId)
+                .then(() => sendResponse({ success: true }))
+                .catch(() => sendResponse({ success: false }));
+            return true;
         }
         // 截取当前标签页可见区域: 由后台调用可避免 getDisplayMedia 的屏幕共享提示条压缩页面视口
         if (request.action === "captureVisibleTab") {
@@ -450,14 +538,23 @@ export default defineBackground(() => {
         port.onDisconnect.addListener(() => {
             if (popupPort === port) popupPort = null;
             lastPopupOpenAt = 0;
-            // popup 关闭后清除未处理的通知, 避免下次打开时旧通知再次出现
-            void storageArea().remove(POPUP_NOTICE_KEY).catch(() => {});
+            // popup 关闭后清除未处理的通知, 避免下次打开时旧通知再次出现;
+            // 通知来自独立识别页时同时关闭该标签页 (用户关掉通知即视为结束)
+            void finishNotice().catch(() => {});
         });
     });
 
     browser.runtime.onInstalled.addListener(addContextMenus);               // 扩展安装完成时, 初始化右键菜单
     // browser.runtime.onStartup.addListener(addContextMenus);                 // 浏览器启动时, 初始化右键菜单
     browser.tabs.onUpdated.addListener((tabId) => void showPageAction(tabId)); // 标签页加载完成后, 显示地址栏图标
+    // 用户手动关闭临时扩展页 (capture / scan) 时, 同样把焦点还给来源页;
+    // 由后台主动关闭的标签页已先清除记录, 不会重复处理
+    browser.tabs.onRemoved.addListener((tabId) => {
+        void takeOriginTab(tabId).then(async (originTabId) => {
+            if (originTabId == null) return;
+            await browser.tabs.update(originTabId, { active: true }).catch(() => {});
+        });
+    });
     browser.contextMenus.onClicked.addListener(handleContextMenusClick);    // 右键菜单点击事件处理
     browser.runtime.onMessage.addListener(handleContentScriptMessage);      // 处理内容脚本的请求
 });
