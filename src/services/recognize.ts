@@ -28,8 +28,8 @@ export type RecognizeOptions = {
     // 需要先从网络取图时提供: 取图慢于阈值时先提示"正在获取图片",
     // 避免用户把下载耗时误认为识别耗时。本地图片/截图无需提供。
     notifyFetching?: () => Promise<unknown>;
-    // 解码结束时回调, 通常用于停止动画
-    afterDecode?: () => void;
+    // 解码结束时回调, 通常用于停止动画 (返回 Promise 时会等淡出结束再继续)
+    afterDecode?: () => void | Promise<void>;
     // 未识别到码时点击"尝试截图识别"的处理
     onRetry?: () => void;
     // 结果是否已被新一轮识别取代
@@ -62,7 +62,7 @@ export async function recognizeImage(
     const settled = await loadWithFetchNotice(pending, options.notifyFetching);
 
     if (isStale()) {
-        options.afterDecode?.();
+        await options.afterDecode?.();
         return { status: 'stale' };
     }
 
@@ -71,12 +71,12 @@ export async function recognizeImage(
         return { status: 'failed', error: settled.error };
     }
 
-    // 图片已经在手: 先给识别提示, 再播扫描动画, 最后解码
+    // 图片已经在手: 先给识别提示并起动画, 动画在解码期间一直循环, 结束后由 afterDecode 收起
     await host.notifyDecoding();
     await options.beforeNotice?.();
 
     if (isStale()) {
-        options.afterDecode?.();
+        await options.afterDecode?.();
         return { status: 'stale' };
     }
 
@@ -88,7 +88,7 @@ export async function recognizeImage(
         return { status: 'failed', error };
     }
 
-    options.afterDecode?.();
+    await options.afterDecode?.();
     if (isStale()) return { status: 'stale' };
 
     if (!results.length) {
@@ -119,7 +119,7 @@ async function loadWithFetchNotice(
 
 // 取图或解码失败: 停止动画并提示; 有重试出口时顺带提供"改用截图识别"
 async function notifyFailure(options: RecognizeOptions, error: unknown): Promise<void> {
-    options.afterDecode?.();
+    await options.afterDecode?.();
     const title = options.errorTitle ?? t('imageFetchFailed');
     const text = error instanceof Error ? error.message : String(error);
     await options.host.notify(

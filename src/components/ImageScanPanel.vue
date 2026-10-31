@@ -17,7 +17,7 @@ const overlay = props.variant === 'overlay';
 const pickerRef = ref<HTMLElement | null>(null);
 const scanAnimation = useScanAnimation();
 
-// 与"图片上右键识别"保持一致: 先预览图上播放扫描动画, 动画结束再弹出识别结果
+// 与"图片上右键识别"保持一致: 在预览图上播放扫描动画, 识别期间循环, 淡出后再弹出结果
 async function playPreviewAnimation() {
     const image = pickerRef.value?.querySelector<HTMLImageElement>('.qr-picker-preview');
     if (!image) return;
@@ -51,7 +51,7 @@ function onKeydown(event: KeyboardEvent) {
 onMounted(() => document.addEventListener('keydown', onKeydown, true));
 onBeforeUnmount(() => {
     document.removeEventListener('keydown', onKeydown, true);
-    scanAnimation.stop();
+    void scanAnimation.stop();
 });
 </script>
 

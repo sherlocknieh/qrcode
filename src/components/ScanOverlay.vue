@@ -83,7 +83,7 @@ const rootStyle = computed(() => {
     background: rgba(8, 12, 20, 0.22);
 }
 
-/* 单条白色光带自上而下扫过, 只扫一次 */
+/* 白色光带上下往返扫描, 直到解码结束才随遮罩淡出 */
 .qr-scan-beam {
     position: absolute;
     top: 0;
@@ -95,7 +95,9 @@ const rootStyle = computed(() => {
         0 0 18px 2px rgba(255, 255, 255, 0.85),
         0 0 4px rgba(0, 0, 0, 0.35);
     transform: translateY(-2px);
-    animation: qr-scan-sweep var(--scan-duration, 700ms) cubic-bezier(0.3, 0.6, 0.4, 1) 80ms forwards;
+    /* alternate 让光带到底后原路返回, 不会从底部瞬移回顶部;
+       对称缓动保证折返两端都平滑减速 */
+    animation: qr-scan-sweep var(--scan-duration, 700ms) cubic-bezier(0.45, 0, 0.55, 1) 80ms infinite alternate;
 }
 
 .qr-scan-corner {

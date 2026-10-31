@@ -7,6 +7,8 @@ const DEFAULT_SWEEP_DURATION = 700;
 const FADE_OUT_DURATION = 200;
 // 光带启动延迟 (CSS animation-delay)
 const SWEEP_DELAY = 80;
+// 挂载后先等第一帧画出来, 再把主线程交给解码, 避免循环动画还没露面就被吃掉
+const FIRST_FRAME_DELAY = 160;
 
 type ScanOptions = {
     // 不传表示整屏扫描; 传入矩形只覆盖该区域
@@ -15,12 +17,20 @@ type ScanOptions = {
 };
 
 type ScanState = ScanOptions & { leaving: boolean };
-type ScanSession = { host: HTMLDivElement; app: App; state: ScanState };
+type ScanSession = {
+    host: HTMLDivElement;
+    app: App;
+    state: ScanState;
+    // 至少显示这么久的扫过动画, 解码很快时不会一闪而过
+    minVisibleMs: number;
+    startedAt: number;
+};
 
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
-// 扫描动画: 截图/图片数据就绪后才挂载, 避免动画被截进图片;
-// play() 在扫过并淡出后才 resolve, 调用方据此延后弹窗
+// 扫描动画: 图片数据就绪后才挂载, 避免动画被截进图片;
+// 光带在识别期间一直循环扫过, play() 只等首帧就返回,
+// stop() 负责收尾: 至少完整扫过一遍 → 淡出 → 卸载, 淡出结束后才 resolve
 export function useScanAnimation() {
     let session: ScanSession | undefined;
 
@@ -32,6 +42,7 @@ export function useScanAnimation() {
     const play = async (options: ScanOptions = {}): Promise<void> => {
         if (session) return;
 
+        const duration = options.duration ?? DEFAULT_SWEEP_DURATION;
         const host = document.createElement('div');
         host.style.display = 'contents';
         document.body.appendChild(host);
@@ -39,30 +50,34 @@ export function useScanAnimation() {
         const app = createApp({
             render: () => h(ScanOverlay, {
                 rect: state.rect ?? null,
-                duration: state.duration ?? DEFAULT_SWEEP_DURATION,
+                duration: state.duration ?? duration,
                 leaving: state.leaving,
             }),
         });
         app.mount(host);
-        const current: ScanSession = { host, app, state };
-        session = current;
+        session = {
+            host,
+            app,
+            state,
+            minVisibleMs: duration + SWEEP_DELAY,
+            startedAt: performance.now(),
+        };
 
-        await delay((options.duration ?? DEFAULT_SWEEP_DURATION) + SWEEP_DELAY);
-        if (session !== current) return;
-        current.state.leaving = true;
-        await delay(FADE_OUT_DURATION);
-        if (session !== current) return;
-        session = undefined;
-        dispose(current);
+        await delay(FIRST_FRAME_DELAY);
     };
 
-    // 识别被取消或出错时提前收起动画
-    const stop = () => {
+    // 识别结束 (成功/无结果/出错/取消) 时收起动画, 返回的 Promise 在淡出结束后 resolve
+    const stop = async (): Promise<void> => {
         const current = session;
         if (!current) return;
         session = undefined;
+
+        const elapsed = performance.now() - current.startedAt;
+        const wait = Math.max(0, current.minVisibleMs - elapsed);
+        if (wait > 0) await delay(wait);
         current.state.leaving = true;
-        window.setTimeout(() => dispose(current), FADE_OUT_DURATION);
+        await delay(FADE_OUT_DURATION);
+        dispose(current);
     };
 
     return { play, stop };

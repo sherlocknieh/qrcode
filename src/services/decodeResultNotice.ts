@@ -68,7 +68,7 @@ export function errorNoticeWithScreenshot(
 // 识别结果的通用通知构造: content / popup / capture 三个入口共用同一套分支
 // (无结果重试 → 多码列表 → 单码链接/复制), 避免各写一遍文案与动作
 
-// 未识别到任何码: 有可用的截图重试出口时附带"改用截图识别"
+// 未识别到任何码
 function noResultNotice(retryScreenshot: boolean): PopupNoticePayload {
     return {
         options: {
@@ -76,8 +76,6 @@ function noResultNotice(retryScreenshot: boolean): PopupNoticePayload {
             icon: 'warning',
             title: t('recognitionFailed'),
             text: t('recognitionFailedMsg'),
-            confirmButtonText: t('confirm'),
-            extraButtonText: retryScreenshot ? t('screenshotScan') : undefined,
             showCloseButton: true,
         },
         extraAction: retryScreenshot ? { kind: 'screenshot' } : undefined,

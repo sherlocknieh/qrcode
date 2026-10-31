@@ -45,10 +45,10 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，取到图片（上传/粘贴/拖放）即自动识别；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），供面板复用 |
 | [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ImageScanPanel, { variant: 'overlay' })` 挂载/卸载 |
-| [src/composables/useScanAnimation.ts](./src/composables/useScanAnimation.ts) | 扫描动画挂载与淡出，`play()` 在扫过量并淡出后才 resolve，用于延后弹窗 |
+| [src/composables/useScanAnimation.ts](./src/composables/useScanAnimation.ts) | 扫描动画挂载与淡出，光带在识别期间循环往返，`play()` 只等首帧，`stop()` 在淡出后 resolve，用于延后弹窗 |
 | [src/services/decodeResultNotice.ts](./src/services/decodeResultNotice.ts) | 识别过程的加载/错误提示与结果通知（无结果/多码/单码）构造 |
 | [src/composables/useNoticeFallback.ts](./src/composables/useNoticeFallback.ts) | 通知统一策略：popup 优先、页面内兜底 |
-| [src/services/recognize.ts](./src/services/recognize.ts) | **拿到图像数据后的唯一识别入口** `recognizeImage(loader, options)`：动画 → 提示 → 解码 → 结果/重试/错误；网页图片、本地/粘贴图片、截图共用 |
+| [src/services/recognize.ts](./src/services/recognize.ts) | **拿到图像数据后的唯一识别入口** `recognizeImage(loader, options)`：识别提示 → 动画 → 解码 → 结果/重试/错误，`afterDecode` 会 await 以便等动画淡出；网页图片、本地/粘贴图片、截图共用 |
 | [src/composables/useImageScan.ts](./src/composables/useImageScan.ts) | 取图面板状态（预览/清空），识别交给 `recognizeImage` |
 | [src/services/messaging.ts](./src/services/messaging.ts) | 消息发送封装（统一 lastError 与 success 判断） |
 | [src/services/i18n.ts](./src/services/i18n.ts) | `t()` 文案读取（缺失时回退） |

@@ -56,7 +56,7 @@ onMounted(() => {
 // 当组件卸载时，移除消息监听器，避免内存泄漏
 onBeforeUnmount(() => {
     browser.runtime.onMessage.removeListener(mainProcess);
-    scanAnimation.stop();
+    void scanAnimation.stop();
     imagePasteOverlay.close();
 });
 
@@ -152,7 +152,7 @@ function isScreenshotResult(error: unknown): error is ScreenshotResult {
 
 async function handleScreenshot() {
     screenshotEpoch++;
-    scanAnimation.stop();
+    void scanAnimation.stop();
     try {
         const dataUrl = await startScreenshot();
         await decodeAndNotify(() => getImageDataFromDataUrl(dataUrl));
@@ -164,19 +164,19 @@ async function handleScreenshot() {
 // 一键截屏识别: 截取当前视口后直接识别整张画面, 不进入框选交互
 async function handleQuickScreenshot() {
     screenshotEpoch++;
-    scanAnimation.stop();
+    void scanAnimation.stop();
     const epoch = screenshotEpoch;
     try {
         const dataUrl = await captureVisibleTab();
         // 截图完成后才播放整屏动画, 动画不会被截进图片;
-        // 读图与动画并行, 但通知要等动画播完再弹出
+        // 动画在解码期间一直循环, 通知要等动画淡出后再弹出
         await decodeAndNotify(() => getImageDataFromDataUrl(dataUrl), {
             isStale: () => epoch !== screenshotEpoch,
             beforeNotice: () => scanAnimation.play(),
             afterDecode: () => scanAnimation.stop(),
         });
     } catch (error) {
-        scanAnimation.stop();
+        void scanAnimation.stop();
         if (epoch !== screenshotEpoch) return;
         notifyScreenshotError(error);
     }

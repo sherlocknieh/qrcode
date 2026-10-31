@@ -11,8 +11,8 @@ type ImageScanOptions = {
     errorTitle?: string;
     // 解码前播放的动画 (capture 直出模式的整屏扫描), 需返回 Promise 以便等待结束
     beforeNotice?: () => Promise<void>;
-    // 解码结束 (含失败) 时回调, 通常用于停止动画
-    afterDecode?: () => void;
+    // 解码结束 (含失败) 时回调, 通常用于停止动画; 返回 Promise 时会等其结束
+    afterDecode?: () => void | Promise<void>;
     // 未识别到码时点击"尝试截图识别"的处理
     onRetry?: () => void;
     // 通知策略透传, 供独立识别页控制通知结束后的行为
