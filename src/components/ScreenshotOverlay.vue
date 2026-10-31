@@ -2,6 +2,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { setScreenshotIntroEnabled } from '@/services/screenshotSettings';
 
 const props = withDefaults(
     defineProps<{
@@ -96,20 +97,36 @@ const toolbarPosition = ref({ left: 0, top: 0 });
 const cursor = ref('crosshair');
 const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
-// 开启且在未减少动态效果时才播放入场动画
-const introActive = computed(() => props.intro && !prefersReducedMotion);
-const phase = ref<Phase>(introActive.value ? 'cover' : 'select');
+// 浮窗模式: 开启时截图为居中浮窗, 关闭时铺满整个视口
+const floatingMode = ref(props.intro);
+// 仅在浮窗模式且未要求减少动态效果时才播放入场动画
+const canAnimateIntro = computed(() => floatingMode.value && !prefersReducedMotion);
+const phase = ref<Phase>(canAnimateIntro.value ? 'cover' : 'select');
 const flashing = ref(false);
 const settling = ref(false);
+
+// 立即在整屏与浮窗之间切换并持久化, 相邻两次截图沿用同一模式
+const toggleDisplayMode = () => {
+    if (busy.value) return;
+    floatingMode.value = !floatingMode.value;
+    void setScreenshotIntroEnabled(floatingMode.value).catch(() => {});
+};
+
+// 开关文本显示当前模式, 提示语说明点击后的切换方向
+const modeLabel = computed(() =>
+    floatingMode.value
+        ? t('screenshotModeFloating', 'Floating window')
+        : t('screenshotModeFullscreen', 'Full screen'),
+);
 
 const dpr = window.devicePixelRatio || 1;
 let image: HTMLImageElement | undefined;
 let drag: DragState | null = null;
 let resizeFrame: number | undefined;
 
-// 关闭入场动画时截图铺满整个视口; 开启时收缩到按截图比例计算的居中窗口
+// 关闭浮窗模式时截图铺满整个视口; 开启时收缩到按截图比例计算的居中窗口
 const layout = computed(() => {
-    if (!introActive.value) {
+    if (!floatingMode.value || phase.value === 'cover') {
         return {
             width: Math.max(1, viewport.value.width),
             height: Math.max(1, viewport.value.height),
@@ -170,7 +187,7 @@ const canvasStyle = computed(() => ({
 }));
 
 const busy = computed(
-    () => introActive.value && (phase.value === 'cover' || settling.value),
+    () => canAnimateIntro.value && (phase.value === 'cover' || settling.value),
 );
 
 const hasSelection = computed(() => {
@@ -454,7 +471,7 @@ const showStatus = (text: string, kind: 'success' | 'error', autoClose = false) 
 
 // 入场: 整屏截图覆盖视口并闪一下, 再收缩到居中窗口
 function startIntro() {
-    if (!introActive.value) {
+    if (!canAnimateIntro.value) {
         phase.value = 'select';
         return;
     }
@@ -482,15 +499,6 @@ const confirm = () => {
     const result = cropSelection(selection.value);
     if (!result) return;
     emit('confirm', result);
-};
-
-const selectAll = () => {
-    selection.value = {
-        x: 0,
-        y: 0,
-        width: layout.value.width,
-        height: layout.value.height,
-    };
 };
 
 // 有选区时输出选区, 否则输出整张截图
@@ -525,6 +533,11 @@ const saveSelection = () => {
     } catch {
         showStatus(t('screenshotSaveFailed', 'Save failed'), 'error');
     }
+};
+
+// 浮层本身不可滚动, 不阻止的话滚轮会沿滚动链滚到底层页面
+const handleWheel = (event: WheelEvent) => {
+    event.preventDefault();
 };
 
 const handlePointerDown = (event: PointerEvent) => {
@@ -710,8 +723,12 @@ onBeforeUnmount(() => {
         v-if="loaded"
         ref="rootRef"
         class="qr-shot"
-        :class="{ 'qr-shot--intro': introActive }"
-        :style="[rootStyle, { cursor: busy ? 'default' : cursor }]">   
+        :class="{
+            'qr-shot--floating': floatingMode,
+            'qr-shot--animating': busy,
+        }"
+        :style="[rootStyle, { cursor: busy ? 'default' : cursor }]"
+        @wheel="handleWheel">
         <!-- 截图框选画布 -->
         <canvas
             ref="canvasRef"
@@ -737,7 +754,7 @@ onBeforeUnmount(() => {
         <span v-if="showSizeLabel" class="qr-shot-size" :style="sizeLabelStyle">
             {{ sizeLabel }}
         </span>
-        <!-- 截图操作组: 全选/复制/保存/关闭固定在右上角 -->
+        <!-- 截图操作组: 复制/保存/模式切换/关闭固定在右上角 -->
         <div v-if="showActions" class="qr-shot-actions">
             <span
                 v-if="status"
@@ -745,34 +762,6 @@ onBeforeUnmount(() => {
                 :class="`qr-shot-status--${status.kind}`"
                 aria-live="polite"
             >{{ status.text }}</span>
-            <!-- 全选按钮 -->
-            <button
-                class="qr-shot-btn qr-shot-btn--icon"
-                type="button"
-                :aria-label="t('screenshotSelectAll', 'Select all')"
-                :title="t('screenshotSelectAll', 'Select all')"
-                @click="selectAll"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path
-                        d="M8 3H6.5A2.5 2.5 0 0 0 4 5.5V7m4 14H6.5A2.5 2.5 0 0 1 4 18.5V17m16-9.5V6.5A2.5 2.5 0 0 0 17.5 4H16m4 13.5v1A2.5 2.5 0 0 1 17.5 21H16"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                        stroke-linecap="round"
-                    />
-                    <rect
-                        x="8"
-                        y="8"
-                        width="8"
-                        height="8"
-                        rx="1.4"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                    />
-                </svg>
-            </button>
             <!-- 复制按钮 -->
             <button
                 class="qr-shot-btn qr-shot-btn--icon"
@@ -827,6 +816,52 @@ onBeforeUnmount(() => {
                     />
                 </svg>
             </button>
+            <span class="qr-shot-actions-sep" aria-hidden="true" />
+            <!-- 显示模式开关: 全屏 / 浮窗, 点击立即切换, 文字只放在提示中 -->
+            <button
+                class="qr-shot-btn qr-shot-btn--icon"
+                type="button"
+                :aria-pressed="floatingMode"
+                :aria-label="modeLabel"
+                :title="floatingMode
+                    ? t('screenshotSwitchToFullscreen', 'Switch to full screen')
+                    : t('screenshotSwitchToFloating', 'Switch to floating window')"
+                @click="toggleDisplayMode"
+            >
+                <!-- 浮窗模式: 最大化图标(单窗口) -->
+                <svg v-if="floatingMode" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <rect
+                        x="4.5"
+                        y="4.5"
+                        width="15"
+                        height="15"
+                        rx="2.2"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                    />
+                </svg>
+                <!-- 全屏模式: 取消最大化图标(前后两个窗口) -->
+                <svg v-else viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                        d="M9 7V6.2A1.7 1.7 0 0 1 10.7 4.5h7.1A1.7 1.7 0 0 1 19.5 6.2v7.1a1.7 1.7 0 0 1-1.7 1.7H17"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                    />
+                    <rect
+                        x="4.5"
+                        y="7.8"
+                        width="11.7"
+                        height="11.7"
+                        rx="1.8"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                    />
+                </svg>
+            </button>
             <!-- 关闭按钮 -->
             <button
                 class="qr-shot-close"
@@ -866,6 +901,7 @@ onBeforeUnmount(() => {
     z-index: 2147483647;
     overflow: visible;
     user-select: none;
+    touch-action: none;
 }
 
 .qr-shot-canvas {
@@ -873,13 +909,21 @@ onBeforeUnmount(() => {
     touch-action: none;
 }
 
-/* 入场动画开启时: 浮窗外框与收缩过渡 */
-.qr-shot--intro {
+/* 浮窗模式: 收缩后的窗口外框 */
+.qr-shot--floating {
     border: 1px solid rgba(255, 255, 255, 0.7);
     border-radius: var(--qr-shot-radius, 12px);
     box-shadow:
         0 0 0 1px rgba(0, 0, 0, 0.18),
         0 20px 45px rgba(0, 0, 0, 0.42);
+}
+
+.qr-shot--floating .qr-shot-canvas {
+    border-radius: inherit;
+}
+
+/* 入场动画期间才启用收缩过渡, 日常切换显示模式保持即时 */
+.qr-shot--animating {
     transform-origin: top left;
     will-change: left, top, width, height;
     transition:
@@ -890,7 +934,7 @@ onBeforeUnmount(() => {
         border-radius 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.qr-shot--intro .qr-shot-canvas {
+.qr-shot--animating .qr-shot-canvas {
     border-radius: inherit;
     transition:
         width 420ms cubic-bezier(0.22, 0.61, 0.36, 1),
@@ -989,8 +1033,8 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .qr-shot--intro,
-    .qr-shot--intro .qr-shot-canvas {
+    .qr-shot--animating,
+    .qr-shot--animating .qr-shot-canvas {
         transition: none;
     }
 
@@ -1066,6 +1110,14 @@ onBeforeUnmount(() => {
 
 .qr-shot-actions .qr-shot-btn--icon:hover {
     background: rgba(60, 60, 60, 0.92);
+}
+
+.qr-shot-actions-sep {
+    flex: 0 0 auto;
+    width: 1px;
+    height: 16px;
+    margin: 0 2px;
+    background: rgba(255, 255, 255, 0.28);
 }
 
 .qr-shot-actions .qr-shot-status {

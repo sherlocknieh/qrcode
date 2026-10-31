@@ -5,10 +5,6 @@ import {
     type PopupNoticeRecord,
 } from '@/services/popupNotice';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
-import {
-    getScreenshotIntroEnabled,
-    setScreenshotIntroEnabled,
-} from '@/services/screenshotSettings';
 import { storageArea } from '@/services/storage';
 
 export default defineBackground(() => {
@@ -225,7 +221,7 @@ export default defineBackground(() => {
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
     type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
         | 'screenShot' | 'scanFullScreen' | 'scanImage'
-        | 'showPageAction' | 'hidePageAction' | 'screenshotIntro';
+        | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji?: string) => {
         const title = browser.i18n.getMessage(key);
         return import.meta.env.FIREFOX || !emoji ? title : `${emoji} ${title}`;
@@ -234,7 +230,6 @@ export default defineBackground(() => {
     // 右键菜单初始化
     const addContextMenus = async () => {
         const pageActionVisible = await isPageActionVisible();
-        const screenshotIntroEnabled = await getScreenshotIntroEnabled();
         browser.contextMenus.removeAll(() => {
             // 添加菜单: 识别图中二维码
             browser.contextMenus.create({
@@ -260,7 +255,7 @@ export default defineBackground(() => {
             // 添加菜单: 框选区域识别
             browser.contextMenus.create({
                 id: "screenshotQR",
-                title: menuTitle("screenShot", "📷"),
+                title: menuTitle("screenShot", "✂️"),
                 // 显示在: 网页右键, 扩展图标右键, 地址栏图标右键
                 contexts: ["action", "page_action"],
                 ...menuIcons("screenshot")
@@ -281,25 +276,11 @@ export default defineBackground(() => {
                     ...menuIcons(pageActionVisible ? "hide" : "show")
                 });
             }
-            // 截图框选入场动画开关: 勾选状态即当前设置
-            browser.contextMenus.create({
-                id: "toggleScreenshotIntro",
-                title: menuTitle("screenshotIntro", "🎬"),
-                type: "checkbox",
-                checked: screenshotIntroEnabled,
-                contexts: ["action"],
-                ...menuIcons("screenshot")
-            });
         });
     };
 
     // 右键菜单点击事件处理
     const handleContextMenusClick = (info: Browser.contextMenus.OnClickData, tab?: Browser.tabs.Tab) => {
-        // 截图框选入场动画开关: 复选框状态由浏览器维护, 这里只持久化
-        if (info.menuItemId === "toggleScreenshotIntro") {
-            void setScreenshotIntroEnabled(info.checked === true);
-            return;
-        }
         // 地址栏图标开关不依赖标签页
         if (info.menuItemId === "togglePageAction") {
             void (async () => {

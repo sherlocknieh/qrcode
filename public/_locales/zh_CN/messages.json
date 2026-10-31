@@ -16,12 +16,12 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanFullScreen": {
-    "message": "全屏扫描",
+    "message": "扫描屏幕",
     "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
   },
   "screenShot": {
-    "message": "精准选区扫描",
-    "description": "右键菜单项：截图扫描二维码/条形码"
+    "message": "截图选区扫描",
+    "description": "右键菜单项：截图并框选区域扫描二维码/条形码"
   },
   "scanImage": {
     "message": "上传/粘贴图片",
@@ -127,10 +127,6 @@
     "message": "无法完成截图，请确认当前页面是普通网页后重试。",
     "description": "截图失败的提示信息"
   },
-  "screenshotSelectAll": {
-    "message": "全选",
-    "description": "选择整个截图区域的按钮"
-  },
   "screenshotCopy": {
     "message": "复制",
     "description": "复制选区截图的按钮"
@@ -163,9 +159,21 @@
     "message": "拖动鼠标框选区域",
     "description": "截图界面上提示用户框选区域的文字"
   },
-  "screenshotIntro": {
-    "message": "截图动画",
-    "description": "扩展图标右键菜单中控制框选界面入场动画的开关"
+  "screenshotModeFloating": {
+    "message": "浮窗模式",
+    "description": "截图界面显示模式开关的文本(当前为居中浮窗)"
+  },
+  "screenshotModeFullscreen": {
+    "message": "全屏模式",
+    "description": "截图界面显示模式开关的文本(当前铺满视口)"
+  },
+  "screenshotSwitchToFullscreen": {
+    "message": "切换到全屏模式",
+    "description": "截图界面显示模式开关的提示文本(当前为浮窗模式)"
+  },
+  "screenshotSwitchToFloating": {
+    "message": "切换到浮窗模式",
+    "description": "截图界面显示模式开关的提示文本(当前为全屏模式)"
   },
   "confirm": {
     "message": "确定",
