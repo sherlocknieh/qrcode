@@ -36,10 +36,10 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | 路径 | 职责 |
 | --- | --- |
 | [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台脚本：右键菜单、popup 打开、通知中转、跨域取图、截图、标签页关闭、地址栏图标开关 |
-| [src/entrypoints/content/](./src/entrypoints/content/) | 注入所有页面的内容脚本 UI，处理 `decodeQR` / `screenshotQR` / `screenshotQRDirect` 消息，页面内通知兜底 |
+| [src/entrypoints/content/](./src/entrypoints/content/) | 注入所有页面的内容脚本 UI，处理 `decodeQR` / `screenshotQR` / `screenshotQRDirect` / `scanImageInline` 消息，页面内通知兜底 |
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、识别交给它的图片（`scan.html` 交接） |
 | [src/entrypoints/scan/](./src/entrypoints/scan/) | 独立识别页 `scan.html`：整页居中布局 + `ImageScanPanel`；仅在页面无法注入内容脚本时作为兜底 |
-| [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
+| [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF、SVG 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
 | [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
@@ -88,10 +88,10 @@ flowchart LR
 
 几个必须理解的设计：
 
-1. **特殊页面优先就地处理**。SVG 文档直接解码页面地址；无法注入内容脚本的 PDF 阅读器页，一键截屏识别把视口截图写入 `qrImageUrl` 交给 popup 就地识别；本地/剪贴板图片识别同样先在当前页挂载 `ImageScanPanel`（overlay 变体），内容脚本不可用时才开 `scan.html`，需要交互框选时才开 `capture.html`。三个入口的降级分发统一由 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage` 完成。
+1. **特殊页面优先就地处理**。网页图片识别与本地/剪贴板图片识别优先在当前页处理（`decodeQR` / `scanImageInline`）；直接打开的 SVG 无法注入内容脚本，图片识别交给 popup，截图识别与一键截屏识别则截取视口后开 `capture.html`（`?direct=1` 表示直接识别整图）；PDF 阅读器同样由 `capture.html` 接管。降级分发统一由 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage` 完成。
 2. **通知统一走 popup**。内容脚本调 `showPopupNotice()` → 后台写入 `qrNotification` 存储并通过 `popup` 长连接推送；popup 未打开时后台用 `browser.action.openPopup()`（Firefox 优先 `action`，`pageAction` 仅兜底）。失败返回 `false`，调用方回退到页面内 `NotifyHost`。
 3. **通知参数必须可序列化**。`PopupNoticeOptions` 里只有 `loading` 标记，没有回调函数；动作通过 `PopupNoticeAction`（`open` / `copy` / `screenshot`）描述，由 popup 执行。不要为“主动收起通知”单独加消息：popup 窗口被保留而通知已结束时会出现空白窗口；正确做法是用下一条通知（如 `decodingQR`）替换旧通知。popup 里 `notifyState.open` 由 true 变 false 且没有任何内容时会自行关闭窗口。
-4. **识别在需要 DOM 的地方完成**。SVG 文档、Firefox 内置 PDF 阅读器等无法注入内容脚本的页面，由 popup / capture 页接管。
+4. **识别在需要 DOM 的地方完成**。SVG 文档的图片交给 popup，SVG 与 Firefox 内置 PDF 阅读器等页面的截图识别由 `capture.html` 接管。
 5. **后台负责高权限操作**：`tabs.captureVisibleTab`、`fetch` 跨域图片（返回 DataURL）、`tabs.remove`。
 6. **弹窗易失焦**：本地文件选择会让 popup 关闭，因此 `scan.html` 与 `capture.html` 都在自己页面里取图，识别结果仍走 `useNoticeFallback`（popup 优先、页面内兜底）。识别流程结束后**不要自动关闭** popup / scan / capture 页面，窗口一律由用户自行关闭；唯一例外是 popup 里"尝试截图识别"需要让出焦点给页面框选。
 
@@ -114,7 +114,7 @@ flowchart LR
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。
 - **新增 UI 文案**：`public/_locales/en/messages.json` 与 `zh_CN/messages.json` 同时添加，代码中统一用 `browser.i18n.getMessage(key)`（各入口有本地 `t()` 包装）。
 - **权限 / manifest / 图标**：只改 [wxt.config.ts](./wxt.config.ts)。不要为此声明 `clipboardRead` / `clipboardWrite`：图片只从 paste/拖放事件读取，文本复制发生在点击手势里，失败时用 `execCommand('copy')` 兜底。
-- **截图能力**：视图层在 `ScreenshotOverlay.vue`，流程在 `useScreenshot.ts`。
+- **截图能力**：视图层在 `ScreenshotOverlay.vue`；普通页面由 `useScreenshot.ts` 就地挂载，SVG / PDF 等无法注入内容脚本的页面由 [capture/App.vue](./src/entrypoints/capture/App.vue) 在新标签页接管（后台截视口 → 存储 → 框选/直出）。
 
 ## 编码约定
 

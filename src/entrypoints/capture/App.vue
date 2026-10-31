@@ -29,8 +29,10 @@ const { scan } = useImageScan({
 });
 
 
-// 截图数据; 确认框选后清空以卸载框选界面
+// 后台截取的视口图; 识别结束后仍保留在页面上, 标签页里原本没有其它内容
 const src = ref('');
+// 框选层是否可见: 确认后只卸载框选层, 截图继续铺在页面上
+const showOverlay = ref(!directMode);
 // 入场动画开关, 由扩展图标右键菜单控制
 const introEnabled = ref(false);
 
@@ -47,9 +49,9 @@ function closeTab() {
         });
 }
 
-// 框选确认或直出识别: 清空截图卸载框选界面, 再交给统一识别流程
+// 框选确认: 只卸载框选层, 保留截图作为页面内容, 再交给统一识别流程
 async function handleConfirm(dataUrl: string) {
-    src.value = '';
+    showOverlay.value = false;
     await scan(dataUrl);
 }
 
@@ -71,9 +73,11 @@ onMounted(async () => {
             await notifyScreenshotError();
             return;
         }
-        // 直出模式跳过框选, 直接识别整张截图
+        // 直出模式跳过框选, 直接识别整张截图;
+        // 截图保留在页面上作为背景, 识别结束后用户仍能看到原页面画面
         if (directMode) {
-            await handleConfirm(stored);
+            src.value = stored;
+            await scan(stored);
             return;
         }
         src.value = stored;
@@ -85,12 +89,19 @@ onMounted(async () => {
 
 <template>
     <ScreenshotOverlay
-        v-if="src"
+        v-if="src && showOverlay"
         :src="src"
         :intro="introEnabled"
         @confirm="handleConfirm"
         @cancel="closeTab"
         @error="notifyScreenshotError"
+    />
+    <!-- 无框选层时 (直出模式 / 框选已确认) 把后台截取的视口图铺在页面上 -->
+    <img
+        v-else-if="src"
+        class="qr-capture-still"
+        :src="src"
+        :alt="t('screenShot')"
     />
     <NotifyHost />
 </template>

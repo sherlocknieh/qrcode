@@ -9,3 +9,11 @@ body {
 #app {
   height: 100%;
 }
+
+/* 直出模式: 把后台截取的视口图完整铺满页面, 留出深色背景避免比例不符时被裁切 */
+.qr-capture-still {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}

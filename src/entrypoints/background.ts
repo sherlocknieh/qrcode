@@ -142,7 +142,8 @@ export default defineBackground(() => {
         return activeTab?.id;
     };
 
-    // 直接打开的 SVG 是 XML 文档, 内容脚本无法创建 canvas 和弹窗, 需要交给 popup 处理
+    // 直接打开的 SVG 是 XML 文档, 内容脚本不会注入, 截图类操作需要截取视口后走扩展页面。
+    // 兜底交给 popup 会受其窗口尺寸限制, 因此截图与整屏识别统一在新标签页完成。
     const isSvgDocumentUrl = (url?: string) => {
         if (!url) return false;
         try {
@@ -255,7 +256,7 @@ export default defineBackground(() => {
             // 添加菜单: 框选区域识别
             browser.contextMenus.create({
                 id: "screenshotQR",
-                title: menuTitle("screenShot", "✂️"),
+                title: menuTitle("screenShot", "📷"),
                 // 显示在: 网页右键, 扩展图标右键, 地址栏图标右键
                 contexts: ["action", "page_action"],
                 ...menuIcons("screenshot")
@@ -311,18 +312,19 @@ export default defineBackground(() => {
                 showQrFromImagePage(info.srcUrl);
             });
         } else if (info.menuItemId === "screenshotQR") {
-            // 直接打开的 SVG 文档无法框选截图, 直接解码页面地址
+            // 截图识别二维码: 优先使用内容脚本的区域截图 (Chrome 的 PDF 页面也能注入);
+            // 内容脚本不可用 (如 Firefox 内置 PDF 阅读器、SVG 文档) 时,
+            // 改为截取视口后在新标签页中框选识别, 不在 popup 里就地处理
             if (isSvgDocumentUrl(tab?.url)) {
-                showQrFromImagePage(info.pageUrl ?? tab?.url);
+                void showCropScan(tab?.windowId);
                 return;
             }
-            // 截图识别二维码: 优先使用内容脚本的区域截图 (Chrome 的 PDF 页面也能注入);
-            // 内容脚本不可用(如 Firefox 内置 PDF 阅读器)时, 改为截取视口后框选识别
             void requestAreaScreenshot(tabId, tab?.windowId);
         } else if (info.menuItemId === "scanScreen") {
             // 一键截屏识别: 直接识别当前视口, 全程没有框选交互
+            // SVG 文档同样截取视口后在新标签页直接识别整图, 避免 popup 窗口裁掉页面内容
             if (isSvgDocumentUrl(tab?.url)) {
-                showQrFromImagePage(info.pageUrl ?? tab?.url);
+                void showCropScan(tab?.windowId, true);
                 return;
             }
             void requestQuickScreenshot(tabId, tab?.windowId);
