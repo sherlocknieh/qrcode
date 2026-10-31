@@ -32,8 +32,6 @@ export type RecognizeOptions = {
     afterDecode?: () => void;
     // 未识别到码时点击"尝试截图识别"的处理
     onRetry?: () => void;
-    // 原图地址: 取图失败时额外提供"新标签打开图片"的出口
-    openImageUrl?: string;
     // 结果是否已被新一轮识别取代
     isStale?: () => boolean;
 };
@@ -126,7 +124,7 @@ async function notifyFailure(options: RecognizeOptions, error: unknown): Promise
     const text = error instanceof Error ? error.message : String(error);
     await options.host.notify(
         options.onRetry
-            ? errorNoticeWithScreenshot(title, text, options.openImageUrl)
+            ? errorNoticeWithScreenshot(title, text)
             : errorNotice(title, text),
         options.onRetry,
     );

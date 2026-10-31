@@ -115,10 +115,6 @@
     "message": "Error",
     "description": "Generic error title"
   },
-  "openImage": {
-    "message": "Open Image in New Tab",
-    "description": "Button in the cross-origin loading notice that opens the image in a new tab"
-  },
   "screenshotScan": {
     "message": "Screenshot Scan",
     "description": "Button that switches to screenshot scan when the image cannot be read"

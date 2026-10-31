@@ -133,7 +133,7 @@ flowchart LR
 - **`captureVisibleTab` 必须在后台调用**，否则会触发屏幕共享提示并压缩视口。
 - **大图识别会阻塞 UI**：先渲染 loading 通知，再 `await new Promise(r => setTimeout(r, 50))` 后开始解码。
 - **提示分两段，动画在取图之后**：网络取图慢于 150ms 才提示"正在获取图片..."（`recognizeImage` 的 `notifyFetching`），图片就绪后才提示"正在识别..."并播放扫描动画（`beforeNotice`），别让下载耗时算进识别时间；本地图片/截图不需要提供 `notifyFetching`。
-- **跨域/防盗链图片**：直接 fetch 常失败，失败提示里保留了"新标签打开图片"（`openImageUrl`）和"改用截图识别"两个出口，改动时保留兜底；不要为取图再加一条独立的"跨域图片可能稍慢"通知，它和"正在获取图片..."重复。
+- **跨域/防盗链图片**：直接 fetch 常失败，失败提示里保留了"改用截图识别"出口，改动时保留兜底；不要为取图再加一条独立的"跨域图片可能稍慢"通知，它和"正在获取图片..."重复。
 - **同源地址重定向到 CDN**：如 GitHub 的 `/owner/repo/raw/...` 会 302 到 `raw.githubusercontent.com`。`isSameOrigin` 只看跳转前的地址，Chrome 会因此判定 canvas 被污染（Firefox 宽松些）；`loadImageDataFromUrl` 捕获污染错误后自动改用后台代理重取，不要删掉这层兜底，也不要把 `fetchViaProxy` 改回只在跨域时传。
 - **`file://` 页面**：Firefox 扩展页/后台无法 fetch，但内容脚本可读已渲染图片并画到 canvas；失败再回退到截取视口。
 - **通知竞态**：后台在 `openPopup` 期间用 `popupOpening` / `POPUP_OPEN_GRACE` 防丢通知，并靠自增 `id` 做 `clearNoticeIfCurrent`，不要简化掉。

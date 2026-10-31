@@ -46,12 +46,10 @@ export function errorNotice(title: string, text?: string): PopupNoticePayload {
 }
 
 // 图片读取失败 (典型是跨域图片污染 canvas 导致无法取像素):
-// 除确认外提供"改用截图识别", 知道原图地址时再加"新标签打开图片",
-// 由 popup 或页面内兜底通知执行
+// 除确认外提供"改用截图识别", 由 popup 或页面内兜底通知执行
 export function errorNoticeWithScreenshot(
     title: string,
     text?: string,
-    imageUrl?: string,
 ): PopupNoticePayload {
     return {
         options: {
@@ -59,13 +57,10 @@ export function errorNoticeWithScreenshot(
             icon: 'error',
             title,
             text,
-            showCancelButton: Boolean(imageUrl),
-            cancelButtonText: imageUrl ? t('openImage') : undefined,
             confirmButtonText: t('confirm'),
             extraButtonText: t('screenshotScan'),
             showCloseButton: true,
         },
-        cancelAction: imageUrl ? { kind: 'open', value: imageUrl } : undefined,
         extraAction: { kind: 'screenshot' },
     };
 }

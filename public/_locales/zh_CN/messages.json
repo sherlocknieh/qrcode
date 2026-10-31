@@ -115,12 +115,8 @@
     "message": "错误",
     "description": "通用错误标题"
   },
-  "openImage": {
-    "message": "新标签打开",
-    "description": "跨域图片加载提示中的按钮：在新标签页打开图片"
-  },
   "screenshotScan": {
-    "message": "改用截图识别",
+    "message": "尝试截图识别",
     "description": "图片读取失败时切换到截图识别的按钮"
   },
   "screenshotFailed": {

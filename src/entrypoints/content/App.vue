@@ -100,8 +100,6 @@ async function handleImageUrl(imageUrl: string) {
             isStale,
             errorTitle: t('imageFetchFailed'),
             onRetry: () => void handleScreenshot(),
-            // 取图失败时仍可把原图丢到新标签页再识别
-            openImageUrl: imageUrl,
             // 网页图片需要先下载/取像素: 取图期间提示"正在获取图片"
             notifyFetching,
             // 图片取到、识别提示出现后, 再在网页上的图片区域播放扫描动画
@@ -190,7 +188,6 @@ function decodeAndNotify(
     options: {
         isStale?: () => boolean;
         onRetry?: () => void;
-        openImageUrl?: string;
         errorTitle?: string;
         beforeNotice?: () => Promise<void>;
         notifyFetching?: () => Promise<unknown>;
@@ -202,7 +199,6 @@ function decodeAndNotify(
         isStale: options.isStale,
         // 只有调用方确认"再截一次图"有意义时才传 onRetry (截图流程自己就不该再给截图入口)
         onRetry: options.onRetry,
-        openImageUrl: options.openImageUrl,
         errorTitle: options.errorTitle,
         beforeNotice: options.beforeNotice,
         notifyFetching: options.notifyFetching,
