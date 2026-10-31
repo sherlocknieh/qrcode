@@ -1,3 +1,5 @@
+<!-- 截图容器 -->
+
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -26,6 +28,7 @@ const FLOATING_VIEWPORT_HEIGHT_RATIO = 0.8;
 const MIN_SELECTION = 8;
 const HANDLE_SIZE = 6;
 const HANDLE_HIT_SIZE = 9;
+const SIZE_LABEL_INSET = 6;
 const ACCENT_COLOR = '#2CABFF';
 // 与整屏识别扫描动画的遮罩保持一致
 const MASK_COLOR = 'rgba(8, 12, 20, 0.22)';
@@ -203,13 +206,13 @@ const sizeLabel = computed(() => {
 
 const showSizeLabel = computed(() => loaded.value && !busy.value && hasSelection.value);
 
-// 尺寸标记独立于工具栏, 固定在选框左上方
+// 尺寸标记独立于工具栏, 固定在选框内部左上角
 const sizeLabelStyle = computed(() => {
     const rect = selection.value;
     if (!rect) return {};
     return {
-        left: `${Math.round(rect.x)}px`,
-        top: `${Math.round(rect.y)}px`,
+        left: `${Math.round(rect.x) + SIZE_LABEL_INSET}px`,
+        top: `${Math.round(rect.y) + SIZE_LABEL_INSET}px`,
     };
 });
 
@@ -703,14 +706,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <!-- 截图弹窗容器 -->
     <div
         v-if="loaded"
         ref="rootRef"
         class="qr-shot"
         :class="{ 'qr-shot--intro': introActive }"
-        :style="[rootStyle, { cursor: busy ? 'default' : cursor }]"
-    >   
+        :style="[rootStyle, { cursor: busy ? 'default' : cursor }]">   
         <!-- 截图框选画布 -->
         <canvas
             ref="canvasRef"
@@ -718,8 +719,7 @@ onBeforeUnmount(() => {
             :width="pixelWidth"
             :height="pixelHeight"
             :style="canvasStyle"
-            @pointerdown="handlePointerDown"
-        />
+            @pointerdown="handlePointerDown" />
         <!-- 截图闪光效果容器 -->
         <div v-if="flashing" class="qr-shot-flash" aria-hidden="true">
             <span class="qr-shot-flash-edge edge-top" />
@@ -745,6 +745,7 @@ onBeforeUnmount(() => {
                 :class="`qr-shot-status--${status.kind}`"
                 aria-live="polite"
             >{{ status.text }}</span>
+            <!-- 全选按钮 -->
             <button
                 class="qr-shot-btn qr-shot-btn--icon"
                 type="button"
@@ -772,6 +773,7 @@ onBeforeUnmount(() => {
                     />
                 </svg>
             </button>
+            <!-- 复制按钮 -->
             <button
                 class="qr-shot-btn qr-shot-btn--icon"
                 type="button"
@@ -799,6 +801,7 @@ onBeforeUnmount(() => {
                     />
                 </svg>
             </button>
+            <!-- 保存按钮 -->
             <button
                 class="qr-shot-btn qr-shot-btn--icon"
                 type="button"
@@ -824,6 +827,7 @@ onBeforeUnmount(() => {
                     />
                 </svg>
             </button>
+            <!-- 关闭按钮 -->
             <button
                 class="qr-shot-close"
                 type="button"
@@ -833,6 +837,7 @@ onBeforeUnmount(() => {
         </div>
         <!-- 截图工具栏 -->
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
+            <!-- 确认按钮 -->
             <button
                 class="qr-shot-btn primary qr-shot-btn--confirm"
                 type="button"
@@ -996,13 +1001,13 @@ onBeforeUnmount(() => {
 
 .qr-shot-hint {
     position: absolute;
-    top: 58px;
+    top: 10px;
     left: 50%;
     max-width: calc(100% - 96px);
     margin: 0;
     padding: 7px 14px;
     border-radius: 999px;
-    background: rgba(25, 25, 25, 0.82);
+    background: rgba(25, 25, 25, 0.5);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
     color: #fff;
     font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -1027,7 +1032,7 @@ onBeforeUnmount(() => {
 .qr-shot-actions {
     position: absolute;
     top: 10px;
-    right: 10px;
+    right: 20px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -1049,7 +1054,7 @@ onBeforeUnmount(() => {
     padding: 0;
     border-color: rgba(255, 255, 255, 0.72);
     border-radius: 50%;
-    background: rgba(25, 25, 25, 0.82);
+    background: rgba(25, 25, 25, 0.5);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
@@ -1086,16 +1091,15 @@ onBeforeUnmount(() => {
 
 .qr-shot-size {
     position: absolute;
-    padding: 3px 8px;
-    border-radius: 6px;
-    background: rgba(25, 25, 25, 0.82);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    color: #fff;
-    font: 12px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(25, 25, 25, 0.48);
+    box-shadow: none;
+    color: rgba(255, 255, 255, 0.82);
+    font: 11px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     pointer-events: none;
-    transform: translateY(calc(-100% - 6px));
 }
 
 .qr-shot-status {
@@ -1133,7 +1137,6 @@ onBeforeUnmount(() => {
     background: rgba(60, 64, 72, 0.55);
     color: #fff;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(4px);
 }
 
 .qr-shot-btn.primary:hover {
@@ -1162,7 +1165,7 @@ onBeforeUnmount(() => {
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.72);
     border-radius: 50%;
-    background: rgba(25, 25, 25, 0.82);
+    background: rgba(25, 25, 25, 0.5);
     color: #fff;
     cursor: pointer;
     font: 22px/26px Arial, sans-serif;
