@@ -2,9 +2,10 @@ import { createApp, type App } from 'vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
 import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 
+// 取消时静默 (用户主动放弃, 不需要提示), 因此只有失败需要调用方处理
 export type ScreenshotResult =
     | { type: 'failed' }
-    | { type: 'cancelled'; silent?: boolean };
+    | { type: 'cancelled' };
 
 type CaptureResponse = { success: true; dataUrl: string } | { success: false; error?: string };
 
@@ -57,7 +58,7 @@ export function useScreenshot() {
                 intro,
                 onConfirm: (dataUrl: string) => finish(() => resolve(dataUrl)),
                 onCancel: () =>
-                    finish(() => reject({ type: 'cancelled', silent: true } satisfies ScreenshotResult)),
+                    finish(() => reject({ type: 'cancelled' } satisfies ScreenshotResult)),
                 onError: () => finish(() => reject({ type: 'failed' } satisfies ScreenshotResult)),
             });
             app.mount(host);

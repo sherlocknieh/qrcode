@@ -18,6 +18,19 @@ export function decodingNotice(): PopupNoticePayload {
     };
 }
 
+// 通用警告提示 (轻量 toast)
+export function warningNotice(title: string, text?: string): PopupNoticePayload {
+    return {
+        options: {
+            toast: true,
+            icon: 'warning',
+            title,
+            text,
+            showCloseButton: true,
+        },
+    };
+}
+
 // 通用错误提示
 export function errorNotice(title: string, text?: string): PopupNoticePayload {
     return {
@@ -32,11 +45,36 @@ export function errorNotice(title: string, text?: string): PopupNoticePayload {
     };
 }
 
+// 图片读取失败 (典型是跨域图片污染 canvas 导致无法取像素):
+// 除确认外提供"改用截图识别", 知道原图地址时再加"新标签打开图片",
+// 由 popup 或页面内兜底通知执行
+export function errorNoticeWithScreenshot(
+    title: string,
+    text?: string,
+    imageUrl?: string,
+): PopupNoticePayload {
+    return {
+        options: {
+            toast: false,
+            icon: 'error',
+            title,
+            text,
+            showCancelButton: Boolean(imageUrl),
+            cancelButtonText: imageUrl ? t('openImage') : undefined,
+            confirmButtonText: t('confirm'),
+            extraButtonText: t('screenshotScan'),
+            showCloseButton: true,
+        },
+        cancelAction: imageUrl ? { kind: 'open', value: imageUrl } : undefined,
+        extraAction: { kind: 'screenshot' },
+    };
+}
+
 // 识别结果的通用通知构造: content / popup / capture 三个入口共用同一套分支
 // (无结果重试 → 多码列表 → 单码链接/复制), 避免各写一遍文案与动作
 
-// 未识别到任何码: 提供"重新截图"出口
-function noResultNotice(): PopupNoticePayload {
+// 未识别到任何码: 有可用的截图重试出口时附带"改用截图识别"
+function noResultNotice(retryScreenshot: boolean): PopupNoticePayload {
     return {
         options: {
             toast: false,
@@ -44,10 +82,10 @@ function noResultNotice(): PopupNoticePayload {
             title: t('recognitionFailed'),
             text: t('recognitionFailedMsg'),
             confirmButtonText: t('confirm'),
-            extraButtonText: t('screenshotRetry'),
+            extraButtonText: retryScreenshot ? t('screenshotScan') : undefined,
             showCloseButton: true,
         },
-        extraAction: { kind: 'screenshot' },
+        extraAction: retryScreenshot ? { kind: 'screenshot' } : undefined,
     };
 }
 
@@ -85,9 +123,13 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
     };
 }
 
-// 按结果数量选择对应的通知
-export function resultNotice(results: DecodeResult[]): PopupNoticePayload {
-    if (!results.length) return noResultNotice();
+// 按结果数量选择对应的通知。
+// retryScreenshot: 当前入口能否真的再截一次图 (独立识别页里截图只会截到自己, 传 false)
+export function resultNotice(
+    results: DecodeResult[],
+    options: { retryScreenshot?: boolean } = {},
+): PopupNoticePayload {
+    if (!results.length) return noResultNotice(options.retryScreenshot ?? true);
     if (results.length > 1) return multiResultNotice(results);
     return singleResultNotice(results[0]!);
 }

@@ -4,11 +4,11 @@ import { onBeforeUnmount, onMounted } from 'vue';
 // 非UI组件
 import {
     getImageDataFromDataUrl,
-    isSameOrigin,
     loadImageDataFromUrl,
 } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { sendMessage } from '@/services/messaging';
+import { errorNotice, warningNotice } from '@/services/decodeResultNotice';
 import { recognizeImage } from '@/services/recognize';
 
 // UI组件
@@ -19,13 +19,9 @@ import { useScanAnimation } from '@/composables/useScanAnimation';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useImagePasteOverlay } from '@/composables/useImagePasteOverlay';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
-import {
-    showPopupNotice,
-    type PopupNoticePayload,
-} from '@/services/popupNotice';
 
 const { startScreenshot } = useScreenshot();
-const { fireLocal, notify, notifyDecoding, host } = useNoticeFallback();
+const { notify, notifyFetching, host } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
 
@@ -64,38 +60,6 @@ onBeforeUnmount(() => {
     imagePasteOverlay.close();
 });
 
-// 跨域图片加载期间的提示，提供"新标签打开图片"和"改用截图识别"两个出口。
-// 提示保持加载态, 由后续的"正在识别"通知替换, 因此不会留下空白窗口。
-async function notifyCrossOriginLoading(imageUrl: string) {
-    const payload: PopupNoticePayload = {
-        options: {
-            toast: false,
-            icon: 'info',
-            title: t('fetchingImage'),
-            text: t('crossOriginNotice'),
-            showCancelButton: true,
-            cancelButtonText: t('openImage'),
-            confirmButtonText: t('screenshotScan'),
-            showCloseButton: true,
-            loading: true,
-        },
-        cancelAction: { kind: 'open', value: imageUrl },
-        confirmAction: { kind: 'screenshot' },
-    };
-
-    if (await showPopupNotice(payload)) return;
-
-    // popup 不可用时在页面内展示并处理两个按钮
-    const response = await fireLocal(payload);
-    if (response.isConfirmed) {
-        void handleScreenshot();
-    } else if (response.dismiss === 'cancel') {
-        window.open(imageUrl, '_blank');
-    }
-}
-
-// 扫描动画开始前的"正在识别"提示: 它会替换掉跨域加载提示,
-// 因此动画一定是在加载通知结束之后才开始
 // 找到右键识别的图片元素并返回其视口矩形; 背景图等找不到元素时返回 undefined
 function findImageRect(imageUrl: string): ScanRect | undefined {
     const images = Array.from(document.images);
@@ -122,28 +86,26 @@ function findImageRect(imageUrl: string): ScanRect | undefined {
 // 网页图片处理流程
 async function handleImageUrl(imageUrl: string) {
     const origin = window.location.origin;
-    const needsProxy = !isSameOrigin(imageUrl, origin);
     // 记录当前识别轮次: 用户改用截图识别后, 本次图片识别的后续通知全部丢弃
     const epoch = screenshotEpoch;
-    // 跨域图片先展示加载提示, 图片数据就绪后由"正在识别"通知替换它
     const isStale = () => epoch !== screenshotEpoch;
-    if (needsProxy) {
-        void notifyCrossOriginLoading(imageUrl);
-    }
 
     const outcome = await decodeAndNotify(
         () => loadImageDataFromUrl(imageUrl, {
             origin,
-            fetchViaProxy: needsProxy ? fetchImageViaProxy : undefined,
+            // 同源地址也可能 302 到 CDN 导致 canvas 被污染, 代理始终备好用于自动兜底
+            fetchViaProxy: fetchImageViaProxy,
         }),
         {
             isStale,
             errorTitle: t('imageFetchFailed'),
             onRetry: () => void handleScreenshot(),
-            // 与右键识别一致: 先在网页上的图片区域播放扫描动画, 动画结束再提示
+            // 取图失败时仍可把原图丢到新标签页再识别
+            openImageUrl: imageUrl,
+            // 网页图片需要先下载/取像素: 取图期间提示"正在获取图片"
+            notifyFetching,
+            // 图片取到、识别提示出现后, 再在网页上的图片区域播放扫描动画
             beforeNotice: async () => {
-                // 跨域图片先用"正在识别"通知替换加载提示, 再开始动画
-                if (needsProxy) await notifyDecoding();
                 const rect = findImageRect(imageUrl);
                 if (rect) await scanAnimation.play({ rect });
             },
@@ -151,25 +113,6 @@ async function handleImageUrl(imageUrl: string) {
         },
     );
     if (isStale()) return;
-
-    if (outcome.status === 'failed' && needsProxy) {
-        // 跨域图片常因防盗链无法获取, 建议并直接切换到截图识别
-        const payload: PopupNoticePayload = {
-            options: {
-                toast: false,
-                icon: 'warning',
-                title: t('imageFetchFailed'),
-                text: `${messageOf(outcome.error)}\n${t('crossOriginScreenshotHint')}`,
-                confirmButtonText: t('screenshotScan'),
-                showCloseButton: true,
-            },
-            confirmAction: { kind: 'screenshot' },
-        };
-        if (await showPopupNotice(payload)) return;
-        const response = await fireLocal(payload);
-        if (response.isConfirmed) await handleScreenshot();
-        return;
-    }
 
     if (outcome.status === 'failed') {
         // 本地文件在部分浏览器中会因 canvas 安全限制无法读取像素,
@@ -186,40 +129,18 @@ async function handleImageUrl(imageUrl: string) {
     }
 }
 
-function messageOf(error: unknown) {
-    return error instanceof Error ? error.message : String(error);
-}
+// 截图识别每轮开始都会递增, 用于判断图片识别的结果是否已过期
+let screenshotEpoch = 0;
 
-// 截图识别流程
-function notifyScreenshotResult(result: ScreenshotResult) {
-    if (result.type === 'cancelled') {
-        if (result.silent) {
-            return;
-        }
-        void notify({
-            options: {
-                toast: true,
-                icon: 'error',
-                title: t('screenshotCancelled'),
-                text: t('screenshotCancelledMsg'),
-                showCloseButton: true,
-            },
-        });
-        return;
-    }
-
-    if (result.type === 'failed') {
-        void notify({
-            options: {
-                toast: true,
-                icon: 'warning',
-                title: t('screenshotFailed'),
-                text: t('screenshotFailedMsg'),
-                showCloseButton: true,
-            },
-        });
-        return;
-    }
+// 截图流程的失败提示: 用户取消是静默的, 其余情况提示失败原因
+function notifyScreenshotError(error: unknown) {
+    if (isScreenshotResult(error) && error.type === 'cancelled') return;
+    const message = error instanceof Error ? error.message : '';
+    void notify(
+        message
+            ? errorNotice(t('screenshotFailed'), message)
+            : warningNotice(t('screenshotFailed'), t('screenshotFailedMsg')),
+    );
 }
 
 function isScreenshotResult(error: unknown): error is ScreenshotResult {
@@ -227,32 +148,8 @@ function isScreenshotResult(error: unknown): error is ScreenshotResult {
         typeof error === 'object' &&
         error !== null &&
         'type' in error &&
-        (
-            error.type === 'failed' ||
-            error.type === 'cancelled'
-        )
+        (error.type === 'failed' || error.type === 'cancelled')
     );
-}
-
-// 截图识别每轮开始都会递增, 用于判断图片识别的结果是否已过期
-let screenshotEpoch = 0;
-
-// 截图流程的失败提示: 用户取消时静默, 其余情况提示失败原因
-function notifyScreenshotError(error: unknown) {
-    if (isScreenshotResult(error)) {
-        notifyScreenshotResult(error);
-        return;
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    void notify({
-        options: {
-            toast: true,
-            icon: 'error',
-            title: t('screenshotFailed'),
-            text: message || t('screenshotFailedMsg'),
-            showCloseButton: true,
-        },
-    });
 }
 
 async function handleScreenshot() {
@@ -293,17 +190,22 @@ function decodeAndNotify(
     options: {
         isStale?: () => boolean;
         onRetry?: () => void;
+        openImageUrl?: string;
         errorTitle?: string;
         beforeNotice?: () => Promise<void>;
+        notifyFetching?: () => Promise<unknown>;
         afterDecode?: () => void;
     } = {},
 ) {
     return recognizeImage(loadImageData, {
         host,
         isStale: options.isStale,
-        onRetry: options.onRetry ?? (() => void handleScreenshot()),
+        // 只有调用方确认"再截一次图"有意义时才传 onRetry (截图流程自己就不该再给截图入口)
+        onRetry: options.onRetry,
+        openImageUrl: options.openImageUrl,
         errorTitle: options.errorTitle,
         beforeNotice: options.beforeNotice,
+        notifyFetching: options.notifyFetching,
         afterDecode: options.afterDecode,
     });
 }

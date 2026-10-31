@@ -8,7 +8,6 @@ import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { t } from '@/services/i18n';
 import { errorNotice } from '@/services/decodeResultNotice';
-import { trySendMessage } from '@/services/messaging';
 import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 import { takeStoredString } from '@/services/storage';
 
@@ -27,7 +26,6 @@ const { scan } = useImageScan({
     errorTitle: t('screenshotFailed'),
     beforeNotice: directMode ? () => scanAnimation.play() : undefined,
     afterDecode: directMode ? () => scanAnimation.stop() : undefined,
-    onRetry: () => void trySendMessage('requestScreenshot'),
 });
 
 
@@ -55,8 +53,10 @@ async function handleConfirm(dataUrl: string) {
     await scan(dataUrl);
 }
 
-async function handleLoadError() {
-    await notify(errorNotice(t('screenshotFailed'), t('screenshotFailedMsg')));
+// 截图读取失败: 没有可用图片或框选层读图失败, 提示一致
+async function notifyScreenshotError(error?: unknown) {
+    const message = error instanceof Error ? error.message : '';
+    await notify(errorNotice(t('screenshotFailed'), message || t('screenshotFailedMsg')));
 }
 
 onMounted(async () => {
@@ -68,7 +68,7 @@ onMounted(async () => {
         ]);
         introEnabled.value = intro;
         if (!stored) {
-            await handleLoadError();
+            await notifyScreenshotError();
             return;
         }
         // 直出模式跳过框选, 直接识别整张截图
@@ -78,12 +78,7 @@ onMounted(async () => {
         }
         src.value = stored;
     } catch (error) {
-        await notify(
-            errorNotice(
-                t('screenshotFailed'),
-                error instanceof Error ? error.message : String(error),
-            ),
-        );
+        await notifyScreenshotError(error);
     }
 });
 </script>
@@ -95,7 +90,7 @@ onMounted(async () => {
         :intro="introEnabled"
         @confirm="handleConfirm"
         @cancel="closeTab"
-        @error="handleLoadError"
+        @error="notifyScreenshotError"
     />
     <NotifyHost />
 </template>

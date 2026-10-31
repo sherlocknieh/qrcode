@@ -67,6 +67,10 @@
     "message": "Loading Image…",
     "description": "Loading message when fetching image"
   },
+  "fetchingImageHint": {
+    "message": "Cross-origin or CDN images are fetched via the extension; the first scan is slower.",
+    "description": "Explanation shown when loading the image takes a while"
+  },
   "decodingQR": {
     "message": "Scanning…",
     "description": "Loading message when decoding QR code"
@@ -111,25 +115,13 @@
     "message": "Error",
     "description": "Generic error title"
   },
-  "crossOriginNotice": {
-    "message": "Cross-Origin Image, Might Take Seconds to Load",
-    "description": "Notice for slower cross-origin fetch"
-  },
   "openImage": {
     "message": "Open Image in New Tab",
     "description": "Button in the cross-origin loading notice that opens the image in a new tab"
   },
-  "crossOriginScreenshotHint": {
-    "message": "Try Screenshot Scan Instead:",
-    "description": "Hint suggesting screenshot recognition when a cross-origin image cannot be fetched"
-  },
   "screenshotScan": {
     "message": "Screenshot Scan",
-    "description": "Button that switches to screenshot scan after a cross-origin fetch failure"
-  },
-  "screenshotRetry": {
-    "message": "Screenshot",
-    "description": "Button that retries scanning by capturing the current tab after recognition fails"
+    "description": "Button that switches to screenshot scan when the image cannot be read"
   },
   "screenshotFailed": {
     "message": "Screenshot Failed",
@@ -138,14 +130,6 @@
   "screenshotFailedMsg": {
     "message": "The screenshot could not be captured. Make sure the page is a regular web page and try again.",
     "description": "Message shown when screenshot scan fails"
-  },
-  "screenshotCancelled": {
-    "message": "Screenshot Canceled",
-    "description": "Title for user cancel or browser not supported"
-  },
-  "screenshotCancelledMsg": {
-    "message": "The Screenshot Was Canceled.",
-    "description": "Message shown when the screenshot is cancelled"
   },
   "screenshotSelectAll": {
     "message": "Full Select",

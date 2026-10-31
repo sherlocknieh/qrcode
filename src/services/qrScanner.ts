@@ -64,13 +64,27 @@ function isFileOrigin(origin: string): boolean {
 
 // 从图片 URL 加载像素数据。
 // 同源图片直接读取；跨域图片必须先通过调用方提供的代理转换为 Data URL。
+// 同源地址也可能被服务端 302 到 CDN (如 GitHub 的 /raw/ 跳到 raw.githubusercontent.com)，
+// 此时像素对页面文档而言是跨域的，canvas 会被污染，有代理时自动改走代理重取。
 export async function loadImageDataFromUrl(imageUrl: string, options: LoadImageOptions = {}): Promise<ImageData> {
     const origin = options.origin ?? window.location.origin;
     const sameOrigin = isSameOrigin(imageUrl, origin);
 
     if (sameOrigin) {
-        const img = await loadImageElement(imageUrl);
-        return getImageDataFromImageElement(img);
+        try {
+            const img = await loadImageElement(imageUrl);
+            return await getImageDataFromImageElement(img);
+        } catch (error) {
+            // 只有"像素读不出来"才值得用代理重试一次; 图片本身加载失败时重试没有意义
+            if (!options.fetchViaProxy || !isTaintedCanvasError(error)) throw error;
+            try {
+                const dataUrl = await options.fetchViaProxy(imageUrl);
+                return await getImageDataFromDataUrl(dataUrl);
+            } catch {
+                // 代理也拿不到图: 保留原始的污染错误, 通知里据此引导改用截图识别
+                throw error;
+            }
+        }
     }
 
     if (!options.fetchViaProxy) {
@@ -79,6 +93,13 @@ export async function loadImageDataFromUrl(imageUrl: string, options: LoadImageO
 
     const dataUrl = await options.fetchViaProxy(imageUrl);
     return getImageDataFromDataUrl(dataUrl);
+}
+
+// canvas 被跨域数据污染: Chrome 报 "tainted by cross-origin data",
+// Firefox 报 "The operation is insecure."，两者都说明像素无法读取。
+function isTaintedCanvasError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /tainted|insecure|SecurityError/i.test(message);
 }
 
 // 识别结果及来源类型，来源用于在通知中区分二维码和条形码。
@@ -268,6 +289,224 @@ function dilateBlackPixels(gray: GrayImage, radius: number): GrayImage {
     return { data: output, width, height };
 }
 
+// 码面本身是一个清晰的矩形: 无论背景是深色、浅色, 还是与码面黑模块完全同色,
+// 矩形内部的纹理都与外部平坦区域形成直线分界。先按块方差找出这些纹理连通域,
+// 再用纹理像素计数把四条边收准, 裁出来补上白边, 相当于给二维码补静区。
+// 这样也顺带解决了截图里二维码只占一小块、四周还有大量文字干扰的情况。
+const CODE_AREA_BLOCK = 4;
+// 块内标准差达到该值才认为块内含纹理; 纯色背景加平坦图片区域都远低于此值。
+const CODE_AREA_MIN_STD = 20;
+// 相邻像素亮度差达到该值即视为纹理像素, 用于把块级包围盒收敛到像素级边界。
+const TEXTURE_EDGE_DELTA = 60;
+// 只处理最大的几个连通域, 避免页面里大量文字块让候选图数量失控。
+const CODE_AREA_MAX_COMPONENTS = 3;
+// 裁剪后补白边的比例(相对码面边长), 约等于二维码 4 个模块的静区。
+const CODE_AREA_PADDING_RATIO = 1 / 12;
+// 边界收敛会有一两个像素的误差, 用少量内缩量各试一次, 比追求一次收准更稳。
+const CODE_AREA_INSETS = [0, 1, -1];
+
+type Box = { x0: number; y0: number; x1: number; y1: number };
+
+// 用块方差找出"有内容"的区域, 返回按纹理面积排序的包围盒(已换算成像素坐标)。
+function findTexturedBoxes(gray: GrayImage): Box[] {
+    const { width, height, data } = gray;
+    const blockWidth = Math.ceil(width / CODE_AREA_BLOCK);
+    const blockHeight = Math.ceil(height / CODE_AREA_BLOCK);
+    const sums = new Float64Array(blockWidth * blockHeight);
+    const squares = new Float64Array(blockWidth * blockHeight);
+    const counts = new Float64Array(blockWidth * blockHeight);
+
+    for (let y = 0; y < height; y++) {
+        const rowBlock = Math.floor(y / CODE_AREA_BLOCK) * blockWidth;
+        const rowOffset = y * width;
+        for (let x = 0; x < width; x++) {
+            const block = rowBlock + Math.floor(x / CODE_AREA_BLOCK);
+            const value = data[rowOffset + x]!;
+            sums[block] = sums[block]! + value;
+            squares[block] = squares[block]! + value * value;
+            counts[block] = counts[block]! + 1;
+        }
+    }
+
+    const active = new Uint8Array(sums.length);
+    for (let index = 0; index < active.length; index++) {
+        const count = counts[index]!;
+        if (!count) continue;
+        const mean = sums[index]! / count;
+        const std = Math.sqrt(Math.max(0, squares[index]! / count - mean * mean));
+        active[index] = std >= CODE_AREA_MIN_STD ? 1 : 0;
+    }
+
+    const visited = new Uint8Array(active.length);
+    const boxes: { box: Box; weight: number }[] = [];
+    const stack: number[] = [];
+
+    for (let start = 0; start < active.length; start++) {
+        if (!active[start] || visited[start]) continue;
+        stack.push(start);
+        visited[start] = 1;
+
+        let minX = blockWidth;
+        let minY = blockHeight;
+        let maxX = -1;
+        let maxY = -1;
+        let weight = 0;
+
+        while (stack.length) {
+            const index = stack.pop()!;
+            const x = index % blockWidth;
+            const y = Math.floor(index / blockWidth);
+            weight++;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+
+            for (let offsetY = -1; offsetY <= 1; offsetY++) {
+                for (let offsetX = -1; offsetX <= 1; offsetX++) {
+                    const nextX = x + offsetX;
+                    const nextY = y + offsetY;
+                    if (nextX < 0 || nextY < 0 || nextX >= blockWidth || nextY >= blockHeight) continue;
+                    const next = nextY * blockWidth + nextX;
+                    if (!active[next] || visited[next]) continue;
+                    visited[next] = 1;
+                    stack.push(next);
+                }
+            }
+        }
+
+        boxes.push({
+            box: {
+                x0: minX * CODE_AREA_BLOCK,
+                y0: minY * CODE_AREA_BLOCK,
+                x1: Math.min(width, (maxX + 1) * CODE_AREA_BLOCK),
+                y1: Math.min(height, (maxY + 1) * CODE_AREA_BLOCK),
+            },
+            weight,
+        });
+    }
+
+    boxes.sort((a, b) => b.weight - a.weight);
+    return boxes.slice(0, CODE_AREA_MAX_COMPONENTS).map((entry) => entry.box);
+}
+
+// 块级包围盒边缘会有一两个块的余量, 用行列上的纹理像素数把四条边收敛到真实边界。
+function refineBoxToPixels(gray: GrayImage, coarse: Box): Box | null {
+    const { width, height, data } = gray;
+    const texture = new Uint8Array((coarse.x1 - coarse.x0) * (coarse.y1 - coarse.y0));
+    const localWidth = coarse.x1 - coarse.x0;
+    let textured = 0;
+
+    for (let y = coarse.y0; y < coarse.y1; y++) {
+        for (let x = coarse.x0; x < coarse.x1; x++) {
+            const value = data[y * width + x]!;
+            const left = data[y * width + Math.max(0, x - 1)]!;
+            const right = data[y * width + Math.min(width - 1, x + 1)]!;
+            const top = data[Math.max(0, y - 1) * width + x]!;
+            const bottom = data[Math.min(height - 1, y + 1) * width + x]!;
+            const max = Math.max(value, left, right, top, bottom);
+            const min = Math.min(value, left, right, top, bottom);
+            if (max - min < TEXTURE_EDGE_DELTA) continue;
+            texture[(y - coarse.y0) * localWidth + (x - coarse.x0)] = 1;
+            textured++;
+        }
+    }
+
+    // 几乎是纯色块时没必要继续, 裁出来也识别不到。
+    if (textured < localWidth * 4) return null;
+
+    const rows = coarse.y1 - coarse.y0;
+    const columns = coarse.x1 - coarse.x0;
+    const rowMinimum = Math.max(2, Math.round(columns * 0.05));
+    const columnMinimum = Math.max(2, Math.round(rows * 0.05));
+    const countRow = (row: number) => {
+        let total = 0;
+        for (let x = 0; x < columns; x++) total += texture[row * localWidth + x]!;
+        return total;
+    };
+    const countColumn = (column: number) => {
+        let total = 0;
+        for (let y = 0; y < rows; y++) total += texture[y * localWidth + column]!;
+        return total;
+    };
+
+    let top = -1;
+    let bottom = -1;
+    let left = -1;
+    let right = -1;
+    for (let row = 0; row < rows; row++) {
+        if (countRow(row) >= rowMinimum) {
+            top = row;
+            break;
+        }
+    }
+    for (let row = rows - 1; row >= 0; row--) {
+        if (countRow(row) >= rowMinimum) {
+            bottom = row;
+            break;
+        }
+    }
+    for (let column = 0; column < columns; column++) {
+        if (countColumn(column) >= columnMinimum) {
+            left = column;
+            break;
+        }
+    }
+    for (let column = columns - 1; column >= 0; column--) {
+        if (countColumn(column) >= columnMinimum) {
+            right = column;
+            break;
+        }
+    }
+
+    if (top < 0 || bottom <= top || left < 0 || right <= left) return null;
+    return {
+        x0: coarse.x0 + left,
+        y0: coarse.y0 + top,
+        x1: coarse.x0 + right + 1,
+        y1: coarse.y0 + bottom + 1,
+    };
+}
+
+// 把矩形区域裁出来并补上指定数值的边框(白色相当于静区)。
+function cropWithPadding(gray: GrayImage, box: Box, padding: number, inset: number): GrayImage | null {
+    const { width, height, data } = gray;
+    const x0 = Math.max(0, box.x0 + inset);
+    const y0 = Math.max(0, box.y0 + inset);
+    const x1 = Math.min(width, box.x1 - inset);
+    const y1 = Math.min(height, box.y1 - inset);
+    const cropWidth = x1 - x0;
+    const cropHeight = y1 - y0;
+    if (cropWidth < 8 || cropHeight < 8) return null;
+
+    const output = new Uint8ClampedArray((cropWidth + padding * 2) * (cropHeight + padding * 2)).fill(255);
+    const outputWidth = cropWidth + padding * 2;
+    for (let y = 0; y < cropHeight; y++) {
+        output.set(data.subarray((y0 + y) * width + x0, (y0 + y) * width + x1), (y + padding) * outputWidth + padding);
+    }
+
+    return { data: output, width: outputWidth, height: cropHeight + padding * 2 };
+}
+
+// 生成"按码面矩形裁剪并补白边"的候选图, 用于背景与模块同色、四周有大量干扰的截图。
+function createCodeAreaCandidates(gray: GrayImage): GrayImage[] {
+    if (gray.width < 32 || gray.height < 32) return [];
+
+    const candidates: GrayImage[] = [];
+    for (const coarse of findTexturedBoxes(gray)) {
+        const box = refineBoxToPixels(gray, coarse);
+        if (!box) continue;
+
+        const padding = Math.max(8, Math.round(Math.max(box.x1 - box.x0, box.y1 - box.y0) * CODE_AREA_PADDING_RATIO));
+        for (const inset of CODE_AREA_INSETS) {
+            const candidate = cropWithPadding(gray, box, padding, inset);
+            if (candidate) candidates.push(candidate);
+        }
+    }
+
+    return candidates;
+}
+
 // ---------------------------- 批量识别 ----------------------------
 
 // 批量识别的规模上限: 结果数、定位点数量与三角组合的尝试次数。
@@ -279,7 +518,8 @@ const MULTI_MAX_BARCODE_PASS = 8;
 const BARCODE_THRESHOLDS = [48, 64];
 const MULTI_MAX_FINDER_CENTERS = 30;
 const MULTI_MAX_DECODE_ATTEMPTS = 1200;
-const MULTI_MAX_CANDIDATES = 4;
+// 4 种整图候选 + 最多 3 个码面矩形 × 3 个内缩量; 裁剪图很小, 多试几次仍然很快。
+const MULTI_MAX_CANDIDATES = 13;
 
 // 让出主线程, 使批量识别的长计算不会冻结 popup 或页面。
 const yieldToMainThread = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -354,6 +594,10 @@ function* createMultiQrCandidates(gray: GrayImage): Generator<GrayImage> {
     yield thresholdGray(gray, 160);
     yield invertGray(gray);
     yield dilateBlackPixels(thresholdGray(gray, 160), 1);
+
+    // 背景与码面同色、或截图里码面只占一小块时, 整图永远找不到静区,
+    // 最后按码面矩形裁剪并补白边兜底。
+    yield* createCodeAreaCandidates(gray);
 }
 
 // ZXing 的 QRCodeReader 只支持单码: 图片中出现多个码时, 它可能把不同码的定位点

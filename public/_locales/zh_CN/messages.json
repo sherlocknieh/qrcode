@@ -67,6 +67,10 @@
     "message": "正在获取图片...",
     "description": "获取图片时的加载提示"
   },
+  "fetchingImageHint": {
+    "message": "由于浏览器限制, 跨域图片需从源头下载\n首次加载可能会稍慢, 请耐心等待",
+    "description": "获取图片较慢时的说明文字"
+  },
   "decodingQR": {
     "message": "正在识别...",
     "description": "解析二维码或条形码时的加载提示"
@@ -111,25 +115,13 @@
     "message": "错误",
     "description": "通用错误标题"
   },
-  "crossOriginNotice": {
-    "message": "跨域图片，数据获取可能稍慢",
-    "description": "跨域获取图片时的提示"
-  },
   "openImage": {
     "message": "新标签打开",
     "description": "跨域图片加载提示中的按钮：在新标签页打开图片"
   },
-  "crossOriginScreenshotHint": {
-    "message": "可以改用截图识别:",
-    "description": "跨域图片获取失败时建议改用截图识别的提示"
-  },
   "screenshotScan": {
     "message": "改用截图识别",
-    "description": "跨域图片获取失败时切换到截图识别的按钮"
-  },
-  "screenshotRetry": {
-    "message": "尝试截图识别",
-    "description": "识别失败时改用截图再次识别的按钮"
+    "description": "图片读取失败时切换到截图识别的按钮"
   },
   "screenshotFailed": {
     "message": "截图失败",
@@ -138,14 +130,6 @@
   "screenshotFailedMsg": {
     "message": "无法完成截图，请确认当前页面是普通网页后重试。",
     "description": "截图失败的提示信息"
-  },
-  "screenshotCancelled": {
-    "message": "截图已取消",
-    "description": "用户取消截图或浏览器不支持的提示标题"
-  },
-  "screenshotCancelledMsg": {
-    "message": "截图操作已取消。",
-    "description": "用户取消截图时的提示信息"
   },
   "screenshotSelectAll": {
     "message": "全选",

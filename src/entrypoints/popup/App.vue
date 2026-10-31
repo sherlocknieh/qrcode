@@ -90,19 +90,30 @@ async function fetchViaBackground(url: string): Promise<string> {
 
 
 // 识别图片并展示结果, 交互与内容脚本保持一致
-async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: string) {
-  fire({
+async function decodeAndShow(
+  getDataUrl: () => Promise<string>,
+  errorTitle: string,
+  // 已经是 data URL (截图交接) 时没有下载过程, 不必提示"正在获取图片"
+  needsFetch = true,
+) {
+  const showLoadingNotice = (title: string, text?: string) => fire({
     toast: true,
     icon: 'info',
-    title: t('decodingQR'),
+    title,
+    text,
     didOpen: () => showLoading(),
     showCloseButton: true,
   });
-  await new Promise((resolve) => setTimeout(resolve, 50));
 
+  // 取图与识别分开提示: 网络取图（含后台代理/截屏兜底）不占用"正在识别"的等待时间
+  if (needsFetch) showLoadingNotice(t('fetchingImage'), t('fetchingImageHint'));
+
+  let imageData: ImageData;
   let results: DecodeResult[];
   try {
-    const imageData = await getImageDataFromDataUrl(await getDataUrl());
+    imageData = await getImageDataFromDataUrl(await getDataUrl());
+    showLoadingNotice(t('decodingQR'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     results = await decodeAllFromImageData(imageData);
   } catch (error) {
     close();
@@ -137,7 +148,11 @@ async function decodeAndShow(getDataUrl: () => Promise<string>, errorTitle: stri
 }
 
 function scanImage(imageUrl: string) {
-  return decodeAndShow(() => loadImageDataUrl(imageUrl), t('imageFetchFailed'));
+  return decodeAndShow(
+    () => loadImageDataUrl(imageUrl),
+    t('imageFetchFailed'),
+    !imageUrl.startsWith('data:'),
+  );
 }
 
 // Firefox 中扩展页面和后台脚本都无法 fetch file: 地址，

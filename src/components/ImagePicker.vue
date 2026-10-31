@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { getImageFileFromDataTransfer } from '@/services/clipboardImage';
 import { useNotify } from '@/composables/useNotify';
+import { warningNotice } from '@/services/decodeResultNotice';
 import { t } from '@/services/i18n';
 
 // 取图区: 页面内浮层与独立识别页共用同一套结构与样式,
@@ -30,8 +31,9 @@ const dragging = ref(false);
 // 拖放事件会冒泡到子元素, 用计数避免划过内部文字时高亮闪烁
 let dragDepth = 0;
 
+// 取图区的提示只发生在当前页面, 不需要走 popup 优先策略
 async function warn(title: string, text?: string) {
-    await fire({ toast: true, icon: 'warning', title, text, showCloseButton: true });
+    await fire(warningNotice(title, text).options);
 }
 
 function pickFile() {

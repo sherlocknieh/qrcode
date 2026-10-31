@@ -29,8 +29,8 @@ async function playPreviewAnimation() {
 const { busy, previewUrl, loadBlob, scanPreview, clear } = useImageScan({
     beforeNotice: playPreviewAnimation,
     afterDecode: () => scanAnimation.stop(),
-    // 未识别到码时点击"尝试截图识别", 交给后台按当前页面重新截图
-    onRetry: () => void trySendMessage('requestScreenshot'),
+    // 页面内浮层可以真的去截当前页; 独立识别页截图只会截到自己, 不给这个出口
+    onRetry: overlay ? () => void trySendMessage('requestScreenshot') : undefined,
 });
 
 function onKeydown(event: KeyboardEvent) {
