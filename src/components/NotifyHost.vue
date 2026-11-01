@@ -412,6 +412,12 @@ onBeforeUnmount(() => {
     word-break: break-all;
 }
 
+/* 页面全局样式会泄漏进注入的 UI（如 example.com 的 svg 外边距规则），把图标拉回原位 */
+.qr-notify-root svg {
+    margin: 0;
+    opacity: 1;
+}
+
 .qr-notify-icon {
     display: inline-flex;
     flex: none;

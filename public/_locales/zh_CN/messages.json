@@ -28,7 +28,7 @@
     "description": "工具栏图标右键菜单项：打开图片识别页面（本地图片或剪贴板）"
   },
   "scanImageTitle": {
-    "message": "识别图片中的二维码",
+    "message": "上传/粘贴图片扫码",
     "description": "本地图片识别页面的标题"
   },
   "dropImageHint": {

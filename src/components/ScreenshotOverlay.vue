@@ -909,6 +909,12 @@ onBeforeUnmount(() => {
     touch-action: none;
 }
 
+/* 页面全局样式会泄漏进注入的 UI（如 example.com 的 svg 外边距规则），把图标拉回原位 */
+.qr-shot svg {
+    margin: 0;
+    opacity: 1;
+}
+
 /* 浮窗模式: 收缩后的窗口外框 */
 .qr-shot--floating {
     border: 1px solid rgba(255, 255, 255, 0.7);

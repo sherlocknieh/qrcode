@@ -203,7 +203,9 @@ onBeforeUnmount(() => {
 .qr-picker-icon {
     width: 44px;
     height: 44px;
-    margin-bottom: 12px;
+    /* 完整声明外边距，避免页面全局 svg 规则（如 example.com）把图标顶偏 */
+    margin: 0 0 12px;
+    opacity: 1;
     fill: none;
     stroke: #3b82f6;
     stroke-width: 1.6;
@@ -214,7 +216,7 @@ onBeforeUnmount(() => {
 .qr-picker--overlay .qr-picker-icon {
     width: 36px;
     height: 36px;
-    margin-bottom: 8px;
+    margin: 0 0 8px;
 }
 
 .qr-picker-figure {
