@@ -47,6 +47,58 @@
     "message": "上传/粘贴图片",
     "description": "工具栏图标右键菜单项：打开图片识别页面（本地图片或剪贴板）"
   },
+  "cameraScan": {
+    "message": "摄像头扫码",
+    "description": "工具栏图标右键菜单项：打开摄像头扫描二维码/条形码"
+  },
+  "cameraScanTitle": {
+    "message": "摄像头扫码",
+    "description": "摄像头识别页面的标题"
+  },
+  "cameraHint": {
+    "message": "将二维码或条形码对准摄像头",
+    "description": "摄像头预览下方的提示"
+  },
+  "cameraStarting": {
+    "message": "正在启动摄像头…",
+    "description": "等待摄像头授权时的提示"
+  },
+  "cameraPausedHint": {
+    "message": "已识别到内容，继续扫描请点击下方按钮",
+    "description": "识别命中后摄像头已停止时的提示"
+  },
+  "cameraStop": {
+    "message": "停止摄像头",
+    "description": "停止摄像头预览的按钮"
+  },
+  "cameraResume": {
+    "message": "继续扫描",
+    "description": "识别结束后重新开启摄像头的按钮"
+  },
+  "retryCamera": {
+    "message": "开启摄像头",
+    "description": "请求摄像头权限的按钮"
+  },
+  "switchToImageScan": {
+    "message": "改用图片识别",
+    "description": "切换到图片识别面板的按钮"
+  },
+  "cameraFailed": {
+    "message": "摄像头不可用",
+    "description": "摄像头错误通知的标题"
+  },
+  "cameraPermissionDenied": {
+    "message": "摄像头权限被拒绝，请在浏览器设置中允许本扩展使用摄像头。",
+    "description": "摄像头权限被拒绝时的错误文案"
+  },
+  "cameraNotFound": {
+    "message": "未检测到可用的摄像头。",
+    "description": "没有可用摄像头设备时的错误文案"
+  },
+  "cameraBusy": {
+    "message": "摄像头正被其他程序占用，请关闭占用程序后重试。",
+    "description": "摄像头被占用时的错误文案"
+  },
   "scanImageTitle": {
     "message": "上传/粘贴图片扫码",
     "description": "本地图片识别页面的标题"

@@ -43,6 +43,11 @@ const MENU_ICONS = {
         + '<rect x="5.5" y="1.5" width="5" height="3" rx="1"/>'
         + '<circle cx="6.2" cy="7.5" r=".9"/>'
         + '<path d="m4 12.5 2-2 1.4 1.4 1.2-1.2 1.9 1.9"/>'),
+    // 摄像头扫码: 相机机身 + 镜头
+    camera: icon('camera',
+        '<path d="M4.4 5.2 5.5 3.6A1 1 0 0 1 6.3 3h3.4a1 1 0 0 1 .8.6l1.1 1.6"/>'
+        + '<rect x="1.5" y="5.2" width="13" height="8.8" rx="1.8"/>'
+        + '<circle cx="8" cy="9.6" r="2.5"/>'),
     show: icon('show',
         '<path d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4S1.5 8 1.5 8z"/>'
         + '<circle cx="8" cy="8" r="2"/>'),

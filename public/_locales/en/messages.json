@@ -47,6 +47,58 @@
     "message": "Scan Local/Clipboard Image",
     "description": "Toolbar context menu item that opens the image scanning page (local file or clipboard)"
   },
+  "cameraScan": {
+    "message": "Scan with Camera",
+    "description": "Toolbar context menu item that opens the camera scanning page"
+  },
+  "cameraScanTitle": {
+    "message": "Scan with Camera",
+    "description": "Title of the camera scanning page"
+  },
+  "cameraHint": {
+    "message": "Point the camera at a QR code or barcode",
+    "description": "Hint below the camera preview"
+  },
+  "cameraStarting": {
+    "message": "Starting camera…",
+    "description": "Hint while waiting for camera permission"
+  },
+  "cameraPausedHint": {
+    "message": "Code detected. Click below to scan again.",
+    "description": "Hint after the camera stopped on a detected code"
+  },
+  "cameraStop": {
+    "message": "Stop Camera",
+    "description": "Button that stops the camera preview"
+  },
+  "cameraResume": {
+    "message": "Scan Again",
+    "description": "Button that restarts the camera after a result"
+  },
+  "retryCamera": {
+    "message": "Start Camera",
+    "description": "Button that requests camera access"
+  },
+  "switchToImageScan": {
+    "message": "Use an Image Instead",
+    "description": "Button that switches to the image scanning panel"
+  },
+  "cameraFailed": {
+    "message": "Camera unavailable",
+    "description": "Title of the camera error notice"
+  },
+  "cameraPermissionDenied": {
+    "message": "Camera access was denied. Allow camera access for this extension in your browser settings.",
+    "description": "Error text when camera permission is denied"
+  },
+  "cameraNotFound": {
+    "message": "No camera was found.",
+    "description": "Error text when no camera device is available"
+  },
+  "cameraBusy": {
+    "message": "The camera is being used by another application. Close it and try again.",
+    "description": "Error text when the camera is occupied"
+  },
   "scanImageTitle": {
     "message": "Upload or Paste an Image to Scan",
     "description": "Title of the local image scanning page"

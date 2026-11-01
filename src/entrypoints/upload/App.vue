@@ -1,20 +1,26 @@
 <script lang="ts" setup>
-import { onMounted } from 'vue';
+import { ref, watch } from 'vue';
 
-import NotifyHost from '@/components/NotifyHost.vue';
+import CameraScanPanel from '@/components/CameraScanPanel.vue';
 import ImageScanPanel from '@/components/ImageScanPanel.vue';
+import NotifyHost from '@/components/NotifyHost.vue';
 import { t } from '@/services/i18n';
 
-// 上传图片识别页 (upload.html): 页面无法注入内容脚本时的兜底入口。
-// 取图/预览/识别与页面内浮层共用 ImageScanPanel, 本页只提供整页居中布局
-onMounted(() => {
-    document.title = t('appName');
-});
+// 识别页 (upload.html) 有两种取图方式: 本地/剪贴板图片 (默认) 与摄像头扫码 (?camera=1)。
+// 两者共用同一个临时标签页与通知宿主, 只有中间的取图面板不同
+const mode = ref<'image' | 'camera'>(
+    new URLSearchParams(location.search).get('camera') === '1' ? 'camera' : 'image',
+);
+
+watch(mode, (value) => {
+    document.title = t(value === 'camera' ? 'cameraScanTitle' : 'appName');
+}, { immediate: true });
 </script>
 
 <template>
     <main class="upload-page">
-        <ImageScanPanel variant="page" />
+        <CameraScanPanel v-if="mode === 'camera'" @switch-mode="mode = 'image'" />
+        <ImageScanPanel v-else variant="page" />
         <NotifyHost />
     </main>
 </template>

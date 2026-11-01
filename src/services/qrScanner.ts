@@ -588,6 +588,30 @@ export async function decodeAllFromImageData(imageData: ImageData): Promise<Deco
     return found.map(({ text, kind }) => ({ text, kind }));
 }
 
+// ---------------------------- 摄像头取帧 ----------------------------
+
+// 连续扫描时轮换的候选图数量: 原图、阈值图、反色图各占一帧。
+const CAMERA_CANDIDATE_COUNT = 3;
+
+// 识别一帧视频画面: 命中即返回, 未命中返回空数组, 由调用方在下一帧重试。
+// 与 decodeAllFromImageData 不同, 这里单帧只做一次二维码 + 一次条形码,
+// 阈值/反色候选分摊到后续帧, 避免实时预览被计算拖慢;
+// 多码结果由调用方在命中后对同一帧补跑一次完整识别。
+export function decodeCameraFrame(imageData: ImageData, attempt = 0): DecodeResult[] {
+    const gray = toGrayImage(imageData);
+    const index = ((attempt % CAMERA_CANDIDATE_COUNT) + CAMERA_CANDIDATE_COUNT) % CAMERA_CANDIDATE_COUNT;
+    const candidate = index === 0 ? gray : index === 1 ? thresholdGray(gray, 160) : invertGray(gray);
+
+    const qrText = decodeQrResultWithZXing(candidate)?.getText() ?? '';
+    if (qrText) return [{ text: qrText, kind: 'qr' }];
+
+    // 条形码靠行扫描, 阈值/反色会破坏条空比例, 只在原图上尝试。
+    const barcodeText = decodeOneDResultWithZXing(
+        downscaleGrayToMaxDimension(gray, BARCODE_SCAN_DIMENSION),
+    )?.getText() ?? '';
+    return barcodeText ? [{ text: barcodeText, kind: 'barcode' }] : [];
+}
+
 // 批量模式的整图候选, 按命中概率排序; 候选过多时优先处理最常见的几种。
 function* createMultiQrCandidates(gray: GrayImage): Generator<GrayImage> {
     yield gray;
