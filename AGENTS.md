@@ -20,7 +20,7 @@ pnpm dev:firefox      # 只调试 Firefox（MV3），没装则报错退出
 pnpm compile          # 类型检查（提交前必须通过）
 pnpm build            # 打包 Chrome/Edge zip
 pnpm build:firefox    # 打包 Firefox zip（含 sources zip）
-pnpm submit:chrome|edge|firefox|all   # 构建并提交商店，读取 .env.submit
+pnpm submit:chrome|edge|firefox|all   # 构建并提交商店，由 wxt 自行读取 .env.submit（不要先 source：PEM 私钥是单行 \n，bash 不会还原换行）
 ```
 
 调试时的浏览器 profile 与自动打开的测试页配置在 [wxt.config.ts](./wxt.config.ts)，profile 按浏览器隔离（`.wxt/dev-profile/<browser>`），由 [.dev/dev.mjs](./.dev/dev.mjs) 通过 `WXT_DEV_*` 环境变量注入。
