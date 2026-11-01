@@ -28,7 +28,7 @@
     "description": "Toolbar context menu item that opens the image scanning page (local file or clipboard)"
   },
   "scanImageTitle": {
-    "message": "Upload or Paste a Image to Scan",
+    "message": "Upload or Paste an Image to Scan",
     "description": "Title of the local image scanning page"
   },
   "dropImageHint": {
