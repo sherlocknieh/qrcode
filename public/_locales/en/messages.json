@@ -11,14 +11,6 @@
     "message": "Text to QR Code",
     "description": "Context menu item for generating QR code from selected text"
   },
-  "generateQRTitle": {
-    "message": "Generate QR Code",
-    "description": "Title of the QR code generation page"
-  },
-  "qrInputLabel": {
-    "message": "QR Code Content",
-    "description": "Label of the QR code input field"
-  },
   "qrInputPlaceholder": {
     "message": "Type text to generate a QR code",
     "description": "Placeholder of the QR code input field"
@@ -38,18 +30,6 @@
   "qrGenerateFailed": {
     "message": "Content is too long to generate a QR code",
     "description": "Hint shown when the content exceeds the QR code capacity"
-  },
-  "qrFormatLabel": {
-    "message": "Format",
-    "description": "Label for choosing QR code or barcode"
-  },
-  "qrFormatQrcode": {
-    "message": "QR Code",
-    "description": "QR code option in the format select"
-  },
-  "openInNewTab": {
-    "message": "Open in New Tab",
-    "description": "Button that opens the QR code generator in a new tab"
   },
   "decodeQR": {
     "message": "Scan Image",

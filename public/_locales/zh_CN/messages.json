@@ -11,20 +11,12 @@
     "message": "文字 → 二维码",
     "description": "右键菜单项：为选中的文字生成二维码"
   },
-  "generateQRTitle": {
-    "message": "生成二维码",
-    "description": "二维码生成页面的标题"
-  },
-  "qrInputLabel": {
-    "message": "二维码内容",
-    "description": "二维码输入框的标签"
-  },
   "qrInputPlaceholder": {
     "message": "输入文字，实时生成二维码",
     "description": "二维码输入框的占位提示"
   },
   "moreOptions": {
-    "message": "展开更多选项",
+    "message": "展开编辑文字",
     "description": "展开二维码输入框的按钮提示"
   },
   "collapseEditor": {
@@ -38,18 +30,6 @@
   "qrGenerateFailed": {
     "message": "内容过长，无法生成二维码",
     "description": "内容超出二维码容量时的提示"
-  },
-  "qrFormatLabel": {
-    "message": "编码格式",
-    "description": "选择生成二维码或条形码的标签"
-  },
-  "qrFormatQrcode": {
-    "message": "二维码",
-    "description": "格式选择中的二维码选项"
-  },
-  "openInNewTab": {
-    "message": "在新标签页打开",
-    "description": "在新标签页打开二维码生成页面的按钮"
   },
   "decodeQR": {
     "message": "扫描图片",

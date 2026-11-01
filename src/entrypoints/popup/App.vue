@@ -191,18 +191,6 @@ async function startScan(imageUrl: string) {
   }
 }
 
-async function openGeneratorPage(text: string) {
-  // 内容走 URL hash, 不经过存储, 避免污染右键菜单使用的临时文本
-  const url = browser.runtime.getURL('/generator.html');
-  const target = text ? `${url}#text=${encodeURIComponent(text)}` : url;
-  try {
-    await browser.tabs.create({ url: target });
-    window.close();
-  } catch {
-    // 标签页创建失败时保留 popup, 用户仍可继续使用当前的二维码
-  }
-}
-
 // background 在用户手势中同步打开 popup, 临时文本可能稍后才写入, 需监听变更刷新
 function onStorageChanged(
   changes: Record<string, { newValue?: unknown }>,
@@ -275,10 +263,7 @@ onBeforeUnmount(() => {
   <QrCodePanel
     v-if="!notifyState.open && !scanActive"
     v-model="qrText"
-    variant="popup"
     collapsible
-    expandable
-    @expand="openGeneratorPage"
   />
   <NotifyHost embedded />
 </template>

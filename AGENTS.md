@@ -38,12 +38,11 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台脚本：右键菜单、popup 打开、通知中转、跨域取图、截图、标签页关闭、地址栏图标开关 |
 | [src/entrypoints/content/](./src/entrypoints/content/) | 注入所有页面的内容脚本 UI，处理 `decodeQR` / `screenshotQR` / `screenshotQRDirect` / `scanImageInline` 消息，页面内通知兜底 |
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、识别交给它的图片（`upload.html` 交接） |
-| [src/entrypoints/generator/](./src/entrypoints/generator/) | 独立生成页 `generator.html`：整页布局 + `QrCodePanel`，接收 popup 通过 URL hash 传入的初始内容 |
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | 上传图片识别页 `upload.html`：整页居中布局 + `ImageScanPanel`；仅在页面无法注入内容脚本时作为兜底 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF、SVG 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
-| [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：输入框 + 实时预览，popup 与独立生成页共用；popup 用 `collapsible` 默认收起输入框，只留二维码和浮在正中央的箭头按钮；两种状态二维码尺寸与留白完全一致；格式选择先只放二维码 |
+| [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：实时预览 + 单一输入框（聚焦无高亮）；popup 用 `collapsible` 默认收起，只留二维码，展开入口是二维码底部白边上的满宽矩形条（悬停/聚焦自动展开，点击收起），两种状态二维码尺寸与留白完全一致 |
 | [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，取到图片（上传/粘贴/拖放）即自动识别；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），供面板复用 |
 | [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ImageScanPanel, { variant: 'overlay' })` 挂载/卸载 |
