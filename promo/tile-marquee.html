@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1400px; height: 560px; overflow: hidden; background: #ffffff; }
+  body {
+    font-family: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  .tile {
+    position: relative; width: 1400px; height: 560px; overflow: hidden;
+    background:
+      radial-gradient(70% 120% at 68% 50%, #eef1ff 0%, rgba(238, 241, 255, 0) 60%),
+      linear-gradient(120deg, #ffffff 0%, #f8f9ff 45%, #eef3ff 100%);
+  }
+  .dots {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(79, 70, 229, .15) 1px, transparent 1.3px);
+    background-size: 26px 26px;
+    -webkit-mask-image: radial-gradient(80% 120% at 78% 45%, #000 0%, transparent 68%);
+  }
+  .glow { position: absolute; border-radius: 50%; filter: blur(70px); }
+  .glow-a { width: 520px; height: 520px; right: -120px; top: -180px; background: rgba(99, 102, 241, .26); }
+  .glow-b { width: 420px; height: 420px; right: 40px; bottom: -240px; background: rgba(34, 211, 238, .22); }
+
+  /* ---------- 左侧 ---------- */
+  .copy { position: absolute; left: 96px; top: 50%; transform: translateY(-50%); width: 620px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo-box {
+    width: 46px; height: 46px; border-radius: 13px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px -8px rgba(30, 41, 99, .38), 0 0 0 1px rgba(30, 41, 99, .07);
+  }
+  .logo-box img { width: 33px; height: 33px; display: block; }
+  .wordmark { font-size: 14px; font-weight: 600; letter-spacing: .2em; color: #6b7694; }
+  .wordmark small { display: block; font-size: 11px; font-weight: 500; letter-spacing: .04em; color: #9aa3bb; margin-top: 2px; }
+
+  .title { margin-top: 30px; font-size: 62px; font-weight: 700; line-height: 1.22; letter-spacing: .01em; color: #0f172a; }
+  .title .grad {
+    background: linear-gradient(96deg, #4f46e5 0%, #3b82f6 55%, #06b6d4 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sub { margin-top: 22px; font-size: 19px; font-weight: 400; line-height: 1.95; color: #5b6684; }
+  .sub div { white-space: nowrap; }
+  .pills { display: flex; gap: 10px; margin-top: 28px; }
+  .pill {
+    display: flex; align-items: center; gap: 7px;
+    padding: 9px 15px; border-radius: 999px; background: rgba(255, 255, 255, .85);
+    border: 1px solid rgba(79, 70, 229, .16); color: #3a4566;
+    font-size: 13.5px; font-weight: 500;
+    box-shadow: 0 2px 6px -3px rgba(30, 41, 99, .18);
+  }
+  .pill i { width: 6px; height: 6px; border-radius: 50%; background: #4f46e5; opacity: .85; }
+
+  /* ---------- 右侧: 窗口 ---------- */
+  .stage {
+    position: absolute; left: 742px; top: 72px; width: 700px; height: 384px;
+    transform: rotate(-2deg);
+  }
+  .window {
+    position: absolute; inset: 0; background: #fff; border-radius: 16px;
+    box-shadow: 0 50px 90px -40px rgba(23, 32, 88, .55), 0 0 0 1px rgba(23, 32, 88, .07);
+    overflow: hidden;
+  }
+  .bar {
+    height: 42px; background: #f6f7fb; border-bottom: 1px solid #e9ecf5;
+    display: flex; align-items: center; gap: 7px; padding: 0 16px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #e3e7f1; }
+  .addr {
+    margin-left: 14px; height: 24px; width: 330px; border-radius: 999px;
+    background: #fff; border: 1px solid #ebedf5;
+    display: flex; align-items: center; gap: 6px; padding: 0 11px;
+    font-size: 11px; color: #8b94ab;
+  }
+  .addr svg { width: 9px; height: 10px; opacity: .55; }
+
+  .page { position: relative; padding: 26px 30px; display: flex; gap: 26px; }
+  .crumb { font-size: 9.5px; letter-spacing: .16em; color: #a8b0c4; font-weight: 600; }
+  .h1 { margin-top: 8px; font-size: 30px; font-weight: 700; color: #16203a; letter-spacing: .01em; }
+  .para { margin-top: 14px; font-size: 11px; line-height: 2; color: #7c85a0; width: 330px; }
+  .para + .para { margin-top: 8px; }
+  .figure { position: relative; width: 210px; flex: none; }
+  .fig-card {
+    width: 210px; height: 210px; border-radius: 12px; background: #fbfcff;
+    border: 1px solid #e9ecf5; display: flex; align-items: center; justify-content: center;
+  }
+  .fig-card img { width: 166px; height: 166px; display: block; }
+  .cap { margin-top: 9px; font-size: 10px; color: #a2aac0; text-align: center; }
+
+  /* 扫描框 */
+  .scan { position: absolute; left: -13px; top: -13px; width: 236px; height: 236px; }
+  .scan span { position: absolute; width: 34px; height: 34px; border: 3px solid #4f46e5; }
+  .scan .tl { left: 0; top: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 10px; }
+  .scan .tr { right: 0; top: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 10px; }
+  .scan .bl { left: 0; bottom: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 10px; }
+  .scan .brr { right: 0; bottom: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 10px; }
+
+  /* 结果通知 */
+  .toast {
+    position: absolute; left: 44px; top: 328px; width: 396px;
+    background: #fff; border-radius: 14px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 26px 50px -20px rgba(23, 32, 88, .55), 0 0 0 1px rgba(23, 32, 88, .06);
+  }
+  .tick {
+    width: 30px; height: 30px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 14px -6px rgba(22, 163, 74, .8);
+  }
+  .tick svg { width: 15px; height: 15px; }
+  .t-body { flex: 1; min-width: 0; }
+  .t-title { font-size: 13.5px; font-weight: 600; color: #16203a; }
+  .t-url { margin-top: 3px; font-size: 11.5px; color: #7c85a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .t-btn {
+    flex: none; padding: 8px 15px; border-radius: 9px; font-size: 12px; font-weight: 600; color: #fff;
+    background: linear-gradient(135deg, #4f46e5, #4338ca);
+    box-shadow: 0 8px 16px -8px rgba(67, 56, 202, .9);
+  }
+</style>
+</head>
+<body>
+  <div class="tile">
+    <div class="dots"></div>
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+
+    <div class="copy">
+      <div class="brand">
+        <div class="logo-box"><img src="assets/icon128.png" alt=""></div>
+        <div class="wordmark">QRCODE<small>二维码 · 生成与识别</small></div>
+      </div>
+
+      <div class="title">随手生成，<br><span class="grad">一扫即得。</span></div>
+
+      <div class="sub">
+        <div>文字一键变二维码，网页图片、屏幕选区和本地图片都能直接扫码。</div>
+        <div>二维码与一维条形码都支持，多码还能批量识别。</div>
+      </div>
+
+      <div class="pills">
+        <div class="pill"><i></i>文字转码</div>
+        <div class="pill"><i></i>图片扫码</div>
+        <div class="pill"><i></i>截图选区</div>
+        <div class="pill"><i></i>条形码识别</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="window">
+        <div class="bar">
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+          <div class="addr">
+            <svg viewBox="0 0 10 12" fill="none"><rect x="1" y="5" width="8" height="6" rx="1.5" fill="#8b94ab"/><path d="M3 5V3.5a2 2 0 1 1 4 0V5" stroke="#8b94ab" stroke-width="1.4"/></svg>
+            zh.wikipedia.org/wiki/QR码
+          </div>
+        </div>
+        <div class="page">
+          <div>
+            <div class="crumb">WIKIPEDIA · 维基百科</div>
+            <div class="h1">二维码</div>
+            <div class="para">二维码（QR code）是一种二维矩阵条码，可由智能手机或扫码设备快速读取，常用来承载网址、名片与支付信息。</div>
+            <div class="para">把鼠标移到图片上，右键即可识别图中的二维码；页面上的条形码同样支持。</div>
+          </div>
+          <div class="figure">
+            <div class="fig-card"><img src="assets/qr-page.png" alt=""></div>
+            <div class="cap">QR code · 示例</div>
+            <div class="scan"><span class="tl"></span><span class="tr"></span><span class="bl"></span><span class="brr"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toast">
+        <div class="tick">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M3.2 8.4l3.1 3.1 6.5-6.6" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="t-body">
+          <div class="t-title">二维码识别成功</div>
+          <div class="t-url">github.com/sherlocknieh/qrcode</div>
+        </div>
+        <div class="t-btn">打开链接</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

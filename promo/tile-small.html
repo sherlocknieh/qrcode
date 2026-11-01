@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 440px; height: 280px; overflow: hidden; background: #ffffff; }
+  body {
+    font-family: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  .tile {
+    position: relative; width: 440px; height: 280px; overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 88% 8%, #eef1ff 0%, rgba(238,241,255,0) 62%),
+      linear-gradient(155deg, #ffffff 0%, #f7f8ff 42%, #eef3ff 100%);
+  }
+  /* 纹理: 点阵 + 光斑 */
+  .dots {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(79, 70, 229, .16) 1px, transparent 1.2px);
+    background-size: 20px 20px;
+    -webkit-mask-image: radial-gradient(75% 80% at 92% 22%, #000 0%, transparent 72%);
+  }
+  .glow {
+    position: absolute; border-radius: 50%; filter: blur(46px);
+  }
+  .glow-a { width: 240px; height: 240px; right: -80px; top: -90px; background: rgba(99, 102, 241, .24); }
+  .glow-b { width: 200px; height: 200px; right: -50px; bottom: -100px; background: rgba(34, 211, 238, .20); }
+
+  /* 左侧文字 */
+  .copy { position: absolute; left: 34px; top: 50%; transform: translateY(-50%); width: 196px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo-box {
+    width: 38px; height: 38px; border-radius: 11px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 16px -6px rgba(30, 41, 99, .35), 0 0 0 1px rgba(30, 41, 99, .07);
+  }
+  .logo-box img { width: 27px; height: 27px; display: block; }
+  .wordmark { font-size: 13px; font-weight: 600; letter-spacing: .16em; color: #6b7694; text-transform: uppercase; }
+
+  .title {
+    margin-top: 16px; font-size: 34px; font-weight: 700; line-height: 1.1;
+    letter-spacing: .02em; color: #0f172a;
+  }
+  .rule { width: 30px; height: 3px; border-radius: 2px; margin: 13px 0 12px;
+    background: linear-gradient(90deg, #4f46e5, #22d3ee); }
+  .sub { font-size: 15px; font-weight: 600; line-height: 1.6; color: #33405c; letter-spacing: .02em; }
+  .sub2 { margin-top: 3px; font-size: 12.5px; font-weight: 400; line-height: 1.6; color: #6b7694; }
+
+  /* 右侧二维码卡片 */
+  .visual {
+    position: absolute; right: 30px; top: 50%;
+    width: 176px; height: 176px;
+    transform: translateY(-50%) rotate(-5deg);
+  }
+  .card {
+    position: absolute; left: 12px; top: 12px; width: 152px; height: 152px;
+    background: #fff; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 26px 44px -18px rgba(23, 32, 88, .45), 0 0 0 1px rgba(23, 32, 88, .06);
+  }
+  .card img { width: 126px; height: 126px; display: block; }
+  .br { position: absolute; width: 26px; height: 26px; border: 3px solid #4f46e5; border-radius: 5px; }
+  .br.tl { left: 0; top: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 10px; }
+  .br.tr { right: 0; top: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 10px; }
+  .br.bl { left: 0; bottom: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 10px; }
+  .br.br2 { right: 0; bottom: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 10px; }
+
+  /* 识别成功小标签 */
+  .badge {
+    position: absolute; left: -6px; bottom: 2px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 12px 7px 9px; border-radius: 999px;
+    background: #0f172a; color: #fff; font-size: 11.5px; font-weight: 500;
+    box-shadow: 0 10px 22px -10px rgba(15, 23, 42, .7);
+    white-space: nowrap;
+  }
+  .badge .tick {
+    width: 15px; height: 15px; border-radius: 50%; background: #22c55e;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .badge .tick svg { width: 9px; height: 9px; }
+</style>
+</head>
+<body>
+  <div class="tile">
+    <div class="dots"></div>
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+
+    <div class="copy">
+      <div class="brand">
+        <div class="logo-box"><img src="assets/icon128.png" alt=""></div>
+        <div class="wordmark">QRCode</div>
+      </div>
+      <div class="title">二维码</div>
+      <div class="rule"></div>
+      <div class="sub">生成 · 识别 · 截图扫码</div>
+      <div class="sub2">支持二维码与一维条形码</div>
+    </div>
+
+    <div class="visual">
+      <div class="br tl"></div><div class="br tr"></div>
+      <div class="br bl"></div><div class="br br2"></div>
+      <div class="card"><img src="assets/qr-main.png" alt=""></div>
+    </div>
+  </div>
+</body>
+</html>
