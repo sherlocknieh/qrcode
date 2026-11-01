@@ -1,6 +1,5 @@
 <script lang="ts" setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import qrcode from 'qrcode-generator';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   decodeAllFromImageData,
   getImageDataFromDataUrl,
@@ -13,9 +12,7 @@ import { storageArea, storageAreaName, takeStoredString, takeStoredValue } from 
 import { useNotify, notifyState } from '@/composables/useNotify';
 import { usePopupNoticeHost } from '@/composables/usePopupNoticeHost';
 import NotifyHost from '@/components/NotifyHost.vue';
-
-// 设置 qrcode 库使用 UTF-8 编码, 避免汉字乱码问题
-qrcode.stringToBytes = (s: string) => Array.from(new TextEncoder().encode(s));
+import QrCodePanel from '@/components/QrCodePanel.vue';
 
 const QR_TEXT_KEY = 'qrCodeText';
 // SVG 等非 HTML 页面无法使用内容脚本弹窗, 由 background 把图片地址写入该键
@@ -28,10 +25,11 @@ usePopupNoticeHost();
 
 
 let scanning = false;
-// 扫描期间隐藏二维码占位
+// 扫描期间隐藏二维码面板
 const scanActive = ref(false);
-// 生成二维码后才显示占位, 避免 popup 打开瞬间先闪一下二维码区域
-const hasQrContent = ref(false);
+// 输入框内容即二维码内容, 打开时预填当前页地址
+const qrText = ref('');
+const hasQrContent = computed(() => qrText.value.length > 0);
 
 // 图片地址可能由旧版本以 { url } 对象形式写入, 这里统一取出地址
 function normalizeStoredImage(value: unknown): string {
@@ -193,15 +191,16 @@ async function startScan(imageUrl: string) {
   }
 }
 
-let currentText = '';
-
-// 避免重复渲染相同内容
-function render(text: string) {
-  if (!text || text === currentText) return;
-  currentText = text;
-  hasQrContent.value = true;
-  // 容器由 hasQrContent 控制, 需等渲染完成后再写入二维码
-  void nextTick(() => generateQRCode(text));
+async function openGeneratorPage(text: string) {
+  // 内容走 URL hash, 不经过存储, 避免污染右键菜单使用的临时文本
+  const url = browser.runtime.getURL('/generator.html');
+  const target = text ? `${url}#text=${encodeURIComponent(text)}` : url;
+  try {
+    await browser.tabs.create({ url: target });
+    window.close();
+  } catch {
+    // 标签页创建失败时保留 popup, 用户仍可继续使用当前的二维码
+  }
 }
 
 // background 在用户手势中同步打开 popup, 临时文本可能稍后才写入, 需监听变更刷新
@@ -219,7 +218,7 @@ function onStorageChanged(
   }
   const value = changes[QR_TEXT_KEY]?.newValue;
   if (typeof value === 'string' && value) {
-    render(value);
+    qrText.value = value;
     void storageArea().remove(QR_TEXT_KEY);
   }
 }
@@ -234,8 +233,8 @@ onMounted(async () => {
     return;
   }
 
-  // 左键点击工具栏图标始终执行默认操作: 生成当前页面地址的二维码
-  render(await resolveQrText());
+  // 左键点击工具栏图标始终执行默认操作: 用当前页面地址预填输入框
+  qrText.value = await resolveQrText();
 });
 
 // popup 是独立窗口, 通知结束后若没有任何内容会留下空白窗口;
@@ -270,83 +269,17 @@ onBeforeUnmount(() => {
   }
 });
 
-
-// 二维码生成函数
-function generateQRCode(text: string) {
-
-  const container = document.getElementById('qrcode-container');
-  if (!container) return;
-  container.replaceChildren();  // 清空容器
-
-  try {
-    // 使用 qrcode 库生成二维码
-    const qr = qrcode(0, 'M'); // 二维码大小:自动, 容错级别:中等
-    qr.addData(text);          // 传入原数据
-    qr.make();                 // 生成二维码
-
-    // 生成 PNG 图片
-    const moduleCount = qr.getModuleCount();    // 获取二维码矩阵尺寸
-    const cellSize = 8;                         // 每个点块的像素大小
-    const margin = cellSize * 2;                // 设置白边宽度
-    const totalSize = (moduleCount * cellSize) + (margin * 2); // 最终图片尺寸
-
-    // 创建 Canvas 用来生成 PNG
-    const canvas = document.createElement('canvas');
-    canvas.width = totalSize;
-    canvas.height = totalSize;
-
-    // 获取 2D 绘图上下文
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('无法获取Canvas 2D上下文');
-    };
-
-    // 绘制白色背景
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, totalSize, totalSize);
-
-    // 绘制黑色色块
-    ctx.fillStyle = '#000000';
-    for (let row = 0; row < moduleCount; row++) {
-      for (let col = 0; col < moduleCount; col++) {
-        if (qr.isDark(row, col)) {
-          const x = margin + col * cellSize;
-          const y = margin + row * cellSize;
-          ctx.fillRect(x, y, cellSize, cellSize);
-        }
-      }
-    }
-
-    // 生成 PNG 格式的数据链接
-    const dataURL = canvas.toDataURL('image/png');
-
-    // 创建 img 元素显示二维码
-    const img = document.createElement('img');
-    img.src = dataURL;                        // PNG格式的base64数据
-    img.style.display = 'block';              // 去除图片下方空白缝隙
-    img.style.width = '100%';                 // 自适应容器宽度
-    img.style.imageRendering = 'pixelated';   // 保持像素清晰
-    img.title = text;                         // 鼠标悬停显示原始文本
-    img.alt = '二维码加载失败';               // 加载失败时的替代文本
-    container.appendChild(img);
-
-  } catch (error) {
-    const title = document.createElement('div');
-    title.style.color = 'red';
-    title.textContent = '二维码生成失败:';
-    const detail = document.createElement('div');
-    detail.textContent = String(error);
-    container.replaceChildren(title, detail);
-  }
-}
 </script>
 
 <template>
-  <div
-    v-if="hasQrContent && !notifyState.open && !scanActive"
-    id="qrcode-container"
-    class="bg-slate-50 border border-slate-200 rounded-lg shadow-sm"
-  ></div>
+  <QrCodePanel
+    v-if="!notifyState.open && !scanActive"
+    v-model="qrText"
+    variant="popup"
+    collapsible
+    expandable
+    @expand="openGeneratorPage"
+  />
   <NotifyHost embedded />
 </template>
 
@@ -358,22 +291,10 @@ body {
 #app {
   /* 使用 Flexbox 布局 */
   display: flex;
-  min-height: 100vh;       /* 占满视口高度 */
   justify-content: center; /* 水平居中 */
   align-items: center;     /* 垂直居中 */
 }
-</style>
 
-<style scoped>
-#qrcode-container {
-  /* 固定长宽 */
-  width: 220px;
-  height: 220px;
-  /* 内容居中 */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  /* 垂直排列 */
-  flex-direction: column; 
-}
+/* 不能给 #app 设 min-height: 100vh: 浏览器只会放大 popup 窗口,
+   高度被撑高后 1vh 也随之变大, 收起输入框时窗口收不回去 */
 </style>

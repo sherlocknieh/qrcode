@@ -38,10 +38,12 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台脚本：右键菜单、popup 打开、通知中转、跨域取图、截图、标签页关闭、地址栏图标开关 |
 | [src/entrypoints/content/](./src/entrypoints/content/) | 注入所有页面的内容脚本 UI，处理 `decodeQR` / `screenshotQR` / `screenshotQRDirect` / `scanImageInline` 消息，页面内通知兜底 |
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、识别交给它的图片（`upload.html` 交接） |
+| [src/entrypoints/generator/](./src/entrypoints/generator/) | 独立生成页 `generator.html`：整页布局 + `QrCodePanel`，接收 popup 通过 URL hash 传入的初始内容 |
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | 上传图片识别页 `upload.html`：整页居中布局 + `ImageScanPanel`；仅在页面无法注入内容脚本时作为兜底 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF、SVG 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
+| [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：输入框 + 实时预览，popup 与独立生成页共用；popup 用 `collapsible` 默认收起输入框，只留二维码和浮在正中央的箭头按钮；两种状态二维码尺寸与留白完全一致；格式选择先只放二维码 |
 | [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，取到图片（上传/粘贴/拖放）即自动识别；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），供面板复用 |
 | [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ImageScanPanel, { variant: 'overlay' })` 挂载/卸载 |
@@ -49,6 +51,7 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/services/decodeResultNotice.ts](./src/services/decodeResultNotice.ts) | 识别过程的加载/错误提示与结果通知（无结果/多码/单码）构造 |
 | [src/composables/useNoticeFallback.ts](./src/composables/useNoticeFallback.ts) | 通知统一策略：popup 优先、页面内兜底 |
 | [src/services/recognize.ts](./src/services/recognize.ts) | **拿到图像数据后的唯一识别入口** `recognizeImage(loader, options)`：识别提示 → 动画 → 解码 → 结果/重试/错误，`afterDecode` 会 await 以便等动画淡出；网页图片、本地/粘贴图片、截图共用 |
+| [src/composables/useQrCode.ts](./src/composables/useQrCode.ts) | 输入防抖后生成二维码，返回 `dataUrl` / 错误文案 |
 | [src/composables/useImageScan.ts](./src/composables/useImageScan.ts) | 取图面板状态（预览/清空），识别交给 `recognizeImage` |
 | [src/services/messaging.ts](./src/services/messaging.ts) | 消息发送封装（统一 lastError 与 success 判断） |
 | [src/services/i18n.ts](./src/services/i18n.ts) | `t()` 文案读取（缺失时回退） |
@@ -58,6 +61,7 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/composables/useNotify.ts](./src/composables/useNotify.ts) | 全局单例通知状态与 `fire/close/showLoading` API |
 | [src/composables/usePopupNoticeHost.ts](./src/composables/usePopupNoticeHost.ts) | popup 侧：读取/接收通知并代内容脚本执行打开、复制、截图 |
 | [src/composables/useScreenshot.ts](./src/composables/useScreenshot.ts) | 内容脚本侧的截图流程封装 |
+| [src/services/qrCode.ts](./src/services/qrCode.ts) | 二维码编码与 PNG 生成（UTF-8、白边），popup 与生成页共用 |
 | [src/services/qrScanner.ts](./src/services/qrScanner.ts) | 识别核心：ZXing 深路径导入、条码优先、多码识别、SVG/彩色/倾斜/低对比度候选图 |
 | [src/services/popupNotice.ts](./src/services/popupNotice.ts) | 跨进程通知协议（可序列化 payload + `showPopupNotice`） |
 | [src/services/clipboard.ts](./src/services/clipboard.ts) | 复制文本（Clipboard API，失败回退 execCommand） |
@@ -111,6 +115,7 @@ flowchart LR
 ## 修改指引
 
 - **新增/调整右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加到两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
+- **二维码生成**：编码与 PNG 在 [qrCode.ts](./src/services/qrCode.ts)，输入/预览在 [QrCodePanel.vue](./src/components/QrCodePanel.vue)；条形码生成尚未接入，面板里的格式选择先只有二维码。
 - **识别效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。注意其 ZXing 内部模块深路径导入方式（`@zxing/library/esm/core/...`），不要改成包根导入，避免打进无关代码。
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。
 - **新增 UI 文案**：`public/_locales/en/messages.json` 与 `zh_CN/messages.json` 同时添加，代码中统一用 `browser.i18n.getMessage(key)`（各入口有本地 `t()` 包装）。
