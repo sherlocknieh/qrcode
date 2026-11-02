@@ -23,6 +23,10 @@
     "message": "Hide editor",
     "description": "Tooltip of the button that collapses the QR code input"
   },
+  "copyInput": {
+    "message": "Copy",
+    "description": "Button that copies the QR code input text"
+  },
   "qrEmptyHint": {
     "message": "Enter text to see the QR code",
     "description": "Hint shown in the QR code area when the input is empty"

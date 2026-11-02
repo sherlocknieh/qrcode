@@ -23,6 +23,10 @@
     "message": "收起编辑",
     "description": "收起二维码输入框的按钮提示"
   },
+  "copyInput": {
+    "message": "复制",
+    "description": "复制二维码输入框文字的按钮"
+  },
   "qrEmptyHint": {
     "message": "输入内容后显示二维码",
     "description": "输入为空时二维码区域的提示"

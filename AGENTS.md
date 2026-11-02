@@ -42,7 +42,7 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF、SVG 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
-| [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：实时预览 + 单一输入框（聚焦无高亮）；popup 用 `collapsible` 默认收起，只留二维码，展开入口是二维码底部白边上的满宽矩形条（悬停/聚焦自动展开，点击收起），两种状态二维码尺寸与留白完全一致 |
+| [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：实时预览 + 单一输入框（聚焦无高亮）；popup 用 `collapsible` 默认收起，只留二维码，展开入口是二维码底部白边上的满宽矩形条（悬停/聚焦自动展开，点击收起），两种状态二维码尺寸与留白完全一致；输入框聚焦即全选，输入框内还内嵌一个复制按钮（火狐 popup 里拖拽划选越过边界会中断，靠全选加复制代替） |
 | [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，取到图片（上传/粘贴/拖放）即自动识别；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
 | [src/components/CameraScanPanel.vue](./src/components/CameraScanPanel.vue) | 摄像头扫码面板（仅 `upload.html?camera=1`）：视频预览、命中定格、继续扫描/停止，结果复用 `useNoticeFallback` |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），供面板复用 |
