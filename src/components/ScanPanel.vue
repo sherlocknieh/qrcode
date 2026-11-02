@@ -219,42 +219,53 @@ onBeforeUnmount(() => {
                 role="dialog"
                 :aria-modal="overlay ? 'true' : undefined"
             >
-                <button
-                    v-if="overlay"
-                    class="qr-scan-panel-close"
-                    type="button"
-                    :aria-label="t('closeBtn')"
-                    @click="emit('close')"
-                >×</button>
-
                 <header class="qr-scan-panel-header">
-                    <!-- 切换源只换图标, 不占额外布局空间 -->
-                    <button
-                        class="qr-scan-switch"
-                        type="button"
-                        :title="switchLabel"
-                        :aria-label="switchLabel"
-                        @click="switchSource"
-                    >
-                        <svg v-if="isCamera" viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                            <circle cx="8.5" cy="8.5" r="1.5" />
-                            <path d="m21 15-4.5-4.5L7 20" />
-                        </svg>
-                        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M4.4 8.2 5.5 6.6A1 1 0 0 1 6.3 6h3.4a1 1 0 0 1 .8.6l1.1 1.6" />
-                            <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
-                            <circle cx="12" cy="14.1" r="3.4" />
-                        </svg>
-                    </button>
-
                     <component :is="overlay ? 'p' : 'h1'" class="qr-scan-panel-title">
                         {{ title }}
                     </component>
+
+                    <div class="qr-scan-panel-tools">
+                        <!-- 切换源只换图标, 不占额外布局空间 -->
+                        <button
+                            class="qr-scan-tool"
+                            type="button"
+                            :title="switchLabel"
+                            :aria-label="switchLabel"
+                            @click="switchSource"
+                        >
+                            <svg v-if="isCamera" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <path d="m21 15-4.5-4.5L7 20" />
+                            </svg>
+                            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M4.4 8.2 5.5 6.6A1 1 0 0 1 6.3 6h3.4a1 1 0 0 1 .8.6l1.1 1.6" />
+                                <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
+                                <circle cx="12" cy="14.1" r="3.4" />
+                            </svg>
+                        </button>
+
+                        <button
+                            v-if="overlay"
+                            class="qr-scan-tool qr-scan-tool--close"
+                            type="button"
+                            :aria-label="t('closeBtn')"
+                            :title="t('closeBtn')"
+                            @click="emit('close')"
+                        >
+                            <svg viewBox="0 0 16 16" aria-hidden="true">
+                                <path d="m4 4 8 8M12 4l-8 8" />
+                            </svg>
+                        </button>
+                    </div>
                 </header>
 
                 <!-- 取景框: 摄像头是视频画面, 图片是取图/预览区, 尺寸与圆角一致 -->
-                <div ref="stageRef" class="qr-scan-stage">
+                <div
+                    ref="stageRef"
+                    class="qr-scan-stage"
+                    :class="{ 'qr-scan-stage--camera': isCamera }"
+                >
                     <template v-if="isCamera">
                         <video
                             v-show="!cameraPreview"
@@ -300,7 +311,7 @@ onBeforeUnmount(() => {
     display: contents;
 }
 
-/* 浮层宿主: 覆盖页面并居中面板 */
+/* 浮层宿主: 覆盖页面并居中面板, 用中性暗遮罩压住页面 */
 .qr-scan-backdrop {
     position: fixed;
     inset: 0;
@@ -309,7 +320,7 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     padding: 16px;
-    background: rgba(8, 12, 20, 0.32);
+    background: rgba(0, 0, 0, 0.36);
     animation: qr-scan-fade 140ms ease both;
 }
 
@@ -327,13 +338,15 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     /* 两种承载使用同一宽度, 只在外边距与阴影上有区别 */
     width: min(560px, 100%);
-    padding: 28px;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
+    padding: 26px;
+    border: 1px solid #e6e6e6;
+    border-radius: 18px;
     background: #fff;
-    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 24px 56px -20px rgba(0, 0, 0, 0.28);
     font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    color: #1f2937;
+    color: #23211d;
 }
 
 /* 浮层里没有页面边距, 需要自己限制最大宽度并收紧留白;
@@ -342,93 +355,110 @@ onBeforeUnmount(() => {
     width: min(420px, calc(100vw - 32px));
     max-height: calc(100vh - 32px);
     overflow: auto;
-    padding: 20px;
-    border-color: transparent;
-    border-radius: 14px;
-    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.24);
+    padding: 18px 18px 20px;
+    border-color: #ededed;
+    border-radius: 16px;
 }
 
-.qr-scan-panel-close {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 1;
-    width: 26px;
-    height: 26px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: #64748b;
-    cursor: pointer;
-    font: 18px/22px Arial, sans-serif;
-    transition: background-color 120ms ease, color 120ms ease;
-}
-
-.qr-scan-panel-close:hover {
-    background: #f1f5f9;
-    color: #0f172a;
-}
-
-/* 标题行高度固定: 切换按钮绝对定位, 不参与布局 */
+/* 标题栏: 标题左对齐, 工具按钮收在右侧, 高度固定 */
 .qr-scan-panel-header {
-    position: relative;
-    margin-bottom: 20px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 32px;
+    margin-bottom: 16px;
 }
 
 .qr-scan-panel-title {
+    flex: 1 1 auto;
+    min-width: 0;
     margin: 0;
-    font-size: 20px;
+    overflow: hidden;
+    font-size: 16px;
     font-weight: 600;
-    color: #0f172a;
+    letter-spacing: 0.01em;
+    color: #171614;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.qr-scan-switch {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    transform: translateY(-50%);
+.qr-scan-panel-tools {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 工具按钮: 细边框方块, 悬停转为琥珀色, 只在需要时出现 */
+.qr-scan-tool {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: transparent;
-    color: #64748b;
+    border: 1px solid #e6e6e6;
+    border-radius: 10px;
+    background: #fff;
+    color: #6f6f6f;
     cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
+    transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
-.qr-scan-switch:hover {
-    background: #f1f5f9;
-    color: #0f172a;
+.qr-scan-tool:hover {
+    border-color: #d8b77f;
+    background: #fafafa;
+    color: #8f5207;
+}
+
+.qr-scan-tool:focus-visible {
+    outline: 2px solid rgba(180, 105, 14, 0.45);
+    outline-offset: 2px;
 }
 
 /* 完整声明 margin/opacity: 页面全局 svg 规则会作用到注入的浮层上 */
-.qr-scan-switch svg {
+.qr-scan-tool svg {
     width: 18px;
     height: 18px;
     margin: 0;
     opacity: 1;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.6;
+    stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
 
-/* 取景框: 两种模式都是深色 4:3 圆角区域, 图片模式由取图区自己铺满 */
+/* 关闭按钮去掉边框, 与切换按钮区分层级 */
+.qr-scan-tool--close {
+    border-color: transparent;
+    background: transparent;
+}
+
+.qr-scan-tool--close svg {
+    width: 16px;
+    height: 16px;
+}
+
+.qr-scan-tool--close:hover {
+    border-color: transparent;
+    background: #f2f2f2;
+    color: #171614;
+}
+
+/* 取景框: 图片模式是白色取图区, 摄像头模式才用深色底 */
 .qr-scan-stage {
     position: relative;
     box-sizing: border-box;
     aspect-ratio: 4 / 3;
     overflow: hidden;
-    border-radius: 12px;
-    background: #0f172a;
+    border: 1px solid #ededed;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.qr-scan-stage--camera {
+    background: #14130f;
 }
 
 /* 取图区占满取景框, 内容居中; 虚线边框正好充当取景提示 */
@@ -458,7 +488,7 @@ onBeforeUnmount(() => {
 .qr-scan-frame {
     position: absolute;
     inset: 12%;
-    border: 2px dashed rgba(255, 255, 255, 0.85);
+    border: 2px dashed rgba(255, 255, 255, 0.8);
     border-radius: 12px;
     pointer-events: none;
 }
@@ -470,27 +500,28 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     margin: 0;
-    background: rgba(15, 23, 42, 0.55);
-    color: #f8fafc;
-    font-size: 14px;
+    background: rgba(20, 19, 15, 0.62);
+    color: #f7f5f0;
+    font-size: 13px;
+    letter-spacing: 0.02em;
 }
 
 /* 固定一行高度: 文案长短或换源都不改变面板尺寸 */
 .qr-scan-hint {
-    height: 21px;
-    margin: 14px 0 0;
+    height: 20px;
+    margin: 12px 0 0;
     overflow: hidden;
     text-align: center;
-    font-size: 14px;
-    line-height: 21px;
-    color: #64748b;
+    font-size: 12.5px;
+    line-height: 20px;
+    color: #8d8679;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
 .qr-scan-panel-actions {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     margin-top: 16px;
 }
 
@@ -498,45 +529,65 @@ onBeforeUnmount(() => {
 .qr-scan-panel-btn {
     flex: 1 1 0;
     min-width: 0;
-    height: 38px;
-    padding: 0 16px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
+    height: 42px;
+    padding: 0 18px;
+    border: 1px solid #dedede;
+    border-radius: 11px;
     background: #fff;
-    color: #0f172a;
+    color: #23211d;
     font: inherit;
     font-weight: 500;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .qr-scan-panel-btn:hover:not(:disabled) {
-    background: #f8fafc;
-    border-color: #94a3b8;
+    border-color: #c4c4c4;
+    background: #fafafa;
 }
 
+.qr-scan-panel-btn:focus-visible {
+    outline: 2px solid rgba(180, 105, 14, 0.45);
+    outline-offset: 2px;
+}
+
+/* 主操作: 近黑实底, 唯一的高对比色块 */
 .qr-scan-panel-btn--primary {
-    border-color: #2cabff;
-    background: #2cabff;
-    color: #fff;
+    border-color: #1b1a17;
+    background: #1b1a17;
+    color: #faf8f3;
 }
 
 .qr-scan-panel-btn--primary:hover:not(:disabled) {
-    border-color: #1b9be9;
-    background: #1b9be9;
+    border-color: #000;
+    background: #000;
 }
 
 .qr-scan-panel-btn:disabled {
-    opacity: 0.6;
+    opacity: 0.45;
     cursor: default;
 }
 
 /* 浮层空间更紧凑: 标题缩小, 取景框与按钮的相对关系保持不变 */
 .qr-scan-panel--overlay .qr-scan-panel-header {
+    min-height: 30px;
     margin-bottom: 12px;
 }
 
 .qr-scan-panel--overlay .qr-scan-panel-title {
-    font-size: 15px;
+    font-size: 14px;
+}
+
+.qr-scan-panel--overlay .qr-scan-hint {
+    margin-top: 10px;
+}
+
+.qr-scan-panel--overlay .qr-scan-panel-actions {
+    margin-top: 14px;
+}
+
+.qr-scan-panel--overlay .qr-scan-panel-btn {
+    height: 40px;
 }
 </style>

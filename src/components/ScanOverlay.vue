@@ -80,7 +80,7 @@ const rootStyle = computed(() => {
 .qr-scan-mask {
     position: absolute;
     inset: 0;
-    background: rgba(8, 12, 20, 0.22);
+    background: rgba(0, 0, 0, 0.26);
 }
 
 /* 白色光带上下往返扫描, 直到解码结束才随遮罩淡出 */
