@@ -5,22 +5,20 @@ import { useNotify } from '@/composables/useNotify';
 import { warningNotice } from '@/services/decodeResultNotice';
 import { t } from '@/services/i18n';
 
-// 取图区: 页面内浮层与独立识别页共用同一套结构与样式,
-// 只负责拿到图片 (粘贴 / 拖放 / 选择文件), 识别与结果展示交给调用方。
+// 取图区: 只负责拿到图片 (粘贴 / 拖放 / 选择文件)。
+// 外观是深色取景框, 背景由外层 ScanPanel 的 4:3 区域提供;
+// 文字提示、识别与结果展示都交给 ScanPanel 统一处理。
 const props = withDefaults(
     defineProps<{
-        // 选择后的预览图; 浮层取到图片即关闭, 不传
+        // 选择后的预览图
         previewUrl?: string;
         busy?: boolean;
-        // page: 独立识别页的整页卡片; overlay: 页面内浮层
-        variant?: 'page' | 'overlay';
     }>(),
-    { previewUrl: '', busy: false, variant: 'page' },
+    { previewUrl: '', busy: false },
 );
 
 const emit = defineEmits<{
     (event: 'file', blob: Blob): void;
-    (event: 'close'): void;
 }>();
 
 const { fire } = useNotify();
@@ -28,7 +26,7 @@ const { fire } = useNotify();
 const fileInput = ref<HTMLInputElement | null>(null);
 const dragging = ref(false);
 
-// 拖放事件会冒泡到子元素, 用计数避免划过内部文字时高亮闪烁
+// 拖放事件会冒泡到子元素, 用计数避免划过内部元素时高亮闪烁
 let dragDepth = 0;
 
 // 取图区的提示只发生在当前页面, 不需要走 popup 优先策略
@@ -91,13 +89,6 @@ function onPaste(event: ClipboardEvent) {
     emit('file', file);
 }
 
-function onKeydown(event: KeyboardEvent) {
-    if (event.key !== 'Escape' || props.variant !== 'overlay') return;
-    event.preventDefault();
-    event.stopPropagation();
-    emit('close');
-}
-
 // 拖到页面空白处时阻止浏览器直接打开文件
 function preventPageDrop(event: DragEvent) {
     event.preventDefault();
@@ -105,24 +96,24 @@ function preventPageDrop(event: DragEvent) {
 
 onMounted(() => {
     document.addEventListener('paste', onPaste, true);
-    document.addEventListener('keydown', onKeydown, true);
     window.addEventListener('dragover', preventPageDrop);
     window.addEventListener('drop', preventPageDrop);
 });
 
 onBeforeUnmount(() => {
     document.removeEventListener('paste', onPaste, true);
-    document.removeEventListener('keydown', onKeydown, true);
     window.removeEventListener('dragover', preventPageDrop);
     window.removeEventListener('drop', preventPageDrop);
 });
+
+// 面板的"选择图片"按钮复用同一个文件选择框
+defineExpose({ pickFile });
 </script>
 
 <template>
     <div
         class="qr-picker"
         :class="{
-            'qr-picker--overlay': variant === 'overlay',
             'qr-picker--active': dragging,
             'qr-picker--busy': busy,
         }"
@@ -137,23 +128,14 @@ onBeforeUnmount(() => {
         @dragleave="onDragleave"
         @drop="onDrop"
     >
-        <template v-if="previewUrl">
-            <!-- 预览外层用块级容器限制高度: flex 子项的自动最小尺寸会让 max-height 失效 (Firefox) -->
-            <div class="qr-picker-figure">
-                <img class="qr-picker-preview" :src="previewUrl" :alt="t('scanImageTitle')" />
-            </div>
-            <p class="qr-picker-hint">{{ t('previewHint') }}</p>
-        </template>
-        <template v-else>
-            <svg class="qr-picker-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="m21 15-4.5-4.5L7 20" />
-            </svg>
-            <p class="qr-picker-title">{{ t('dropImageHint') }}</p>
-            <p class="qr-picker-hint">{{ t('pasteImageHint') }}</p>
-            <span class="qr-picker-button">{{ t('chooseImage') }}</span>
-        </template>
+        <div v-if="previewUrl" class="qr-picker-figure">
+            <img class="qr-picker-preview" :src="previewUrl" alt="" />
+        </div>
+        <svg v-else class="qr-picker-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="m21 15-4.5-4.5L7 20" />
+        </svg>
 
         <input ref="fileInput" class="qr-picker-input" type="file" accept="image/*" @change="onFileChange" />
     </div>
@@ -164,14 +146,17 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     box-sizing: border-box;
-    /* 占满外层卡片, 避免被预览图撑开 */
+    /* 占满取景框, 避免被预览图撑开 */
     width: 100%;
+    height: 100%;
     min-width: 0;
-    padding: 32px 20px;
-    border: 2px dashed #cbd5e1;
+    padding: 16px;
+    /* 深色取景框基调: 与摄像头预览共用同一套外观 */
+    border: 2px dashed rgba(255, 255, 255, 0.45);
     border-radius: 12px;
-    background: #f8fafc;
+    background: transparent;
     cursor: pointer;
     /* 兜底: 预览图在部分浏览器 (Firefox) 仍可能撑出圆角 */
     overflow: hidden;
@@ -180,14 +165,14 @@ onBeforeUnmount(() => {
 
 .qr-picker:hover,
 .qr-picker:focus-visible {
-    border-color: #60a5fa;
-    background: #eff6ff;
+    border-color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.06);
     outline: none;
 }
 
 .qr-picker--active {
-    border-color: #2563eb;
-    background: #dbeafe;
+    border-color: #60a5fa;
+    background: rgba(96, 165, 250, 0.16);
 }
 
 .qr-picker--busy {
@@ -195,28 +180,17 @@ onBeforeUnmount(() => {
     opacity: 0.7;
 }
 
-/* 浮层里空间更小, 收紧留白 */
-.qr-picker--overlay {
-    padding: 24px 16px;
-}
-
 .qr-picker-icon {
-    width: 44px;
-    height: 44px;
-    /* 完整声明外边距，避免页面全局 svg 规则（如 example.com）把图标顶偏 */
-    margin: 0 0 12px;
+    width: 56px;
+    height: 56px;
+    /* 完整声明外边距, 避免页面全局 svg 规则（如 example.com）把图标顶偏 */
+    margin: 0;
     opacity: 1;
     fill: none;
-    stroke: #3b82f6;
-    stroke-width: 1.6;
+    stroke: #93c5fd;
+    stroke-width: 1.4;
     stroke-linecap: round;
     stroke-linejoin: round;
-}
-
-.qr-picker--overlay .qr-picker-icon {
-    width: 36px;
-    height: 36px;
-    margin: 0 0 8px;
 }
 
 .qr-picker-figure {
@@ -224,13 +198,14 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    /* 固定高度: 不依赖图片固有尺寸,
-       Firefox 下 flex 子项的自动最小尺寸不会再把预览撑出面板 */
     width: 100%;
-    height: 240px;
+    /* 占满取景框剩余空间: 不依赖图片固有尺寸,
+       Firefox 下 flex 子项的自动最小尺寸不会再把预览撑出面板 */
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: hidden;
     border-radius: 8px;
-    background: #fff;
+    background: #111827;
 }
 
 .qr-picker-preview {
@@ -246,42 +221,6 @@ onBeforeUnmount(() => {
     /* 完整显示图片, 多余空间留白, 绝不溢出 */
     object-fit: contain;
     object-position: center;
-}
-
-.qr-picker--overlay .qr-picker-figure {
-    height: 200px;
-}
-
-.qr-picker-title {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 500;
-    color: #334155;
-}
-
-.qr-picker-hint {
-    margin: 6px 0 16px;
-    font-size: 13px;
-    color: #94a3b8;
-    text-align: center;
-}
-
-.qr-picker--overlay .qr-picker-hint {
-    margin: 4px 0 12px;
-    font-size: 12px;
-}
-
-.qr-picker-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 132px;
-    padding: 9px 18px;
-    border-radius: 8px;
-    background: #2cabff;
-    color: #fff;
-    font: inherit;
-    font-size: 14px;
 }
 
 .qr-picker-input {

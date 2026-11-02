@@ -528,6 +528,14 @@ export default defineBackground(() => {
                 .catch(() => sendResponse({ success: false }));
             return true;
         }
+        // 图片识别浮层里点"改用摄像头识别": 摄像头只能在扩展页运行,
+        // 由后台打开 upload.html?camera=1, 并记录来源页以便关闭后切回
+        if (request.action === "openCameraScan") {
+            openCameraScanPage(_sender.tab?.id)
+                .then(success => sendResponse({ success }))
+                .catch(() => sendResponse({ success: false }));
+            return true;
+        }
         // 跨域获取图片数据
         if (request.action === "fetchImage") {
             fetch(request.url)                       // 请求图片资源

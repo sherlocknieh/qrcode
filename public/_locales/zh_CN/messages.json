@@ -87,6 +87,10 @@
     "message": "改用图片识别",
     "description": "切换到图片识别面板的按钮"
   },
+  "switchToCameraScan": {
+    "message": "改用摄像头识别",
+    "description": "从图片识别切换到摄像头识别的按钮"
+  },
   "cameraFailed": {
     "message": "摄像头不可用",
     "description": "摄像头错误通知的标题"
@@ -108,12 +112,8 @@
     "description": "本地图片识别页面的标题"
   },
   "dropImageHint": {
-    "message": "拖入图片，或点击选择文件",
-    "description": "图片拖放区域的提示"
-  },
-  "pasteImageHint": {
-    "message": "也可以直接按 Ctrl+V 粘贴图片",
-    "description": "图片拖放区域的粘贴提示"
+    "message": "拖入、点击选择，或按 Ctrl+V 粘贴图片",
+    "description": "图片取景框下方的提示"
   },
   "previewHint": {
     "message": "点击方框可更换图片",

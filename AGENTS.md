@@ -38,22 +38,21 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台脚本：右键菜单、popup 打开、通知中转、跨域取图、截图、标签页关闭、地址栏图标开关 |
 | [src/entrypoints/content/](./src/entrypoints/content/) | 注入所有页面的内容脚本 UI，处理 `decodeQR` / `screenshotQR` / `screenshotQRDirect` / `scanImageInline` 消息，页面内通知兜底 |
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、识别交给它的图片（`upload.html` 交接） |
-| [src/entrypoints/upload/](./src/entrypoints/upload/) | 识别页 `upload.html`：按 `?camera=1` 显示摄像头面板，否则上传/粘贴图片识别；整页居中布局 + `NotifyHost`，页面无法注入内容脚本时作为兜底 |
+| [src/entrypoints/upload/](./src/entrypoints/upload/) | 识别页 `upload.html`：`?camera=1` 时以摄像头模式打开统一的 `ScanPanel`；整页居中布局 + `NotifyHost`，页面无法注入内容脚本时作为兜底 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF、SVG 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
 | [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：实时预览 + 单一输入框（聚焦无高亮）；popup 用 `collapsible` 默认收起，只留二维码，展开入口是二维码底部白边上的满宽矩形条（悬停/聚焦自动展开，点击收起），两种状态二维码尺寸与留白完全一致；输入框聚焦即全选，输入框内还内嵌一个复制按钮（火狐 popup 里拖拽划选越过边界会中断，靠全选加复制代替） |
-| [src/components/ImageScanPanel.vue](./src/components/ImageScanPanel.vue) | 图片识别面板：标题 + `ImagePicker` + 识别流程，取到图片（上传/粘贴/拖放）即自动识别；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页），与 `ScreenshotOverlay` 的两种宿主同构 |
-| [src/components/CameraScanPanel.vue](./src/components/CameraScanPanel.vue) | 摄像头扫码面板（仅 `upload.html?camera=1`）：视频预览、命中定格、继续扫描/停止，结果复用 `useNoticeFallback` |
-| [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），供面板复用 |
-| [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ImageScanPanel, { variant: 'overlay' })` 挂载/卸载 |
+| [src/components/ScanPanel.vue](./src/components/ScanPanel.vue) | 唯一的识别面板：图片与摄像头是同一面板的两种输入源，`mode` 切换；两源只产出图像，提示/动画/解码/结果统一走 `recognizeImage`。共用深色 4:3 取景框与固定高的一行提示 + 一行按钮（换源时面板尺寸不变），标题左侧图标按钮切换源；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页） |
+| [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），只有一个图标或预览图，文字提示与按钮由 `ScanPanel` 统一提供 |
+| [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ScanPanel, { variant: 'overlay', mode: 'image' })` 挂载/卸载；浮层里摄像头启动失败时关闭浮层并打开 `upload.html?camera=1` |
 | [src/composables/useScanAnimation.ts](./src/composables/useScanAnimation.ts) | 扫描动画挂载与淡出，光带在识别期间循环往返，`play()` 只等首帧，`stop()` 在淡出后 resolve，用于延后弹窗 |
 | [src/services/decodeResultNotice.ts](./src/services/decodeResultNotice.ts) | 识别过程的加载/错误提示与结果通知（无结果/多码/单码）构造 |
 | [src/composables/useNoticeFallback.ts](./src/composables/useNoticeFallback.ts) | 通知统一策略：popup 优先、页面内兜底 |
 | [src/services/recognize.ts](./src/services/recognize.ts) | **拿到图像数据后的唯一识别入口** `recognizeImage(loader, options)`：识别提示 → 动画 → 解码 → 结果/重试/错误，`afterDecode` 会 await 以便等动画淡出；网页图片、本地/粘贴图片、截图共用 |
 | [src/composables/useQrCode.ts](./src/composables/useQrCode.ts) | 输入防抖后生成二维码，返回 `dataUrl` / 错误文案 |
-| [src/composables/useImageScan.ts](./src/composables/useImageScan.ts) | 取图面板状态（预览/清空），识别交给 `recognizeImage` |
-| [src/composables/useCameraScan.ts](./src/composables/useCameraScan.ts) | 摄像头取帧与连续识别：媒体流生命周期、逐帧轻量解码、命中后补跑完整多码识别 |
+| [src/composables/useImageSource.ts](./src/composables/useImageSource.ts) | 图片取图源：Blob → 预览，取图阶段失败提示；识别交给 `ScanPanel` 的 `recognizeImage` |
+| [src/composables/useCameraScan.ts](./src/composables/useCameraScan.ts) | 摄像头取图源：媒体流生命周期、逐帧轻量解码，命中即停并把该帧交给 `recognizeImage` |
 | [src/services/messaging.ts](./src/services/messaging.ts) | 消息发送封装（统一 lastError 与 success 判断） |
 | [src/services/i18n.ts](./src/services/i18n.ts) | `t()` 文案读取（缺失时回退） |
 | [src/services/storage.ts](./src/services/storage.ts) | 存储区选择、`takeStoredValue/String` 读后即清 |
@@ -118,7 +117,7 @@ flowchart LR
 - **新增/调整右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加到两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
 - **二维码生成**：编码与 PNG 在 [qrCode.ts](./src/services/qrCode.ts)，输入/预览在 [QrCodePanel.vue](./src/components/QrCodePanel.vue)；条形码生成尚未接入，面板里的格式选择先只有二维码。
 - **识别效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。注意其 ZXing 内部模块深路径导入方式（`@zxing/library/esm/core/...`），不要改成包根导入，避免打进无关代码。摄像头逐帧扫描只走 `decodeCameraFrame`（单帧二维码 + 条形码各一次），不要换成 `decodeAllFromImageData`，否则预览会卡。
-- **摄像头扫码**：只放在扩展页 `upload.html?camera=1`，不要塞进 popup（失焦即关闭）或内容脚本（摄像头权限归页面源）；媒体流与取帧循环在 `useCameraScan.ts`，命中即停，恢复由用户点"继续扫描"。
+- **摄像头扫码**：只放在 `ScanPanel.vue`，不要塞进 popup（失焦即关闭）。内容脚本里也能调 `getUserMedia`（浮层可用），但受页面安全上下文与 `Permissions-Policy` 约束、权限归页面源，因此浮层启动失败时由宿主降级到 `upload.html?camera=1`。媒体流与取帧在 `useCameraScan.ts`，命中即停，恢复由用户点"继续扫描"；新增输入方式时实现一个"产出图像"的源，不要再拆第二套面板或第二套识别流程。
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。
 - **新增 UI 文案**：`public/_locales/en/messages.json` 与 `zh_CN/messages.json` 同时添加，代码中统一用 `browser.i18n.getMessage(key)`（各入口有本地 `t()` 包装）。
 - **权限 / manifest / 图标**：只改 [wxt.config.ts](./wxt.config.ts)。不要为此声明 `clipboardRead` / `clipboardWrite`：图片只从 paste/拖放事件读取，文本复制发生在点击手势里，失败时用 `execCommand('copy')` 兜底。

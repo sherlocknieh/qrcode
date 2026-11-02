@@ -87,6 +87,10 @@
     "message": "Use an Image Instead",
     "description": "Button that switches to the image scanning panel"
   },
+  "switchToCameraScan": {
+    "message": "Use Camera Instead",
+    "description": "Button that switches from image scanning to camera scanning"
+  },
   "cameraFailed": {
     "message": "Camera unavailable",
     "description": "Title of the camera error notice"
@@ -108,12 +112,8 @@
     "description": "Title of the local image scanning page"
   },
   "dropImageHint": {
-    "message": "Drop an image here, or click to choose a file",
-    "description": "Hint in the image drop area"
-  },
-  "pasteImageHint": {
-    "message": "You can also paste an image with Ctrl+V",
-    "description": "Paste hint in the image drop area"
+    "message": "Drop, choose, or paste an image (Ctrl+V)",
+    "description": "Hint under the image viewfinder"
   },
   "previewHint": {
     "message": "Click the box to choose another image",

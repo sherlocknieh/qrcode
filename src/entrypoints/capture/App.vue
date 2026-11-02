@@ -3,12 +3,13 @@ import { onMounted, ref } from 'vue';
 
 import NotifyHost from '@/components/NotifyHost.vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
-import { useImageScan } from '@/composables/useImageScan';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { t } from '@/services/i18n';
 import { errorNotice } from '@/services/decodeResultNotice';
 import { sendMessage } from '@/services/messaging';
+import { getImageDataFromDataUrl } from '@/services/qrScanner';
+import { recognizeImage } from '@/services/recognize';
 import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 import { takeStoredString } from '@/services/storage';
 
@@ -24,16 +25,18 @@ const noticeOptions = {
     closeOriginTab: true,
     onLocalNoticeDone: () => closeTab(),
 };
-const { notify } = useNoticeFallback(noticeOptions);
+const { host, notify } = useNoticeFallback(noticeOptions);
 const scanAnimation = useScanAnimation();
 
-// 解码流程与其它入口共用; 直出模式在解码前播放整屏扫描动画
-const { scan } = useImageScan({
-    errorTitle: t('screenshotFailed'),
-    notice: noticeOptions,
-    beforeNotice: directMode ? () => scanAnimation.play() : undefined,
-    afterDecode: directMode ? () => scanAnimation.stop() : undefined,
-});
+// 识别流程与图片/摄像头面板共用同一个 recognizeImage; 直出模式在解码前播放整屏扫描动画
+function scan(dataUrl: string) {
+    return recognizeImage(() => getImageDataFromDataUrl(dataUrl), {
+        host,
+        errorTitle: t('screenshotFailed'),
+        beforeNotice: directMode ? () => scanAnimation.play() : undefined,
+        afterDecode: directMode ? () => scanAnimation.stop() : undefined,
+    });
+}
 
 
 // 后台截取的视口图; 识别结束后仍保留在页面上, 标签页里原本没有其它内容

@@ -1,12 +1,12 @@
 import { onBeforeUnmount, ref, type Ref } from 'vue';
-import { decodeAllFromImageData, decodeCameraFrame, type DecodeResult } from '@/services/qrScanner';
+import { decodeCameraFrame } from '@/services/qrScanner';
 
-// 摄像头取帧与连续识别: 只负责媒体流、取帧循环和结果回调,
-// 提示与结果展示交给调用方, 与 useImageScan 的分工保持一致。
+// 摄像头取图源: 只负责媒体流与逐帧轻量解码, 命中后交出一帧画面,
+// 识别与结果展示统一交给 ScanPanel 的 recognizeImage 流水线。
 type CameraScanOptions = {
     video: Ref<HTMLVideoElement | null>;
-    // 命中一帧后回调, 摄像头此时已停止; 返回 Promise 时会等结果通知展示结束
-    onResults: (results: DecodeResult[]) => unknown | Promise<unknown>;
+    // 命中一帧后回调, 摄像头此时已停止; 返回 Promise 时会等识别结束
+    onFrame: (frame: ImageData) => unknown | Promise<unknown>;
     // 请求摄像头失败 (权限/设备/占用) 时回调
     onError: (error: unknown) => void;
 };
@@ -82,27 +82,16 @@ export function useCameraScan(options: CameraScanOptions) {
             const hit = decodeCameraFrame(frame, attempt++);
             if (!hit.length || !active.value) return;
 
-            // 命中即停: 定格画面并立刻关掉摄像头, 再展示结果
+            // 命中即停: 定格画面并立刻关掉摄像头, 把这一帧交给统一识别流程
             active.value = false;
             previewUrl.value = canvas?.toDataURL('image/jpeg', 0.85) ?? '';
             stopStream();
-            const results = await completeResults(frame, hit);
-            await options.onResults(results);
+            await options.onFrame(frame);
         } catch {
             // 单帧解码失败不打断扫描, 下一帧继续
         } finally {
             busy = false;
             schedule();
-        }
-    }
-
-    // 轻量扫描只确认"这一帧有码"; 再对同一帧跑一次完整识别, 补齐同画面的其它码
-    async function completeResults(frame: ImageData, hit: DecodeResult[]): Promise<DecodeResult[]> {
-        try {
-            const all = await decodeAllFromImageData(frame);
-            return all.length ? all : hit;
-        } catch {
-            return hit;
         }
     }
 
