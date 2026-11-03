@@ -2,8 +2,12 @@ html,
 body {
   min-height: 100%;
   margin: 0;
-  /* 纯白底: 与识别面板的黑白 + 琥珀配色一致 */
-  background: #fff;
+  /* 浅色品牌底: 与 popup / 通知的 slate + 蓝色体系一致 */
+  background:
+    radial-gradient(900px 520px at 50% -10%, #e9efff 0%, rgba(233, 239, 255, 0) 62%),
+    radial-gradient(760px 460px at 88% 108%, #e6fbff 0%, rgba(230, 251, 255, 0) 66%),
+    linear-gradient(180deg, #fbfcff 0%, #f3f6fc 100%);
+  background-attachment: fixed;
 }
 
 body {

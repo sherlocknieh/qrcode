@@ -107,12 +107,28 @@
     "message": "The camera is being used by another application. Close it and try again.",
     "description": "Error text when the camera is occupied"
   },
+  "cameraIdle": {
+    "message": "Camera is off",
+    "description": "Hint inside the viewfinder before the camera starts"
+  },
+  "cameraOffHint": {
+    "message": "Turn on the camera and point it at a code",
+    "description": "Hint under the viewfinder while the camera is off"
+  },
   "scanImageTitle": {
     "message": "Upload or Paste an Image to Scan",
     "description": "Title of the local image scanning page"
   },
-  "dropImageHint": {
-    "message": "Drop, choose, or paste an image (Ctrl+V)",
+  "scanPanelFooter": {
+    "message": "QR codes and barcodes, with multi-code support",
+    "description": "Capability note at the bottom of the scan panel"
+  },
+  "pickerHint": {
+    "message": "Drop an image or click to choose",
+    "description": "Hint under the icon in the image picker"
+  },
+  "pasteImageHint": {
+    "message": "Or press Ctrl+V to paste an image",
     "description": "Hint under the image viewfinder"
   },
   "previewHint": {

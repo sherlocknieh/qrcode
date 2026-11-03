@@ -144,8 +144,12 @@ const title = computed(() => t(isCamera.value ? 'cameraScanTitle' : 'scanImageTi
 
 // 提示始终占一行, 换源不改变面板高度
 const hint = computed(() => {
-    if (isCamera.value) return cameraPreview.value ? t('cameraPausedHint') : t('cameraHint');
-    return previewUrl.value ? t('previewHint') : t('dropImageHint');
+    if (isCamera.value) {
+        if (cameraPreview.value) return t('cameraPausedHint');
+        if (!cameraActive.value && !cameraStarting.value) return t('cameraOffHint');
+        return t('cameraHint');
+    }
+    return previewUrl.value ? t('previewHint') : t('pasteImageHint');
 });
 
 const switchLabel = computed(() => t(isCamera.value ? 'switchToImageScan' : 'switchToCameraScan'));
@@ -225,9 +229,9 @@ onBeforeUnmount(() => {
                     </component>
 
                     <div class="qr-scan-panel-tools">
-                        <!-- 切换源只换图标, 不占额外布局空间 -->
+                        <!-- 切换源: 独立页带文字说明, 浮层只留图标 -->
                         <button
-                            class="qr-scan-tool"
+                            class="qr-scan-tool qr-scan-tool--switch"
                             type="button"
                             :title="switchLabel"
                             :aria-label="switchLabel"
@@ -243,6 +247,7 @@ onBeforeUnmount(() => {
                                 <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
                                 <circle cx="12" cy="14.1" r="3.4" />
                             </svg>
+                            <span v-if="!overlay" class="qr-scan-tool-label">{{ switchLabel }}</span>
                         </button>
 
                         <button
@@ -275,8 +280,30 @@ onBeforeUnmount(() => {
                             playsinline
                         ></video>
                         <img v-if="cameraPreview" class="qr-scan-media" :src="cameraPreview" alt="" />
-                        <div v-if="cameraActive" class="qr-scan-frame" aria-hidden="true"></div>
-                        <p v-if="cameraStarting" class="qr-scan-state">{{ t('cameraStarting') }}</p>
+                        <div v-if="cameraActive" class="qr-scan-frame" aria-hidden="true">
+                            <span class="qr-scan-frame-corner qr-scan-frame-corner--tl"></span>
+                            <span class="qr-scan-frame-corner qr-scan-frame-corner--tr"></span>
+                            <span class="qr-scan-frame-corner qr-scan-frame-corner--bl"></span>
+                            <span class="qr-scan-frame-corner qr-scan-frame-corner--br"></span>
+                        </div>
+                        <!-- 未开启时给黑色取景框一个明确的空状态, 不再是纯黑一块 -->
+                        <div
+                            v-if="!cameraActive && !cameraPreview && !cameraStarting"
+                            class="qr-scan-camera-idle"
+                        >
+                            <span class="qr-scan-camera-badge">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M4.4 8.2 5.5 6.6A1 1 0 0 1 6.3 6h3.4a1 1 0 0 1 .8.6l1.1 1.6" />
+                                    <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
+                                    <circle cx="12" cy="14.1" r="3.4" />
+                                </svg>
+                            </span>
+                            <p>{{ t('cameraIdle') }}</p>
+                        </div>
+                        <div v-if="cameraStarting" class="qr-scan-state">
+                            <span class="qr-scan-spinner" aria-hidden="true"></span>
+                            <p>{{ t('cameraStarting') }}</p>
+                        </div>
                     </template>
                     <ImagePicker
                         v-else
@@ -301,6 +328,8 @@ onBeforeUnmount(() => {
                         @click="action.run"
                     >{{ action.label }}</button>
                 </div>
+
+                <p v-if="!overlay" class="qr-scan-panel-foot">{{ t('scanPanelFooter') }}</p>
             </section>
         </div>
     </Teleport>
@@ -320,7 +349,7 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     padding: 16px;
-    background: rgba(0, 0, 0, 0.36);
+    background: rgba(15, 23, 42, 0.45);
     animation: qr-scan-fade 140ms ease both;
 }
 
@@ -339,14 +368,26 @@ onBeforeUnmount(() => {
     /* 两种承载使用同一宽度, 只在外边距与阴影上有区别 */
     width: min(560px, 100%);
     padding: 26px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid #e2e8f0;
     border-radius: 18px;
     background: #fff;
     box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.04),
-        0 24px 56px -20px rgba(0, 0, 0, 0.28);
-    font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    color: #23211d;
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 24px 60px -24px rgba(15, 23, 42, 0.22);
+    font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #1f2937;
+    animation: qr-scan-enter 180ms ease both;
+}
+
+@keyframes qr-scan-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }
 
 /* 浮层里没有页面边距, 需要自己限制最大宽度并收紧留白;
@@ -356,7 +397,7 @@ onBeforeUnmount(() => {
     max-height: calc(100vh - 32px);
     overflow: auto;
     padding: 18px 18px 20px;
-    border-color: #ededed;
+    border-color: #e2e8f0;
     border-radius: 16px;
 }
 
@@ -377,7 +418,7 @@ onBeforeUnmount(() => {
     font-size: 16px;
     font-weight: 600;
     letter-spacing: 0.01em;
-    color: #171614;
+    color: #0f172a;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -394,25 +435,40 @@ onBeforeUnmount(() => {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     width: 32px;
     height: 32px;
     padding: 0;
-    border: 1px solid #e6e6e6;
+    border: 1px solid #e2e8f0;
     border-radius: 10px;
     background: #fff;
-    color: #6f6f6f;
+    color: #64748b;
     cursor: pointer;
     transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
+/* 独立页把切换源做成带文字的胶囊, 比纯图标更容易发现 */
+.qr-scan-tool--switch {
+    width: auto;
+    padding: 0 11px 0 9px;
+    border-radius: 999px;
+}
+
+.qr-scan-tool-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
 .qr-scan-tool:hover {
-    border-color: #d8b77f;
-    background: #fafafa;
-    color: #8f5207;
+    border-color: #bfdbfe;
+    background: #f9fafb;
+    color: #1d4ed8;
 }
 
 .qr-scan-tool:focus-visible {
-    outline: 2px solid rgba(180, 105, 14, 0.45);
+    outline: 2px solid rgba(37, 99, 235, 0.35);
     outline-offset: 2px;
 }
 
@@ -442,8 +498,8 @@ onBeforeUnmount(() => {
 
 .qr-scan-tool--close:hover {
     border-color: transparent;
-    background: #f2f2f2;
-    color: #171614;
+    background: #f1f5f9;
+    color: #0f172a;
 }
 
 /* 取景框: 图片模式是白色取图区, 摄像头模式才用深色底 */
@@ -452,13 +508,13 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     aspect-ratio: 4 / 3;
     overflow: hidden;
-    border: 1px solid #ededed;
+    border: 1px solid #e2e8f0;
     border-radius: 14px;
     background: #fff;
 }
 
 .qr-scan-stage--camera {
-    background: #14130f;
+    background: #0f172a;
 }
 
 /* 取图区占满取景框, 内容居中; 虚线边框正好充当取景提示 */
@@ -484,26 +540,126 @@ onBeforeUnmount(() => {
     object-fit: cover;
 }
 
-/* 取景框只是视觉引导, 不参与点击 */
+/* 四角取景框: 与整屏扫描动画同一套白色括号语言, 比虚线更聚焦 */
 .qr-scan-frame {
     position: absolute;
-    inset: 12%;
-    border: 2px dashed rgba(255, 255, 255, 0.8);
-    border-radius: 12px;
+    inset: 9%;
     pointer-events: none;
+}
+
+.qr-scan-frame-corner {
+    position: absolute;
+    width: 34px;
+    height: 34px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.45));
+}
+
+.qr-scan-frame-corner--tl {
+    top: 0;
+    left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-top-left-radius: 10px;
+}
+
+.qr-scan-frame-corner--tr {
+    top: 0;
+    right: 0;
+    border-left: 0;
+    border-bottom: 0;
+    border-top-right-radius: 10px;
+}
+
+.qr-scan-frame-corner--bl {
+    bottom: 0;
+    left: 0;
+    border-right: 0;
+    border-top: 0;
+    border-bottom-left-radius: 10px;
+}
+
+.qr-scan-frame-corner--br {
+    bottom: 0;
+    right: 0;
+    border-left: 0;
+    border-top: 0;
+    border-bottom-right-radius: 10px;
+}
+
+/* 摄像头未开启: 用图标 + 一句说明填满深色取景框 */
+.qr-scan-camera-idle {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #94a3b8;
+}
+
+.qr-scan-camera-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.qr-scan-camera-badge svg {
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    opacity: 1;
+    fill: none;
+    stroke: #cbd5e1;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.qr-scan-camera-idle p {
+    margin: 0;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
 }
 
 .qr-scan-state {
     position: absolute;
     inset: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 10px;
     margin: 0;
-    background: rgba(20, 19, 15, 0.62);
-    color: #f7f5f0;
+    background: rgba(15, 23, 42, 0.72);
+    color: #e2e8f0;
     font-size: 13px;
     letter-spacing: 0.02em;
+}
+
+.qr-scan-state p {
+    margin: 0;
+}
+
+.qr-scan-spinner {
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(226, 232, 240, 0.28);
+    border-top-color: #e2e8f0;
+    border-radius: 50%;
+    animation: qr-scan-spin 0.9s linear infinite;
+}
+
+@keyframes qr-scan-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* 固定一行高度: 文案长短或换源都不改变面板尺寸 */
@@ -514,7 +670,7 @@ onBeforeUnmount(() => {
     text-align: center;
     font-size: 12.5px;
     line-height: 20px;
-    color: #8d8679;
+    color: #64748b;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -531,10 +687,10 @@ onBeforeUnmount(() => {
     min-width: 0;
     height: 42px;
     padding: 0 18px;
-    border: 1px solid #dedede;
+    border: 1px solid #d1d5db;
     border-radius: 11px;
     background: #fff;
-    color: #23211d;
+    color: #1f2937;
     font: inherit;
     font-weight: 500;
     letter-spacing: 0.01em;
@@ -543,25 +699,25 @@ onBeforeUnmount(() => {
 }
 
 .qr-scan-panel-btn:hover:not(:disabled) {
-    border-color: #c4c4c4;
-    background: #fafafa;
+    border-color: #9ca3af;
+    background: #f9fafb;
 }
 
 .qr-scan-panel-btn:focus-visible {
-    outline: 2px solid rgba(180, 105, 14, 0.45);
+    outline: 2px solid rgba(37, 99, 235, 0.35);
     outline-offset: 2px;
 }
 
-/* 主操作: 近黑实底, 唯一的高对比色块 */
+/* 主操作: 品牌蓝实底, 与通知弹窗的主按钮保持一致 */
 .qr-scan-panel-btn--primary {
-    border-color: #1b1a17;
-    background: #1b1a17;
-    color: #faf8f3;
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #ffffff;
 }
 
 .qr-scan-panel-btn--primary:hover:not(:disabled) {
-    border-color: #000;
-    background: #000;
+    border-color: #1d4ed8;
+    background: #1d4ed8;
 }
 
 .qr-scan-panel-btn:disabled {
@@ -589,5 +745,31 @@ onBeforeUnmount(() => {
 
 .qr-scan-panel--overlay .qr-scan-panel-btn {
     height: 40px;
+}
+
+/* 页脚只在独立页出现, 补充能力说明 */
+.qr-scan-panel-foot {
+    margin: 14px 0 0;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #64748b;
+}
+
+.qr-scan-panel--overlay .qr-scan-tool--switch {
+    width: 32px;
+    padding: 0;
+    border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .qr-scan-panel,
+    .qr-scan-backdrop {
+        animation-duration: 1ms;
+    }
+
+    .qr-scan-spinner {
+        animation-duration: 2s;
+    }
 }
 </style>

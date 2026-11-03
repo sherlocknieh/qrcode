@@ -107,12 +107,28 @@
     "message": "摄像头正被其他程序占用，请关闭占用程序后重试。",
     "description": "摄像头被占用时的错误文案"
   },
+  "cameraIdle": {
+    "message": "摄像头未开启",
+    "description": "摄像头未启动时取景框内的提示"
+  },
+  "cameraOffHint": {
+    "message": "开启摄像头后对准二维码或条形码",
+    "description": "摄像头未启动时取景框下方的提示"
+  },
   "scanImageTitle": {
     "message": "上传/粘贴图片扫码",
     "description": "本地图片识别页面的标题"
   },
-  "dropImageHint": {
-    "message": "拖入、点击选择，或按 Ctrl+V 粘贴图片",
+  "scanPanelFooter": {
+    "message": "支持二维码与一维条形码，多码也能同时识别",
+    "description": "识别面板底部的能力说明"
+  },
+  "pickerHint": {
+    "message": "拖入图片或点击选择",
+    "description": "取图区图标下方的提示"
+  },
+  "pasteImageHint": {
+    "message": "也可以按 Ctrl+V 粘贴图片",
     "description": "图片取景框下方的提示"
   },
   "previewHint": {

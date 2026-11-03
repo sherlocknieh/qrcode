@@ -6,8 +6,8 @@ import { warningNotice } from '@/services/decodeResultNotice';
 import { t } from '@/services/i18n';
 
 // 取图区: 只负责拿到图片 (粘贴 / 拖放 / 选择文件)。
-// 外观是浅灰虚线取景框, 背景由外层 ScanPanel 的 4:3 区域提供;
-// 文字提示、识别与结果展示都交给 ScanPanel 统一处理。
+// 空态是浅灰虚线取景框 + 图标与一行引导文字, 选中后只显示预览图;
+// 主提示、识别与结果展示都交给 ScanPanel 统一处理。
 const props = withDefaults(
     defineProps<{
         // 选择后的预览图
@@ -131,13 +131,16 @@ defineExpose({ pickFile });
         <div v-if="previewUrl" class="qr-picker-figure">
             <img class="qr-picker-preview" :src="previewUrl" alt="" />
         </div>
-        <span v-else class="qr-picker-badge">
-            <svg class="qr-picker-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="m21 15-4.5-4.5L7 20" />
-            </svg>
-        </span>
+        <template v-else>
+            <span class="qr-picker-badge">
+                <svg class="qr-picker-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="m21 15-4.5-4.5L7 20" />
+                </svg>
+            </span>
+            <p class="qr-picker-tip">{{ t('pickerHint') }}</p>
+        </template>
 
         <input ref="fileInput" class="qr-picker-input" type="file" accept="image/*" @change="onFileChange" />
     </div>
@@ -156,7 +159,7 @@ defineExpose({ pickFile });
     min-width: 0;
     padding: 16px;
     /* 浅灰虚线取景框, 与面板的白色底面区分 */
-    border: 1.5px dashed #dedede;
+    border: 1.5px dashed #cbd5e1;
     border-radius: 14px;
     background: transparent;
     cursor: pointer;
@@ -167,16 +170,16 @@ defineExpose({ pickFile });
 
 .qr-picker:hover,
 .qr-picker:focus-visible {
-    border-color: #c9c9c9;
-    background: #fafafa;
+    border-color: #94a3b8;
+    background: #f8fafc;
     outline: none;
 }
 
-/* 拖入时用琥珀色实线高亮, 是面板里唯一的有彩色状态 */
+/* 拖入时用品牌蓝实线高亮, 是面板里唯一的有彩色状态 */
 .qr-picker--active {
     border-style: solid;
-    border-color: #b4690e;
-    background: #fdf4e6;
+    border-color: #2563eb;
+    background: #eff6ff;
 }
 
 .qr-picker--busy {
@@ -194,7 +197,7 @@ defineExpose({ pickFile });
     height: 66px;
     /* 完整声明外边距与透明度, 避免页面全局规则把图标顶偏 */
     margin: 0;
-    border: 1px solid #ebebeb;
+    border: 1px solid #e2e8f0;
     border-radius: 50%;
     background: #fff;
     opacity: 1;
@@ -206,10 +209,18 @@ defineExpose({ pickFile });
     margin: 0;
     opacity: 1;
     fill: none;
-    stroke: #b4690e;
+    stroke: #2563eb;
     stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+
+.qr-picker-tip {
+    margin: 12px 0 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #64748b;
+    text-align: center;
 }
 
 .qr-picker-figure {
@@ -223,7 +234,7 @@ defineExpose({ pickFile });
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-    border: 1px solid #ece7dc;
+    border: 1px solid #e2e8f0;
     border-radius: 10px;
     background: #fff;
 }
