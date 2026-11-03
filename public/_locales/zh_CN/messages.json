@@ -1,10 +1,10 @@
 {
   "appName": {
-    "message": "二维码",
+    "message": "全能极简二维码 - 生成与识别",
     "description": "应用名称"
   },
   "appDescription": {
-    "message": "二维码生成与识别",
+    "message": "全能的二维码生成与识别工具，极简主义设计",
     "description": "应用描述"
   },
   "generateQR_selection": {

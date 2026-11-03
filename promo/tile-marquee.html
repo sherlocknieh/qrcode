@@ -43,17 +43,29 @@
     background: linear-gradient(96deg, #4f46e5 0%, #3b82f6 55%, #06b6d4 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .sub { margin-top: 22px; font-size: 19px; font-weight: 400; line-height: 1.95; color: #5b6684; }
+  .sub { margin-top: 20px; font-size: 19px; font-weight: 400; line-height: 1.9; color: #5b6684; }
   .sub div { white-space: nowrap; }
-  .pills { display: flex; gap: 10px; margin-top: 28px; }
-  .pill {
-    display: flex; align-items: center; gap: 7px;
-    padding: 9px 15px; border-radius: 999px; background: rgba(255, 255, 255, .85);
-    border: 1px solid rgba(79, 70, 229, .16); color: #3a4566;
-    font-size: 13.5px; font-weight: 500;
-    box-shadow: 0 2px 6px -3px rgba(30, 41, 99, .18);
+  /* 两个卖点卡片 */
+  .features { display: flex; gap: 14px; margin-top: 26px; }
+  .feat {
+    width: 300px; padding: 14px 16px; border-radius: 14px;
+    display: flex; align-items: flex-start; gap: 12px;
+    background: rgba(255, 255, 255, .88);
+    border: 1px solid rgba(79, 70, 229, .14);
+    box-shadow: 0 12px 26px -20px rgba(30, 41, 99, .6);
   }
-  .pill i { width: 6px; height: 6px; border-radius: 50%; background: #4f46e5; opacity: .85; }
+  .feat .ic {
+    width: 34px; height: 34px; border-radius: 10px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #eef1ff, #e2f4ff);
+  }
+  .feat .ic svg { width: 17px; height: 17px; display: block; }
+  .feat h3 { font-size: 15px; font-weight: 700; color: #16203a; letter-spacing: .04em; }
+  .feat h3 em {
+    font-style: normal; font-size: 9.5px; font-weight: 600; letter-spacing: .14em;
+    color: #a8b0c4; margin-left: 7px;
+  }
+  .feat p { margin-top: 4px; font-size: 11.5px; line-height: 1.55; color: #7c85a0; }
 
   /* ---------- 右侧: 窗口 ---------- */
   .stage {
@@ -135,18 +147,40 @@
         <div class="wordmark">QRCODE<small>二维码 · 生成与识别</small></div>
       </div>
 
-      <div class="title">随手生成，<br><span class="grad">一扫即得。</span></div>
+      <div class="title">界面极简，<br><span class="grad">功能全能。</span></div>
 
       <div class="sub">
-        <div>文字一键变二维码，网页图片、屏幕选区和本地图片都能直接扫码。</div>
-        <div>二维码与一维条形码都支持，多码还能批量识别。</div>
+        <div>一个图标搞定生成、识别与截图扫码，</div>
+        <div>网页图片、屏幕选区、本地文件随手就能读。</div>
       </div>
 
-      <div class="pills">
-        <div class="pill"><i></i>文字转码</div>
-        <div class="pill"><i></i>图片扫码</div>
-        <div class="pill"><i></i>截图选区</div>
-        <div class="pill"><i></i>条形码识别</div>
+      <div class="features">
+        <div class="feat">
+          <div class="ic">
+            <svg viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="5" width="14" height="2.2" rx="1.1" fill="#4f46e5"/>
+              <rect x="3" y="10" width="9.5" height="2.2" rx="1.1" fill="#4f46e5" opacity=".5"/>
+            </svg>
+          </div>
+          <div>
+            <h3>极简<em>MINIMAL</em></h3>
+            <p>没有多余入口，打开即用</p>
+          </div>
+        </div>
+        <div class="feat">
+          <div class="ic">
+            <svg viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="3" width="6" height="6" rx="1.6" fill="#0ea5e9"/>
+              <rect x="11" y="3" width="6" height="6" rx="1.6" fill="#0ea5e9" opacity=".45"/>
+              <rect x="3" y="11" width="6" height="6" rx="1.6" fill="#0ea5e9" opacity=".45"/>
+              <rect x="11" y="11" width="6" height="6" rx="1.6" fill="#0ea5e9" opacity=".8"/>
+            </svg>
+          </div>
+          <div>
+            <h3>全能<em>ALL-IN-ONE</em></h3>
+            <p>二维码 / 条形码，多码批量识别</p>
+          </div>
+        </div>
       </div>
     </div>
 

@@ -41,13 +41,18 @@
   .wordmark { font-size: 13px; font-weight: 600; letter-spacing: .16em; color: #6b7694; text-transform: uppercase; }
 
   .title {
-    margin-top: 16px; font-size: 34px; font-weight: 700; line-height: 1.1;
-    letter-spacing: .02em; color: #0f172a;
+    margin-top: 16px; font-size: 31px; font-weight: 700; line-height: 1.1;
+    letter-spacing: .01em; color: #0f172a;
+  }
+  .title .dot { margin: 0 2px; font-weight: 400; color: #c3c9dd; }
+  .title .grad {
+    background: linear-gradient(96deg, #4f46e5 0%, #3b82f6 60%, #06b6d4 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   .rule { width: 30px; height: 3px; border-radius: 2px; margin: 13px 0 12px;
     background: linear-gradient(90deg, #4f46e5, #22d3ee); }
-  .sub { font-size: 15px; font-weight: 600; line-height: 1.6; color: #33405c; letter-spacing: .02em; }
-  .sub2 { margin-top: 3px; font-size: 12.5px; font-weight: 400; line-height: 1.6; color: #6b7694; }
+  .sub { font-size: 14.5px; font-weight: 600; line-height: 1.6; color: #33405c; letter-spacing: .02em; }
+  .sub2 { margin-top: 3px; font-size: 12px; font-weight: 400; line-height: 1.6; color: #6b7694; letter-spacing: .01em; }
 
   /* 右侧二维码卡片 */
   .visual {
@@ -95,10 +100,10 @@
         <div class="logo-box"><img src="assets/icon128.png" alt=""></div>
         <div class="wordmark">QRCode</div>
       </div>
-      <div class="title">二维码</div>
+      <div class="title">极简<span class="dot">·</span><span class="grad">全能</span></div>
       <div class="rule"></div>
-      <div class="sub">生成 · 识别 · 截图扫码</div>
-      <div class="sub2">支持二维码与一维条形码</div>
+      <div class="sub">一个图标全搞定</div>
+      <div class="sub2">生成 · 识别 · 二维码与条形码</div>
     </div>
 
     <div class="visual">
