@@ -49,9 +49,8 @@ async function pinInPage(outputDir) {
   return pinned > 0 ? 'pinned' : 'already-pinned';
 }
 
-async function request(port, path, method = 'GET', timeout = 1000) {
+async function request(port, path, timeout = 1000) {
   const res = await fetch(`http://127.0.0.1:${port}${path}`, {
-    method,
     signal: AbortSignal.timeout(timeout),
   });
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
@@ -63,32 +62,24 @@ async function request(port, path, method = 'GET', timeout = 1000) {
   }
 }
 
+// 只为执行一条命令而临时建立连接, 用完即关
 async function sendCommand(wsUrl, method, params) {
   const ws = new WebSocket(wsUrl);
-  const pending = new Map();
-  let nextId = 0;
-
-  ws.onmessage = event => {
-    const message = JSON.parse(event.data);
-    const resolvePending = pending.get(message.id);
-    if (!resolvePending) return;
-    pending.delete(message.id);
-    resolvePending(message);
-  };
-
   await new Promise((resolve, reject) => {
     ws.onopen = resolve;
     ws.onerror = () => reject(new Error('无法连接 Chrome 调试端口'));
   });
 
   try {
-    const id = ++nextId;
-    const response = await new Promise(resolve => {
-      pending.set(id, resolve);
-      ws.send(JSON.stringify({ id, method, params }));
+    return await new Promise((resolve, reject) => {
+      ws.onmessage = event => {
+        const message = JSON.parse(event.data);
+        if (message.id !== 1) return;
+        if (message.error) reject(new Error(message.error.message));
+        else resolve(message.result);
+      };
+      ws.send(JSON.stringify({ id: 1, method, params }));
     });
-    if (response.error) throw new Error(response.error.message);
-    return response.result;
   } finally {
     ws.close();
   }
@@ -104,13 +95,11 @@ async function evaluate(wsUrl, expression) {
 }
 
 async function createBackgroundExtensionsPage(port) {
-  const version = await request(port, '/json/version');
-  const targetId = (
-    await sendCommand(version.webSocketDebuggerUrl, 'Target.createTarget', {
-      url: 'chrome://extensions',
-      background: true, // 后台开标签, 不抢焦点
-    })
-  )?.targetId;
+  const { webSocketDebuggerUrl } = await request(port, '/json/version');
+  const { targetId } = await sendCommand(webSocketDebuggerUrl, 'Target.createTarget', {
+    url: 'chrome://extensions',
+    background: true, // 后台开标签, 不抢焦点
+  });
   if (!targetId) throw new Error('创建 chrome://extensions 标签失败');
 
   for (let i = 0; i < 20; i++) {

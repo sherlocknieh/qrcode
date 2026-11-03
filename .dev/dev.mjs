@@ -41,7 +41,7 @@ function readBrowser() {
 
 function withoutBrowserArgs() {
   return args.filter((arg, index) => {
-    if (arg === '-b' || arg === '--browser') return false;
+    if (arg === '-b' || arg === '--browser' || arg.startsWith('--browser=')) return false;
     const previous = args[index - 1];
     return previous !== '-b' && previous !== '--browser';
   });
@@ -110,15 +110,16 @@ function resolveBrowserBinary(browser) {
 function buildEnv(browser, binary) {
   const env = { ...process.env, WXT_DEV_BROWSER: browser };
   if (DEBUG_PORTS[browser]) env.WXT_DEV_CDP_PORT = String(DEBUG_PORTS[browser]);
-  if (binary) env[`WXT_DEV_${browser.toUpperCase()}_BINARY`] = binary;
+  // wxt.config.ts 直接读同名的用户环境变量
+  if (binary) env[BINARY_ENV[browser]] = binary;
   return env;
 }
 
-function spawnWxt(browser, wxtArgs, { interactive }) {
+function spawnWxt(browser, wxtArgs, { binary, interactive }) {
   const child = spawn(WXT_COMMAND, wxtArgs, {
     stdio: interactive ? 'inherit' : ['ignore', 'pipe', 'pipe'],
     shell: process.platform === 'win32',
-    env: buildEnv(browser, resolveBrowserBinary(browser) ?? ''),
+    env: buildEnv(browser, binary),
   });
   children.set(browser, child);
 
@@ -135,7 +136,7 @@ function spawnWxt(browser, wxtArgs, { interactive }) {
     console.error(`[${browser}] 启动失败: ${error.message}`);
   });
 
-  launched.set(browser, { args: wxtArgs, interactive });
+  launched.set(browser, { args: wxtArgs, binary, interactive });
   // 用 close 而不是 exit: 启动失败(ENOENT 等)时只会有 close
   child.on('close', code => {
     children.delete(browser);
@@ -147,32 +148,27 @@ function spawnWxt(browser, wxtArgs, { interactive }) {
 }
 
 // 多进程模式下子进程拿不到 TTY, wxt 自带的 o + enter 不生效, 由父进程接管
-function restartAll() {
+async function restartAll() {
   if (restarting || shuttingDown) return;
   restarting = true;
   console.log('ℹ 重新打开浏览器...');
 
   const records = [...launched.entries()];
-  let pending = records.length;
-  const done = () => {
-    if (--pending > 0) return;
-    restarting = false;
-    for (const [browser, record] of records) {
-      if (shuttingDown) return;
-      spawnWxt(browser, record.args, { interactive: record.interactive });
-    }
-  };
+  await Promise.all(records.map(([browser]) => stopChild(browser)));
+  restarting = false;
+  if (shuttingDown) return;
+  for (const [browser, record] of records) {
+    spawnWxt(browser, record.args, record);
+  }
+}
 
-  for (const [browser] of records) {
-    const child = children.get(browser);
-    if (!child || child.exitCode !== null || child.signalCode !== null) {
-      done();
-      continue;
-    }
+function stopChild(browser) {
+  const child = children.get(browser);
+  if (!child || child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise(done => {
     child.once('close', done);
     child.kill('SIGTERM');
-  }
-  if (records.length === 0) restarting = false;
+  });
 }
 
 function listenShortcuts() {
@@ -182,74 +178,70 @@ function listenShortcuts() {
   });
 }
 
-function shutdown(signal) {
+function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   stopWatching();
   for (const child of children.values()) {
-    if (!child.killed) child.kill(signal);
+    if (!child.killed) child.kill('SIGTERM');
   }
   setTimeout(() => process.exit(exitCode), 3000).unref();
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 const explicitBrowser = readBrowser();
 
-if (explicitBrowser) {
-  if (!ALL_BROWSERS.includes(explicitBrowser)) {
-    console.error(`✖ 不支持的浏览器: ${explicitBrowser}, 可选: ${ALL_BROWSERS.join(' / ')}`);
-    process.exit(1);
-  }
+if (explicitBrowser && !ALL_BROWSERS.includes(explicitBrowser)) {
+  console.error(`✖ 不支持的浏览器: ${explicitBrowser}, 可选: ${ALL_BROWSERS.join(' / ')}`);
+  process.exit(1);
+}
 
-  const binary = resolveBrowserBinary(explicitBrowser);
-  if (binary === null) {
-    console.error(`✖ 未找到 ${explicitBrowser}, 请先安装, 或用环境变量 ${BINARY_ENV[explicitBrowser]} 指定可执行文件路径`);
-    process.exit(1);
-  }
+// `pnpm dev:xxx` 缺浏览器要报错; `pnpm dev` 静默跳过没装的
+const binaries = Object.fromEntries(ALL_BROWSERS.map(browser => [browser, resolveBrowserBinary(browser)]));
+const browsers = explicitBrowser ? [explicitBrowser] : ALL_BROWSERS.filter(browser => binaries[browser] !== null);
 
-  console.log(`ℹ 使用 ${explicitBrowser}${binary ? `: ${binary}` : ''}`);
-  // 单浏览器模式也用与 `pnpm dev` 相同的固定端口, 否则同一浏览器两次启动端口不同,
-  // 已加载的 dev 扩展会连不上新端口 (热更新/重载失效)
-  const wxtArgs = hasPortArg(args)
-    ? args
-    : ['-p', String(DEV_SERVER_PORTS[explicitBrowser]), ...args];
-  spawnWxt(explicitBrowser, wxtArgs, { interactive: true });
+if (browsers.length === 0) {
+  console.error('✖ 没有找到任何可用的浏览器, 请先安装 Chrome / Edge / Firefox');
+  process.exit(1);
+}
+if (explicitBrowser && binaries[explicitBrowser] === null) {
+  console.error(`✖ 未找到 ${explicitBrowser}, 请先安装, 或用环境变量 ${BINARY_ENV[explicitBrowser]} 指定可执行文件路径`);
+  process.exit(1);
+}
 
-  const port = DEBUG_PORTS[explicitBrowser];
-  if (port) {
-    stopWatching = watchDevExtensionPin({
-      targets: [{ port, extensionDir: resolve(`.output/${explicitBrowser}-mv3-dev`), label: explicitBrowser }],
-    });
-  }
-} else {
-  const started = [];
+// 端口必须固定: 换端口后已加载的 dev 扩展仍连旧端口, 热更新/重载会失效.
+// 单浏览器与多浏览器共用同一套端口, 同一浏览器的两次启动才对得上.
+const baseArgs = withoutBrowserArgs();
+const useFixedPort = !hasPortArg(baseArgs);
+const interactive = Boolean(explicitBrowser); // 单浏览器继承 stdin, 交给 wxt 自己处理 o 键
 
-  for (const browser of ALL_BROWSERS) {
-    if (resolveBrowserBinary(browser) === null) continue; // 没装就静默跳过
+for (const browser of browsers) {
+  const wxtArgs = [
+    '-b',
+    browser,
+    ...(useFixedPort ? ['-p', String(DEV_SERVER_PORTS[browser])] : []),
+    ...baseArgs,
+  ];
+  if (browser === 'firefox') wxtArgs.push('--mv3');
 
-    const wxtArgs = ['-b', browser, '-p', String(DEV_SERVER_PORTS[browser]), ...withoutBrowserArgs()];
-    if (browser === 'firefox') wxtArgs.push('--mv3');
-    spawnWxt(browser, wxtArgs, { interactive: false });
-    started.push(browser);
-  }
+  console.log(`ℹ ${browser}${binaries[browser] ? `: ${binaries[browser]}` : ''}`);
+  spawnWxt(browser, wxtArgs, { binary: binaries[browser], interactive });
+}
 
-  if (started.length === 0) {
-    console.error('✖ 没有找到任何可用的浏览器, 请先安装 Chrome / Edge / Firefox');
-    process.exit(1);
-  }
-
-  console.log(`ℹ 同时调试: ${started.join(' / ')}`);
+if (!interactive) {
+  console.log(`ℹ 同时调试: ${browsers.join(' / ')}`);
   console.log('ℹ 输入 o + enter 可重新打开所有浏览器');
   listenShortcuts();
-  stopWatching = watchDevExtensionPin({
-    targets: started
-      .filter(browser => DEBUG_PORTS[browser])
-      .map(browser => ({
-        port: DEBUG_PORTS[browser],
-        extensionDir: resolve(`.output/${browser}-mv3-dev`),
-        label: browser,
-      })),
-  });
 }
+
+stopWatching = watchDevExtensionPin({
+  targets: browsers
+    .filter(browser => DEBUG_PORTS[browser])
+    .map(browser => ({
+      port: DEBUG_PORTS[browser],
+      extensionDir: resolve(`.output/${browser}-mv3-dev`),
+      label: browser,
+    })),
+});
