@@ -52,7 +52,7 @@
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
   "scanImage": {
-    "message": "Upload / Paste Image",
+    "message": "Scan Local Image",
     "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image"
   },
   "cameraScanTitle": {
