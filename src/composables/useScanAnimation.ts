@@ -29,7 +29,7 @@ type ScanSession = {
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
 // 扫描动画: 图片数据就绪后才挂载, 避免动画被截进图片;
-// 光带在识别期间一直循环扫过, play() 只等首帧就返回,
+// 光带在扫描期间一直循环扫过, play() 只等首帧就返回,
 // stop() 负责收尾: 至少完整扫过一遍 → 淡出 → 卸载, 淡出结束后才 resolve
 export function useScanAnimation() {
     let session: ScanSession | undefined;
@@ -66,7 +66,7 @@ export function useScanAnimation() {
         await delay(FIRST_FRAME_DELAY);
     };
 
-    // 识别结束 (成功/无结果/出错/取消) 时收起动画, 返回的 Promise 在淡出结束后 resolve
+    // 扫描结束 (成功/无结果/出错/取消) 时收起动画, 返回的 Promise 在淡出结束后 resolve
     const stop = async (): Promise<void> => {
         const current = session;
         if (!current) return;

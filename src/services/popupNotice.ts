@@ -30,8 +30,8 @@ export interface PopupNoticePayload {
     confirmAction?: PopupNoticeAction;
     cancelAction?: PopupNoticeAction;
     extraAction?: PopupNoticeAction;
-    // 独立识别页 (capture.html) 使用: 通知结束后关闭发起它的标签页,
-    // 符合"在临时标签页里识别完就收摊"的预期
+    // 独立扫描页 (capture.html) 使用: 通知结束后关闭发起它的标签页,
+    // 符合"在临时标签页里扫描完就收摊"的预期
     closeOriginTab?: boolean;
 }
 

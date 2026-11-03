@@ -1,4 +1,4 @@
-// 判断识别结果是否为可打开的链接: 需带协议或为常见域名形式
+// 判断扫描结果是否为可打开的链接: 需带协议或为常见域名形式
 export function isLinkText(text: string): boolean {
     const value = text.trim();
     if (!value || /\s/.test(value)) return false;

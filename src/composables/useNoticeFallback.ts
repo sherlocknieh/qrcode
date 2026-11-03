@@ -12,9 +12,9 @@ import type { RecognizeHost } from '@/services/recognize';
 import { t } from '@/services/i18n';
 
 // 通知统一策略: 优先在 popup 中展示, 失败时回退到当前页面。
-// 内容脚本与独立识别页共用, 保证两种入口的提示行为一致。
+// 内容脚本与独立扫描页共用, 保证两种入口的提示行为一致。
 export type NoticeFallbackOptions = {
-    // 独立识别页使用: 交给 popup 的通知带上标记, 由后台在通知结束后关闭本标签页
+    // 独立扫描页使用: 交给 popup 的通知带上标记, 由后台在通知结束后关闭本标签页
     closeOriginTab?: boolean;
     // 通知退回页面内展示时, 在用户结束通知后调用 (被新通知替换不算结束)
     onLocalNoticeDone?: () => void;
@@ -68,25 +68,25 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         return false;
     }
 
-    // 只提示, 不需要用户选择的通知; onRetry 对应通知里的"改用截图识别"按钮
+    // 只提示, 不需要用户选择的通知; onRetry 对应通知里的"改用截图扫描"按钮
     function notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<boolean> {
         return deliver(payload, onRetry);
     }
 
-    // 识别结果: popup 可用时由 popup 直接完成打开/复制。
+    // 扫描结果: popup 可用时由 popup 直接完成打开/复制。
     // 返回 true 表示通知已由 popup 接管 (调用方可以关闭自己的临时页面)
     function notifyResults(results: DecodeResult[]): Promise<boolean> {
         return deliver(resultNotice(results));
     }
 
-    // 识别中的加载提示: 等待一帧让提示先渲染, 再做计算密集的解码
+    // 扫描中的加载提示: 等待一帧让提示先渲染, 再做计算密集的解码
     async function notifyDecoding(): Promise<void> {
         await notify(decodingNotice());
         await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
     // 取图耗时提示: 网络取图期间先说明"正在获取图片"并解释原因,
-    // 图片就绪后由"正在识别"通知替换, 避免用户把下载时间当成识别时间
+    // 图片就绪后由"正在扫描"通知替换, 避免用户把下载时间当成扫描时间
     async function notifyFetching(): Promise<void> {
         await notify({
             options: {
@@ -100,7 +100,7 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         });
     }
 
-    // 未识别到码: 只有调用方真的能再截一次图时才提供"改用截图识别"
+    // 未扫描到码: 只有调用方真的能再截一次图时才提供"改用截图扫描"
     function notifyNoResult(onRetry?: () => void): Promise<boolean> {
         return deliver(resultNotice([], { retryScreenshot: Boolean(onRetry) }), onRetry);
     }

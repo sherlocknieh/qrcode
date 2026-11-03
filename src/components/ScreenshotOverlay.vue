@@ -33,7 +33,7 @@ const HANDLE_HIT_SIZE = 9;
 const TOOLBAR_GAP = 8;
 const TOOLBAR_MARGIN = 8;
 const ACCENT_COLOR = '#2CABFF';
-// 与整屏识别扫描动画的遮罩保持一致
+// 与整屏扫描扫描动画的遮罩保持一致
 const MASK_COLOR = 'rgba(8, 12, 20, 0.22)';
 
 // 入场: 全屏 + 四周闪光, 再收缩到居中窗口
@@ -257,7 +257,7 @@ const draw = () => {
     const height = layout.value.height;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
-    // 画面铺满视口, 再叠一层与整屏识别一致的淡遮罩, 选区处挖空
+    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩, 选区处挖空
     context.drawImage(image, 0, 0, width, height);
 
     const rect = selection.value;
@@ -302,8 +302,8 @@ const updateToolbarPosition = () => {
     const halfHeight = toolbar.offsetHeight / 2;
     const bottom = rect.y + rect.height;
 
-    // 确认按钮位于选框下方右对齐, 并限制在画面内
-    const left = rect.x + rect.width - halfWidth;
+    // 工具条位于选框下方居中, 并限制在画面内
+    const left = rect.x + rect.width / 2;
     const top = bottom + TOOLBAR_GAP + halfHeight;
 
     toolbarPosition.value = {
@@ -869,8 +869,16 @@ onBeforeUnmount(() => {
                 @click="cancel"
             >×</button>
         </div>
-        <!-- 截图工具栏 -->
+        <!-- 截图工具栏: 取消 / 确认 -->
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
+            <!-- 取消按钮 -->
+            <button
+                class="qr-shot-btn qr-shot-btn--cancel"
+                type="button"
+                :aria-label="t('cancel', '取消')"
+                :title="t('cancel', '取消')"
+                @click="cancel"
+            >{{ t('cancel', '取消') }}</button>
             <!-- 确认按钮 -->
             <button
                 class="qr-shot-btn qr-shot-btn--confirm"
@@ -1164,16 +1172,28 @@ onBeforeUnmount(() => {
     background: rgba(255, 255, 255, 0.16);
 }
 
+.qr-shot-btn--cancel,
 .qr-shot-btn--confirm {
     min-width: 44px;
     height: 26px;
     padding: 0 10px;
     border: none;
     border-radius: 5px;
-    background: #0a7dd1;
     color: #fff;
     font-size: 12px;
     line-height: 26px;
+}
+
+.qr-shot-btn--cancel {
+    background: rgba(25, 25, 25, 0.62);
+}
+
+.qr-shot-btn--cancel:hover {
+    background: rgba(60, 60, 60, 0.9);
+}
+
+.qr-shot-btn--confirm {
+    background: #0a7dd1;
 }
 
 .qr-shot-btn--confirm:hover {

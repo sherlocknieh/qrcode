@@ -133,6 +133,8 @@ function expandOnFocus() {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 0;
     width: 220px;
     padding: 0;

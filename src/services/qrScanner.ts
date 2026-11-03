@@ -27,13 +27,13 @@ import type ResultPointCallback from '@zxing/library/esm/core/ResultPointCallbac
 const SVG_SCAN_DIMENSION = 512;
 
 // 位图的目标扫描尺寸：小图（如聊天截图、缩略图）中的二维码模块往往只有几个像素，
-// ZXing 难以定位；平滑放大后模块边缘更清晰，识别率明显提升。
+// ZXing 难以定位；平滑放大后模块边缘更清晰，扫描率明显提升。
 const RASTER_SCAN_DIMENSION = 1000;
 
-// 位图的最大放大倍数。放大过多只会增加内存和耗时，识别率不再提升。
+// 位图的最大放大倍数。放大过多只会增加内存和耗时，扫描率不再提升。
 const RASTER_MAX_UPSCALE = 4;
 
-// 通过后台脚本获取跨域图片，并返回可供识别器使用的 Data URL。
+// 通过后台脚本获取跨域图片，并返回可供扫描器使用的 Data URL。
 type ProxyFetcher = (url: string) => Promise<string>;
 
 // 图片加载选项：可指定页面来源，以及跨域图片的代理获取函数。
@@ -81,7 +81,7 @@ export async function loadImageDataFromUrl(imageUrl: string, options: LoadImageO
                 const dataUrl = await options.fetchViaProxy(imageUrl);
                 return await getImageDataFromDataUrl(dataUrl);
             } catch {
-                // 代理也拿不到图: 保留原始的污染错误, 通知里据此引导改用截图识别
+                // 代理也拿不到图: 保留原始的污染错误, 通知里据此引导改用截图扫描
                 throw error;
             }
         }
@@ -102,7 +102,7 @@ function isTaintedCanvasError(error: unknown): boolean {
     return /tainted|insecure|SecurityError/i.test(message);
 }
 
-// 识别结果及来源类型，来源用于在通知中区分二维码和条形码。
+// 扫描结果及来源类型，来源用于在通知中区分二维码和条形码。
 export type DecodeResult = {
     text: string;
     kind: 'qr' | 'barcode';
@@ -127,12 +127,12 @@ function toGrayImage(imageData: ImageData): GrayImage {
     return { data: gray, width, height };
 }
 
-// ZXing 识别参数：TRY_HARDER 会尝试更多定位图案组合，用于倾斜、模糊的实拍图片。
+// ZXing 扫描参数：TRY_HARDER 会尝试更多定位图案组合，用于倾斜、模糊的实拍图片。
 const zxingHints = new Map<DecodeHintType, unknown>([[DecodeHintType.TRY_HARDER, true]]);
 
 // 一维条形码的候选格式。
 // 不使用 MultiFormatOneDReader：它会连带打包尚未完善的 RSS 系列读取器，
-// 体积多出约 120KB。Codabar 没有校验位、误识别率高，ZXing 默认也将其禁用。
+// 体积多出约 120KB。Codabar 没有校验位、误扫描率高，ZXing 默认也将其禁用。
 const oneDHints = new Map<DecodeHintType, unknown>([
     [DecodeHintType.TRY_HARDER, true],
     [
@@ -176,10 +176,10 @@ const qrReader = new QRCodeReader();
 const oneDReader = new SupportedOneDReader();
 
 // 一维条形码逐行扫描的尺寸上限。条形码的模块宽度通常远大于 1 像素，
-// 缩小后仍可识别，但大图的逐行扫描会明显拖慢失败场景下的兜底速度。
+// 缩小后仍可扫描，但大图的逐行扫描会明显拖慢失败场景下的兜底速度。
 const BARCODE_SCAN_DIMENSION = 1600;
 
-// 行扫描只处理水平方向，因此一维识别只需要灰度图和一种二值化方式。
+// 行扫描只处理水平方向，因此一维扫描只需要灰度图和一种二值化方式。
 function decodeOneDResultWithZXing(gray: GrayImage): Result | null {
     try {
         return oneDReader.decode(createZXingBitmap(gray), oneDHints);
@@ -229,7 +229,7 @@ function rotateGray90(gray: GrayImage): GrayImage {
     return { data: output, width: height, height: width };
 }
 
-// 用 ZXing 识别单一灰度候选图，结果中带有定位点，批量识别据此遮罩已找到的区域。
+// 用 ZXing 扫描单一灰度候选图，结果中带有定位点，批量扫描据此遮罩已找到的区域。
 function decodeQrResultWithZXing(gray: GrayImage): Result | null {
     try {
         return qrReader.decode(createZXingBitmap(gray), zxingHints);
@@ -254,7 +254,7 @@ function thresholdGray(gray: GrayImage, threshold: number): GrayImage {
     return { data, width: gray.width, height: gray.height };
 }
 
-// 生成反色灰度图，用于识别白码黑底的二维码。
+// 生成反色灰度图，用于扫描白码黑底的二维码。
 function invertGray(gray: GrayImage): GrayImage {
     const data = new Uint8ClampedArray(gray.data.length);
     for (let index = 0; index < data.length; index++) {
@@ -264,7 +264,7 @@ function invertGray(gray: GrayImage): GrayImage {
 }
 
 // 对黑色像素进行方形邻域膨胀。
-// 圆点型二维码的模块之间有间隙，轻微膨胀可帮助 ZXing 连接模块并识别定位点。
+// 圆点型二维码的模块之间有间隙，轻微膨胀可帮助 ZXing 连接模块并扫描定位点。
 function dilateBlackPixels(gray: GrayImage, radius: number): GrayImage {
     const { width, height, data } = gray;
     const output = new Uint8ClampedArray(data);
@@ -412,7 +412,7 @@ function refineBoxToPixels(gray: GrayImage, coarse: Box): Box | null {
         }
     }
 
-    // 几乎是纯色块时没必要继续, 裁出来也识别不到。
+    // 几乎是纯色块时没必要继续, 裁出来也扫描不到。
     if (textured < localWidth * 4) return null;
 
     const rows = coarse.y1 - coarse.y0;
@@ -507,13 +507,13 @@ function createCodeAreaCandidates(gray: GrayImage): GrayImage[] {
     return candidates;
 }
 
-// ---------------------------- 批量识别 ----------------------------
+// ---------------------------- 批量扫描 ----------------------------
 
-// 批量识别的规模上限: 结果数、定位点数量与三角组合的尝试次数。
+// 批量扫描的规模上限: 结果数、定位点数量与三角组合的尝试次数。
 // 批量模式由用户显式触发, 但仍需限流, 避免密集二维码图片让耗时失控。
 const MULTI_MAX_RESULTS = 20;
 const MULTI_MAX_BARCODE_PASS = 8;
-// 彩色标签的灰度值分布差异很大: 白底标签的条码靠原图即可识别,
+// 彩色标签的灰度值分布差异很大: 白底标签的条码靠原图即可扫描,
 // 红/绿色底的低对比度条码往往需要较低的固定阈值才能分离出黑条。
 const BARCODE_THRESHOLDS = [48, 64];
 const MULTI_MAX_FINDER_CENTERS = 30;
@@ -521,7 +521,7 @@ const MULTI_MAX_DECODE_ATTEMPTS = 1200;
 // 4 种整图候选 + 最多 3 个码面矩形 × 3 个内缩量; 裁剪图很小, 多试几次仍然很快。
 const MULTI_MAX_CANDIDATES = 13;
 
-// 让出主线程, 使批量识别的长计算不会冻结 popup 或页面。
+// 让出主线程, 使批量扫描的长计算不会冻结 popup 或页面。
 const yieldToMainThread = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
@@ -529,7 +529,7 @@ type LocatedResult = DecodeResult & { x: number; y: number };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-// 识别一张图片中的所有二维码和条形码。
+// 扫描一张图片中的所有二维码和条形码。
 // 二维码一次扫描整张图收集全部定位点, 再对定位点三角组合逐个解码,
 // 因此并排、堆叠或混排的多个码都能找到; 条形码则通过遮罩逐轮找出。
 export async function decodeAllFromImageData(imageData: ImageData): Promise<DecodeResult[]> {
@@ -566,7 +566,7 @@ export async function decodeAllFromImageData(imageData: ImageData): Promise<Deco
                 );
             }
         } else {
-            // 定位点检测失败时退回单码识别, 兼容彩色、圆点等特殊码面。
+            // 定位点检测失败时退回单码扫描, 兼容彩色、圆点等特殊码面。
             const fallback = decodeQrResultWithZXing(candidate);
             const text = fallback?.getText() ?? '';
             if (fallback && text) {
@@ -593,10 +593,10 @@ export async function decodeAllFromImageData(imageData: ImageData): Promise<Deco
 // 连续扫描时轮换的候选图数量: 原图、阈值图、反色图各占一帧。
 const CAMERA_CANDIDATE_COUNT = 3;
 
-// 识别一帧视频画面: 命中即返回, 未命中返回空数组, 由调用方在下一帧重试。
+// 扫描一帧视频画面: 命中即返回, 未命中返回空数组, 由调用方在下一帧重试。
 // 与 decodeAllFromImageData 不同, 这里单帧只做一次二维码 + 一次条形码,
 // 阈值/反色候选分摊到后续帧, 避免实时预览被计算拖慢;
-// 多码结果由调用方在命中后对同一帧补跑一次完整识别。
+// 多码结果由调用方在命中后对同一帧补跑一次完整扫描。
 export function decodeCameraFrame(imageData: ImageData, attempt = 0): DecodeResult[] {
     const gray = toGrayImage(imageData);
     const index = ((attempt % CAMERA_CANDIDATE_COUNT) + CAMERA_CANDIDATE_COUNT) % CAMERA_CANDIDATE_COUNT;
@@ -625,14 +625,14 @@ function* createMultiQrCandidates(gray: GrayImage): Generator<GrayImage> {
 }
 
 // ZXing 的 QRCodeReader 只支持单码: 图片中出现多个码时, 它可能把不同码的定位点
-// 组合在一起, 导致整图识别失败。这里改为一次收集所有定位点, 再枚举 plausible 的
+// 组合在一起, 导致整图扫描失败。这里改为一次收集所有定位点, 再枚举 plausible 的
 // 三角组合逐个解码, 相当于补上官方 MultiDetector 的能力。
 function decodeMultipleQrWithZXing(gray: GrayImage): { text: string; bounds: Bounds | null }[] {
     const bitmap = createHybridBitmap(gray);
     const matrix = bitmap.getBlackMatrix();
     const finder = new FinderPatternFinder(matrix, noopResultPointCallback) as unknown as MultiFinderPatternFinder;
 
-    // 单码查找器凑够三个定位点就会停止; 批量识别要扫描完整张图。
+    // 单码查找器凑够三个定位点就会停止; 批量扫描要扫描完整张图。
     finder.haveMultiplyConfirmedCenters = () => false;
     finder.findRowSkip = () => 0;
     finder.selectBestPatterns = function selectFirstPatterns(this: MultiFinderPatternFinder) {
@@ -715,7 +715,7 @@ function distance(a: ResultPoint, b: ResultPoint): number {
     return Math.hypot(a.getX() - b.getX(), a.getY() - b.getY());
 }
 
-// 批量识别使用 HybridBinarizer: 它按局部区域取阈值, 在二维码只占画面一小部分时
+// 批量扫描使用 HybridBinarizer: 它按局部区域取阈值, 在二维码只占画面一小部分时
 // 比全局直方图更稳定。
 function createHybridBitmap(gray: GrayImage): BinaryBitmap {
     const { data, width, height } = gray;
@@ -724,7 +724,7 @@ function createHybridBitmap(gray: GrayImage): BinaryBitmap {
 }
 
 // ZXing 的定位点查找器和检测器把关键方法声明为 private/protected,
-// 这里用交叉类型会与原有声明冲突, 因此单独描述批量识别需要用到的方法。
+// 这里用交叉类型会与原有声明冲突, 因此单独描述批量扫描需要用到的方法。
 type MultiFinderPatternFinder = {
     find(hints: Map<DecodeHintType, unknown>): FinderPatternInfo;
     getPossibleCenters(): FinderPattern[];
@@ -748,14 +748,14 @@ function decodeAllBarcodesWithZXing(gray: GrayImage): string[] {
     const texts: string[] = [];
     const seen = new Set<string>();
 
-    // 原图识别后保留遮罩结果: 已找到的条形码在后续阈值图中保持空白,
+    // 原图扫描后保留遮罩结果: 已找到的条形码在后续阈值图中保持空白,
     // 既能减少重复命中, 也能避免彩色背景在阈值下被误读成新的码。
     const maskedImages = [scaled, rotateGray90(scaled)].map((base) =>
         scanBarcodesWithMasking(cloneGray(base), texts, seen));
 
     // 只有原图已经找到条形码时才尝试阈值图:
     // 彩色标签上的黑色条码灰度对比度可能不足, 阈值化后能找到同图中其余低对比度的码;
-    // 完全不包含条形码的图片可以跳过这些额外扫描, 保持常规识别的速度。
+    // 完全不包含条形码的图片可以跳过这些额外扫描, 保持常规扫描的速度。
     if (texts.length) {
         for (const masked of maskedImages) {
             for (const threshold of BARCODE_THRESHOLDS) {
@@ -823,7 +823,7 @@ function getPointBounds(points: ResultPoint[] | null | undefined, width: number,
     };
 }
 
-// 将包围盒区域涂成白色, 模拟"抹掉"已识别的码。
+// 将包围盒区域涂成白色, 模拟"抹掉"已扫描的码。
 function maskGrayRect(gray: GrayImage, bounds: Bounds, padX: number, padY: number) {
     const { width, height, data } = gray;
     const left = clamp(Math.floor(bounds.minX - padX), 0, width - 1);

@@ -5,7 +5,7 @@ import ScanPanel from '@/components/ScanPanel.vue';
 import NotifyHost from '@/components/NotifyHost.vue';
 import { t } from '@/services/i18n';
 
-// 识别页 (upload.html): 图片识别与摄像头识别共用一个面板,
+// 扫描页 (upload.html): 图片扫描与摄像头扫描共用一个面板,
 // 带 ?camera=1 时直接进入摄像头模式, 页面只提供整页居中布局与通知宿主
 const mode = ref<'image' | 'camera'>(
     new URLSearchParams(location.search).get('camera') === '1' ? 'camera' : 'image',

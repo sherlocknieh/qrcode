@@ -41,7 +41,7 @@ function normalizeStoredImage(value: unknown): string {
   return '';
 }
 
-// 读取右键菜单或识别页写入的临时图片地址, 读取后立即清除
+// 读取右键菜单或扫描页写入的临时图片地址, 读取后立即清除
 async function takeStoredImageUrl(): Promise<string> {
   return normalizeStoredImage(await takeStoredValue(QR_IMAGE_KEY));
 }
@@ -87,7 +87,7 @@ async function fetchViaBackground(url: string): Promise<string> {
 }
 
 
-// 识别图片并展示结果, 交互与内容脚本保持一致
+// 扫描图片并展示结果, 交互与内容脚本保持一致
 async function decodeAndShow(
   getDataUrl: () => Promise<string>,
   errorTitle: string,
@@ -103,7 +103,7 @@ async function decodeAndShow(
     showCloseButton: true,
   });
 
-  // 取图与识别分开提示: 网络取图（含后台代理/截屏兜底）不占用"正在识别"的等待时间
+  // 取图与扫描分开提示: 网络取图（含后台代理/截屏兜底）不占用"正在扫描"的等待时间
   if (needsFetch) showLoadingNotice(t('fetchingImage'), t('fetchingImageHint'));
 
   let imageData: ImageData;
@@ -134,7 +134,7 @@ async function decodeAndShow(
   if (response.dismiss === 'replaced') return;
 
   if (response.dismiss === 'extra') {
-    // 未识别到码时提供"重新截图": popup 不是页面浮层, 交给内容脚本在页面内框选;
+    // 未扫描到码时提供"重新截图": popup 不是页面浮层, 交给内容脚本在页面内框选;
     // 内容脚本不可用 (如 PDF 阅读器) 时, 由后台截取视口后在新标签页中框选
     const result = await trySendMessage('requestScreenshot');
     if (result?.success) window.close();
@@ -184,7 +184,7 @@ async function startScan(imageUrl: string) {
   try {
     await scanImage(imageUrl);
   } finally {
-    // 识别流程结束就退出扫描态: 否则关掉结果通知后 popup 既没有二维码也没有内容,
+    // 扫描流程结束就退出扫描态: 否则关掉结果通知后 popup 既没有二维码也没有内容,
     // 空窗兜底会因为 scanActive 仍为 true 而不关闭窗口, 留下白窗
     scanning = false;
     scanActive.value = false;
@@ -197,7 +197,7 @@ function onStorageChanged(
   areaName: string,
 ) {
   if (areaName !== storageAreaName()) return;
-  // 非 HTML 页面或识别页传入的图片地址优先处理
+  // 非 HTML 页面或扫描页传入的图片地址优先处理
   const imageUrl = normalizeStoredImage(changes[QR_IMAGE_KEY]?.newValue);
   if (imageUrl) {
     startScan(imageUrl);
@@ -226,7 +226,7 @@ onMounted(async () => {
 });
 
 // popup 是独立窗口, 通知结束后若没有任何内容会留下空白窗口;
-// 只在展示过通知、且既无二维码也无识别结果时才关闭
+// 只在展示过通知、且既无二维码也无扫描结果时才关闭
 let hadNotice = false;
 let emptyTimer: number | undefined;
 watch(

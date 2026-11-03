@@ -5,7 +5,7 @@ import type { DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { copyText } from '@/services/clipboard';
 
-// 识别过程中的加载提示: 由调用方替换为结果通知
+// 扫描过程中的加载提示: 由调用方替换为结果通知
 export function decodingNotice(): PopupNoticePayload {
     return {
         options: {
@@ -46,7 +46,7 @@ export function errorNotice(title: string, text?: string): PopupNoticePayload {
 }
 
 // 图片读取失败 (典型是跨域图片污染 canvas 导致无法取像素):
-// 除确认外提供"改用截图识别", 由 popup 或页面内兜底通知执行
+// 除确认外提供"改用截图扫描", 由 popup 或页面内兜底通知执行
 export function errorNoticeWithScreenshot(
     title: string,
     text?: string,
@@ -65,10 +65,10 @@ export function errorNoticeWithScreenshot(
     };
 }
 
-// 识别结果的通用通知构造: content / popup / capture 三个入口共用同一套分支
+// 扫描结果的通用通知构造: content / popup / capture 三个入口共用同一套分支
 // (无结果重试 → 多码列表 → 单码链接/复制), 避免各写一遍文案与动作
 
-// 未识别到任何码
+// 未扫描到任何码
 function noResultNotice(retryScreenshot: boolean): PopupNoticePayload {
     return {
         options: {
@@ -117,7 +117,7 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 }
 
 // 按结果数量选择对应的通知。
-// retryScreenshot: 当前入口能否真的再截一次图 (独立识别页里截图只会截到自己, 传 false)
+// retryScreenshot: 当前入口能否真的再截一次图 (独立扫描页里截图只会截到自己, 传 false)
 export function resultNotice(
     results: DecodeResult[],
     options: { retryScreenshot?: boolean } = {},

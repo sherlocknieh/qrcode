@@ -3,10 +3,10 @@ import type { PopupNoticePayload } from '@/services/popupNotice';
 import { decodeAllFromImageData, type DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 
-// 识别流程需要的能力: 只描述"怎么提示", 不关心提示显示在哪里。
+// 扫描流程需要的能力: 只描述"怎么提示", 不关心提示显示在哪里。
 // 页面内实现见 useNoticeFallback, 其它宿主按需实现即可。
 export type RecognizeHost = {
-    // onRetry: 通知里的"改用截图识别"被点击时, 在无法由 popup 执行动作时于本进程内回调
+    // onRetry: 通知里的"改用截图扫描"被点击时, 在无法由 popup 执行动作时于本进程内回调
     notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<unknown>;
     notifyDecoding(): Promise<void>;
     notifyResults(results: DecodeResult[]): Promise<boolean>;
@@ -21,18 +21,18 @@ export type DecodeOutcome =
 
 export type RecognizeOptions = {
     host: RecognizeHost;
-    // 错误提示标题, 缺省按图片识别失败处理
+    // 错误提示标题, 缺省按图片扫描失败处理
     errorTitle?: string;
-    // 图片就绪、识别提示出现后执行 (如播放扫描动画), 会等待其结束
+    // 图片就绪、扫描提示出现后执行 (如播放扫描动画), 会等待其结束
     beforeNotice?: () => Promise<void>;
     // 需要先从网络取图时提供: 取图慢于阈值时先提示"正在获取图片",
-    // 避免用户把下载耗时误认为识别耗时。本地图片/截图无需提供。
+    // 避免用户把下载耗时误认为扫描耗时。本地图片/截图无需提供。
     notifyFetching?: () => Promise<unknown>;
     // 解码结束时回调, 通常用于停止动画 (返回 Promise 时会等淡出结束再继续)
     afterDecode?: () => void | Promise<void>;
-    // 未识别到码时点击"尝试截图识别"的处理
+    // 未扫描到码时点击"尝试截图扫描"的处理
     onRetry?: () => void;
-    // 结果是否已被新一轮识别取代
+    // 结果是否已被新一轮扫描取代
     isStale?: () => boolean;
 };
 
@@ -44,8 +44,8 @@ type LoadResult =
 // 取图超过这个时间才提示"正在获取图片", 快速完成的场景不会闪一下
 const FETCH_NOTICE_DELAY_MS = 150;
 
-// 拿到图像数据的统一识别入口:
-// 获取图片提示 → 取图 → 识别提示 → 扫描动画 → 解码 → 结果 / 无结果重试 / 错误。
+// 拿到图像数据的统一扫描入口:
+// 获取图片提示 → 取图 → 扫描提示 → 扫描动画 → 解码 → 结果 / 无结果重试 / 错误。
 // 网页图片、本地/粘贴图片、截图都走这里, 各处只负责把数据包装成 loader。
 export async function recognizeImage(
     loadImageData: () => Promise<ImageData>,
@@ -71,7 +71,7 @@ export async function recognizeImage(
         return { status: 'failed', error: settled.error };
     }
 
-    // 图片已经在手: 先给识别提示并起动画, 动画在解码期间一直循环, 结束后由 afterDecode 收起
+    // 图片已经在手: 先给扫描提示并起动画, 动画在解码期间一直循环, 结束后由 afterDecode 收起
     await host.notifyDecoding();
     await options.beforeNotice?.();
 
@@ -100,7 +100,7 @@ export async function recognizeImage(
     return { status: 'ok', results };
 }
 
-// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由识别提示替换
+// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由扫描提示替换
 async function loadWithFetchNotice(
     pending: Promise<LoadResult>,
     notifyFetching?: () => Promise<unknown>,
@@ -117,7 +117,7 @@ async function loadWithFetchNotice(
     return pending;
 }
 
-// 取图或解码失败: 停止动画并提示; 有重试出口时顺带提供"改用截图识别"
+// 取图或解码失败: 停止动画并提示; 有重试出口时顺带提供"改用截图扫描"
 async function notifyFailure(options: RecognizeOptions, error: unknown): Promise<void> {
     await options.afterDecode?.();
     const title = options.errorTitle ?? t('imageFetchFailed');

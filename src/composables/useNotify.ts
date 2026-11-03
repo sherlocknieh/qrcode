@@ -3,7 +3,7 @@ import { nextTick, reactive } from 'vue';
 export type NotifyIcon = 'info' | 'success' | 'error' | 'warning';
 type NotifyDismissReason = 'cancel' | 'close' | 'extra' | 'replaced';
 
-// 批量识别结果条目: 保持可序列化, 以便内容脚本通过 popup 通知展示
+// 批量扫描结果条目: 保持可序列化, 以便内容脚本通过 popup 通知展示
 export interface NotifyResultItem {
     text: string;
     kind: 'qr' | 'barcode';

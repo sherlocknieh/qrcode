@@ -7,7 +7,7 @@ import { t } from '@/services/i18n';
 
 // 取图区: 只负责拿到图片 (粘贴 / 拖放 / 选择文件)。
 // 空态是浅灰虚线取景框 + 图标与一行引导文字, 选中后只显示预览图;
-// 主提示、识别与结果展示都交给 ScanPanel 统一处理。
+// 主提示、扫描与结果展示都交给 ScanPanel 统一处理。
 const props = withDefaults(
     defineProps<{
         // 选择后的预览图

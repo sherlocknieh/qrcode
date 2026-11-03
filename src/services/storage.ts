@@ -4,7 +4,7 @@ export const storageArea = () => browser.storage.session ?? browser.storage.loca
 // popup 的 storage.onChanged 需要按当前实际使用的区域过滤
 export const storageAreaName = () => (browser.storage.session ? 'session' : 'local');
 
-// 读取临时值后立即清除, 避免残留内容污染下一次识别
+// 读取临时值后立即清除, 避免残留内容污染下一次扫描
 export async function takeStoredValue(key: string): Promise<unknown> {
     const area = storageArea();
     try {

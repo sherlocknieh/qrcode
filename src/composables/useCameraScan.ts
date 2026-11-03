@@ -2,10 +2,10 @@ import { onBeforeUnmount, ref, type Ref } from 'vue';
 import { decodeCameraFrame } from '@/services/qrScanner';
 
 // 摄像头取图源: 只负责媒体流与逐帧轻量解码, 命中后交出一帧画面,
-// 识别与结果展示统一交给 ScanPanel 的 recognizeImage 流水线。
+// 扫描与结果展示统一交给 ScanPanel 的 recognizeImage 流水线。
 type CameraScanOptions = {
     video: Ref<HTMLVideoElement | null>;
-    // 命中一帧后回调, 摄像头此时已停止; 返回 Promise 时会等识别结束
+    // 命中一帧后回调, 摄像头此时已停止; 返回 Promise 时会等扫描结束
     onFrame: (frame: ImageData) => unknown | Promise<unknown>;
     // 请求摄像头失败 (权限/设备/占用) 时回调
     onError: (error: unknown) => void;
@@ -21,7 +21,7 @@ const SCAN_INTERVAL_MS = 160;
 export function useCameraScan(options: CameraScanOptions) {
     const active = ref(false);
     const starting = ref(false);
-    // 命中后定格的画面, 停止摄像头后仍能看到识别到的内容
+    // 命中后定格的画面, 停止摄像头后仍能看到扫描到的内容
     const previewUrl = ref('');
 
     let stream: MediaStream | null = null;
@@ -82,7 +82,7 @@ export function useCameraScan(options: CameraScanOptions) {
             const hit = decodeCameraFrame(frame, attempt++);
             if (!hit.length || !active.value) return;
 
-            // 命中即停: 定格画面并立刻关掉摄像头, 把这一帧交给统一识别流程
+            // 命中即停: 定格画面并立刻关掉摄像头, 把这一帧交给统一扫描流程
             active.value = false;
             previewUrl.value = canvas?.toDataURL('image/jpeg', 0.85) ?? '';
             stopStream();

@@ -16,11 +16,11 @@ import { takeStoredString } from '@/services/storage';
 // background 截取视口后写入该键, 本页面读取后立即清除
 const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 
-// direct=1: 后台已判定当前页无法注入内容脚本, 直接识别整张截图, 不展示框选界面
+// direct=1: 后台已判定当前页无法注入内容脚本, 直接扫描整张截图, 不展示框选界面
 const directMode = new URLSearchParams(window.location.search).has('direct');
 
 
-// 通知结束后即视为本次识别结束: 交给 popup 时由后台关闭标签页, 退回页面内时由本页自己关
+// 通知结束后即视为本次扫描结束: 交给 popup 时由后台关闭标签页, 退回页面内时由本页自己关
 const noticeOptions = {
     closeOriginTab: true,
     onLocalNoticeDone: () => closeTab(),
@@ -28,7 +28,7 @@ const noticeOptions = {
 const { host, notify } = useNoticeFallback(noticeOptions);
 const scanAnimation = useScanAnimation();
 
-// 识别流程与图片/摄像头面板共用同一个 recognizeImage; 直出模式在解码前播放整屏扫描动画
+// 扫描流程与图片/摄像头面板共用同一个 recognizeImage; 直出模式在解码前播放整屏扫描动画
 function scan(dataUrl: string) {
     return recognizeImage(() => getImageDataFromDataUrl(dataUrl), {
         host,
@@ -39,7 +39,7 @@ function scan(dataUrl: string) {
 }
 
 
-// 后台截取的视口图; 识别结束后仍保留在页面上, 标签页里原本没有其它内容
+// 后台截取的视口图; 扫描结束后仍保留在页面上, 标签页里原本没有其它内容
 const src = ref('');
 // 框选层是否可见: 确认后只卸载框选层, 截图继续铺在页面上
 const showOverlay = ref(!directMode);
@@ -55,7 +55,7 @@ function closeTab() {
         .catch(() => window.close());
 }
 
-// 框选确认: 只卸载框选层, 保留截图作为页面内容, 再交给统一识别流程
+// 框选确认: 只卸载框选层, 保留截图作为页面内容, 再交给统一扫描流程
 async function handleConfirm(dataUrl: string) {
     showOverlay.value = false;
     await scan(dataUrl);
@@ -79,8 +79,8 @@ onMounted(async () => {
             await notifyScreenshotError();
             return;
         }
-        // 直出模式跳过框选, 直接识别整张截图;
-        // 截图保留在页面上作为背景, 识别结束后用户仍能看到原页面画面
+        // 直出模式跳过框选, 直接扫描整张截图;
+        // 截图保留在页面上作为背景, 扫描结束后用户仍能看到原页面画面
         if (directMode) {
             src.value = stored;
             await scan(stored);

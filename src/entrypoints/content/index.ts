@@ -13,7 +13,7 @@ export default defineContentScript({
     main(ctx) {
         // 独立 SVG/XML 文档（如直接打开的 .svg）里 document.createElement 返回的是没有
         // .style 的 XML 元素，WXT 的 integrated UI 会在 applyPosition 设置 overflow 时崩溃;
-        // 这类页面也不需要页面内 UI，识别结果由 popup / capture 页承担
+        // 这类页面也不需要页面内 UI，扫描结果由 popup / capture 页承担
         if (!(document.createElement('div') instanceof HTMLElement)) return;
 
         // 创建并挂载 UI 组件

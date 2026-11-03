@@ -52,8 +52,8 @@
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
   "scanImage": {
-    "message": "Upload / Paste / Camera Scan",
-    "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image, or scanning with the camera"
+    "message": "Upload / Paste Image",
+    "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image"
   },
   "cameraScanTitle": {
     "message": "Scan with Camera",
@@ -290,5 +290,9 @@
   "scanNow": {
     "message": "Scan",
     "description": "Button that confirms and scans the selected image"
+  },
+  "cancel": {
+    "message": "Cancel",
+    "description": "Cancel button text"
   }
 }

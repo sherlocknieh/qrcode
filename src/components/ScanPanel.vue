@@ -12,14 +12,14 @@ import { recognizeImage } from '@/services/recognize';
 import { t } from '@/services/i18n';
 import { trySendMessage } from '@/services/messaging';
 
-// 识别面板: 图片与摄像头是同一个面板的两种输入源, 共享同一套
-// 取景框 / 提示 / 按钮布局, 以及同一条识别流水线 (recognizeImage)。
-// 源只负责产出一张图像, 识别、提示、重试与结果展示不再各写一套。
+// 扫描面板: 图片与摄像头是同一个面板的两种输入源, 共享同一套
+// 取景框 / 提示 / 按钮布局, 以及同一条扫描流水线 (recognizeImage)。
+// 源只负责产出一张图像, 扫描、提示、重试与结果展示不再各写一套。
 type ScanMode = 'image' | 'camera';
 
 const props = withDefaults(
     defineProps<{
-        // page: 独立识别页的整页卡片; overlay: 页面内浮层
+        // page: 独立扫描页的整页卡片; overlay: 页面内浮层
         variant?: 'page' | 'overlay';
         mode?: ScanMode;
     }>(),
@@ -44,7 +44,7 @@ const { host, notify } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
 const recognizing = ref(false);
 
-// ---------------------------- 共用识别流水线 ----------------------------
+// ---------------------------- 共用扫描流水线 ----------------------------
 
 async function runScan(
     loader: () => Promise<ImageData>,
@@ -114,7 +114,7 @@ async function measureImage(element: Element | null): Promise<ScanRect | undefin
 
 const { previewUrl, loadBlob, clear } = useImageSource({ notify });
 
-// 选中/粘贴/拖入即识别
+// 选中/粘贴/拖入即扫描
 async function handleFile(blob: Blob) {
     if (recognizing.value) return;
     if (!(await loadBlob(blob))) return;
@@ -129,7 +129,7 @@ function scanImage() {
         () => getImageDataFromDataUrl(previewUrl.value),
         {
             errorTitle: t('imageFetchFailed'),
-            // 浮层可以真的去截当前页; 独立识别页截图只会截到自己, 不给这个出口
+            // 浮层可以真的去截当前页; 独立扫描页截图只会截到自己, 不给这个出口
             onRetry: overlay ? () => void trySendMessage('requestScreenshot') : undefined,
         },
     );
@@ -612,7 +612,7 @@ onBeforeUnmount(() => {
     border-bottom-right-radius: 10px;
 }
 
-/* 摄像头未开启: 用图标 + 一句说明填满深色取景框 */
+/* 摄像头未开启: 图标 + 一句说明填满浅色取景框 */
 .qr-scan-camera-idle,
 .qr-scan-state {
     position: absolute;
@@ -626,7 +626,7 @@ onBeforeUnmount(() => {
 }
 
 .qr-scan-camera-idle {
-    color: #94a3b8;
+    color: #64748b;
 }
 
 .qr-scan-camera-badge {
@@ -635,9 +635,9 @@ onBeforeUnmount(() => {
     justify-content: center;
     width: 64px;
     height: 64px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid #e2e8f0;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.06);
+    background: #f8fafc;
 }
 
 .qr-scan-camera-badge svg {
@@ -646,7 +646,7 @@ onBeforeUnmount(() => {
     margin: 0;
     opacity: 1;
     fill: none;
-    stroke: #cbd5e1;
+    stroke: #94a3b8;
     stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -659,7 +659,7 @@ onBeforeUnmount(() => {
 }
 
 .qr-scan-state {
-    color: #e2e8f0;
+    color: #475569;
     font-size: 13px;
     letter-spacing: 0.02em;
 }
@@ -671,8 +671,8 @@ onBeforeUnmount(() => {
 .qr-scan-spinner {
     width: 22px;
     height: 22px;
-    border: 2px solid rgba(226, 232, 240, 0.28);
-    border-top-color: #e2e8f0;
+    border: 2px solid #e2e8f0;
+    border-top-color: #2563eb;
     border-radius: 50%;
     animation: qr-scan-spin 0.9s linear infinite;
 }

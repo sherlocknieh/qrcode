@@ -5,7 +5,7 @@ export type ScanRect = { x: number; y: number; width: number; height: number };
 
 const props = withDefaults(
     defineProps<{
-        // 不传表示整屏扫描; 传入矩形时只覆盖该区域 (网页图片识别)
+        // 不传表示整屏扫描; 传入矩形时只覆盖该区域 (网页图片扫描)
         rect?: ScanRect | null;
         // 扫过动画时长, 由调用方与 composable 的等待时长保持一致
         duration?: number;
@@ -34,7 +34,7 @@ const rootStyle = computed(() => {
 </script>
 
 <template>
-    <!-- 扫描动画: 整屏识别时覆盖视口, 网页图片识别时只覆盖图片区域; 纯展示, 不拦截交互 -->
+    <!-- 扫描动画: 整屏扫描时覆盖视口, 网页图片扫描时只覆盖图片区域; 纯展示, 不拦截交互 -->
     <div
         class="qr-scan"
         :class="{ 'qr-scan--region': region, 'qr-scan--leaving': leaving }"

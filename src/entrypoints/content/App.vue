@@ -60,7 +60,7 @@ onBeforeUnmount(() => {
     imagePasteOverlay.close();
 });
 
-// 找到右键识别的图片元素并返回其视口矩形; 背景图等找不到元素时返回 undefined
+// 找到右键扫描的图片元素并返回其视口矩形; 背景图等找不到元素时返回 undefined
 function findImageRect(imageUrl: string): ScanRect | undefined {
     const images = Array.from(document.images);
     const match = images.find((img) => img.currentSrc === imageUrl || img.src === imageUrl)
@@ -86,7 +86,7 @@ function findImageRect(imageUrl: string): ScanRect | undefined {
 // 网页图片处理流程
 async function handleImageUrl(imageUrl: string) {
     const origin = window.location.origin;
-    // 记录当前识别轮次: 用户改用截图识别后, 本次图片识别的后续通知全部丢弃
+    // 记录当前扫描轮次: 用户改用截图扫描后, 本次图片扫描的后续通知全部丢弃
     const epoch = screenshotEpoch;
     const isStale = () => epoch !== screenshotEpoch;
 
@@ -102,7 +102,7 @@ async function handleImageUrl(imageUrl: string) {
             onRetry: () => void handleScreenshot(),
             // 网页图片需要先下载/取像素: 取图期间提示"正在获取图片"
             notifyFetching,
-            // 图片取到、识别提示出现后, 再在网页上的图片区域播放扫描动画
+            // 图片取到、扫描提示出现后, 再在网页上的图片区域播放扫描动画
             beforeNotice: async () => {
                 const rect = findImageRect(imageUrl);
                 if (rect) await scanAnimation.play({ rect });
@@ -127,7 +127,7 @@ async function handleImageUrl(imageUrl: string) {
     }
 }
 
-// 截图识别每轮开始都会递增, 用于判断图片识别的结果是否已过期
+// 截图扫描每轮开始都会递增, 用于判断图片扫描的结果是否已过期
 let screenshotEpoch = 0;
 
 // 截图流程的失败提示: 用户取消是静默的, 其余情况提示失败原因
@@ -161,7 +161,7 @@ async function handleScreenshot() {
     }
 }
 
-// 一键截屏识别: 截取当前视口后直接识别整张画面, 不进入框选交互
+// 一键截屏扫描: 截取当前视口后直接扫描整张画面, 不进入框选交互
 async function handleQuickScreenshot() {
     screenshotEpoch++;
     void scanAnimation.stop();

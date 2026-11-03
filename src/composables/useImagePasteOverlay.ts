@@ -2,7 +2,7 @@ import { createApp, h, type App } from 'vue';
 import ScanPanel from '@/components/ScanPanel.vue';
 import { trySendMessage } from '@/services/messaging';
 
-// 页面内浮层宿主: 与独立识别页共用 ScanPanel, 只负责挂载/卸载。
+// 页面内浮层宿主: 与独立扫描页共用 ScanPanel, 只负责挂载/卸载。
 // 与截图框选的 useScreenshot 同一套思路: 组件自带遮罩, 宿主只处理生命周期
 export function useImagePasteOverlay() {
     let host: HTMLDivElement | undefined;

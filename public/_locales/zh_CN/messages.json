@@ -1,6 +1,6 @@
 {
   "appName": {
-    "message": "极简二维码 - 生成、识别与截图扫码",
+    "message": "极简二维码 - 生成与识别",
     "description": "应用名称"
   },
   "appShortName": {
@@ -8,7 +8,7 @@
     "description": "工具栏图标提示与短名称"
   },
   "appDescription": {
-    "message": "界面极简，功能全能——生成、识别、截图、摄像头扫码一个扩展全包",
+    "message": "界面极简，功能全能——生成、扫描、截图、摄像头扫码一个扩展全包",
     "description": "应用描述"
   },
   "selectionToQR": {
@@ -45,19 +45,19 @@
   },
   "scanFullScreen": {
     "message": "全屏扫描",
-    "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
+    "description": "右键菜单项：直接截取当前屏幕并扫描，无需框选区域"
   },
   "screenShot": {
-    "message": "截图选区扫描",
+    "message": "区域扫描",
     "description": "右键菜单项：截图并框选区域扫描二维码/条形码"
   },
-  "scanImage": {
-    "message": "本地上传/粘贴/摄像头扫描",
-    "description": "工具栏图标右键菜单项：打开识别面板，可上传或粘贴图片，也可切换到摄像头扫码"
-  },
   "cameraScanTitle": {
-    "message": "摄像头扫码",
-    "description": "摄像头识别页面的标题"
+    "message": "摄像头扫描",
+    "description": "摄像头扫描页面的标题"
+  },
+  "scanImage": {
+    "message": "本地图片扫描",
+    "description": "工具栏图标右键菜单项：在当前页面打开扫描面板，上传或粘贴图片"
   },
   "cameraHint": {
     "message": "将二维码或条形码对准摄像头",
@@ -68,8 +68,8 @@
     "description": "等待摄像头授权时的提示"
   },
   "cameraPausedHint": {
-    "message": "已识别到内容，继续扫描请点击下方按钮",
-    "description": "识别命中后摄像头已停止时的提示"
+    "message": "已扫描到内容，继续扫描请点击下方按钮",
+    "description": "扫描命中后摄像头已停止时的提示"
   },
   "cameraStop": {
     "message": "停止摄像头",
@@ -77,7 +77,7 @@
   },
   "cameraResume": {
     "message": "继续扫描",
-    "description": "识别结束后重新开启摄像头的按钮"
+    "description": "扫描结束后重新开启摄像头的按钮"
   },
   "retryCamera": {
     "message": "开启摄像头",
@@ -85,11 +85,11 @@
   },
   "switchToImageScan": {
     "message": "本地上传/粘贴图片",
-    "description": "切换到图片识别面板的按钮"
+    "description": "切换到图片扫描面板的按钮"
   },
   "switchToCameraScan": {
     "message": "从摄像头取图",
-    "description": "从图片识别切换到摄像头识别的按钮"
+    "description": "从图片扫描切换到摄像头扫描的按钮"
   },
   "cameraFailed": {
     "message": "摄像头不可用",
@@ -117,7 +117,7 @@
   },
   "scanImageTitle": {
     "message": "上传/粘贴图片扫码",
-    "description": "本地图片识别页面的标题"
+    "description": "本地图片扫描页面的标题"
   },
   "pickerHint": {
     "message": "拖入图片或点击选择",
@@ -140,7 +140,7 @@
     "description": "拖入非图片文件时的提示标题"
   },
   "notImageFileMsg": {
-    "message": "仅支持识别图片文件。",
+    "message": "仅支持扫描图片文件。",
     "description": "拖入非图片文件时的提示信息"
   },
   "showPageAction": {
@@ -160,16 +160,16 @@
     "description": "获取图片较慢时的说明文字"
   },
   "decodingQR": {
-    "message": "正在识别...",
+    "message": "正在扫描...",
     "description": "解析二维码或条形码时的加载提示"
   },
   "qrcodeScanSuccess": {
-    "message": "二维码识别成功",
+    "message": "二维码扫描成功",
     "description": "成功对话框标题"
   },
   "barcodeScanSuccess": {
     "message": "条形码扫描成功",
-    "description": "识别到条形码时的成功对话框标题"
+    "description": "扫描到条形码时的成功对话框标题"
   },
   "openLink": {
     "message": "打开链接",
@@ -184,8 +184,8 @@
     "description": "复制成功后按钮显示的文字"
   },
   "multiScanSuccess": {
-    "message": "批量识别完成",
-    "description": "一次识别到多个二维码/条形码时的标题"
+    "message": "批量扫描完成",
+    "description": "一次扫描到多个二维码/条形码时的标题"
   },
   "copyItem": {
     "message": "复制",
@@ -204,8 +204,8 @@
     "description": "通用错误标题"
   },
   "screenshotScan": {
-    "message": "尝试截图识别",
-    "description": "图片读取失败时切换到截图识别的按钮"
+    "message": "尝试截图扫描",
+    "description": "图片读取失败时切换到截图扫描的按钮"
   },
   "screenshotFailed": {
     "message": "截图失败",
@@ -277,18 +277,22 @@
   },
   "recognitionFailedMsg": {
     "message": "未发现有效的二维码/条形码",
-    "description": "识别失败的提示"
+    "description": "扫描失败的提示"
   },
   "recognitionFailed": {
-    "message": "识别失败",
-    "description": "识别出错后的标题"
+    "message": "扫描失败",
+    "description": "扫描出错后的标题"
   },
   "clearImage": {
     "message": "清空图片",
-    "description": "图片识别面板中清空已选图片的按钮"
+    "description": "图片扫描面板中清空已选图片的按钮"
   },
   "scanNow": {
-    "message": "识别",
-    "description": "图片识别面板中确认并识别图片的按钮"
+    "message": "扫描",
+    "description": "图片扫描面板中确认并扫描图片的按钮"
+  },
+  "cancel": {
+    "message": "取消",
+    "description": "取消按钮文本"
   }
 }

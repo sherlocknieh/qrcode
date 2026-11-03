@@ -9,7 +9,7 @@ export interface QrCodeImage {
 }
 
 const CELL_SIZE = 8;    // 每个模块的像素大小
-const QUIET_ZONE = 2;   // 白边宽度(模块数), 深色背景下也能识别
+const QUIET_ZONE = 2;   // 白边宽度(模块数), 深色背景下也能扫描
 
 // 生成二维码 PNG, 供 popup 与独立生成页共用
 export function createQrCodeImage(text: string): QrCodeImage {
