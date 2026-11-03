@@ -48,12 +48,8 @@
     "description": "右键菜单项：截图并框选区域扫描二维码/条形码"
   },
   "scanImage": {
-    "message": "上传/粘贴图片",
-    "description": "工具栏图标右键菜单项：打开图片识别页面（本地图片或剪贴板）"
-  },
-  "cameraScan": {
-    "message": "摄像头扫码",
-    "description": "工具栏图标右键菜单项：打开摄像头扫描二维码/条形码"
+    "message": "上传 / 粘贴 / 拍照扫码",
+    "description": "工具栏图标右键菜单项：打开识别面板，可上传或粘贴图片，也可切换到摄像头扫码"
   },
   "cameraScanTitle": {
     "message": "摄像头扫码",

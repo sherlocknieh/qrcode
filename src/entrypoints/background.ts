@@ -285,7 +285,8 @@ export default defineBackground(() => {
     const openCameraScanPage = async (originTabId?: number) =>
         openExtensionPage('/upload.html?camera=1', await resolveActiveTabId(originTabId));
 
-    // 本地/剪贴板图片识别: 优先在当前页面弹出浮层, 内容脚本不可用 (如 PDF、SVG) 时
+    // 上传/粘贴图片与摄像头共用同一个识别面板 (ScanPanel 内可切换输入源):
+    // 优先在当前页面弹出浮层, 内容脚本不可用 (如 PDF、SVG) 时
     // 退回独立识别页, 与截图识别的降级策略保持一致。
     // 工具栏图标的右键菜单不一定会带上 tab 参数, 因此主动查询当前活动标签页。
     const requestInlineImageScan = async (tabId?: number): Promise<boolean> => {
@@ -302,7 +303,7 @@ export default defineBackground(() => {
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
     type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
-        | 'screenShot' | 'scanFullScreen' | 'scanImage' | 'cameraScan'
+        | 'screenShot' | 'scanFullScreen' | 'scanImage'
         | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji?: string) => {
         const title = browser.i18n.getMessage(key);
@@ -342,19 +343,12 @@ export default defineBackground(() => {
                 contexts: ["action", "page_action"],
                 ...menuIcons("screenshot")
             });
-            // 添加菜单: 打开本地图片或剪贴板图片识别
+            // 添加菜单: 上传/粘贴图片或拍照扫码 (同一个识别面板, 可切换输入源)
             browser.contextMenus.create({
                 id: "scanImage",
                 title: menuTitle("scanImage", "📋"),
                 contexts: ["action", "page_action"],
                 ...menuIcons("image")
-            });
-            // 添加菜单: 摄像头扫码
-            browser.contextMenus.create({
-                id: "cameraScan",
-                title: menuTitle("cameraScan", "📹"),
-                contexts: ["action", "page_action"],
-                ...menuIcons("camera")
             });
             // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
             if (browser.pageAction) {
@@ -377,14 +371,9 @@ export default defineBackground(() => {
             })();
             return;
         }
-        // 图片识别优先在当前页面弹出粘贴浮层; 页面无法注入内容脚本时再开新标签页
+        // 上传/粘贴图片或拍照扫码: 打开同一个识别面板, 摄像头在其中切换
         if (info.menuItemId === "scanImage") {
             void requestInlineImageScan(tab?.id);
-            return;
-        }
-        // 摄像头扫码不依赖当前页面, 直接复用 upload.html 的摄像头模式
-        if (info.menuItemId === "cameraScan") {
-            void openCameraScanPage(tab?.id);
             return;
         }
         const tabId = tab?.id;      // 获取当前标签页 ID

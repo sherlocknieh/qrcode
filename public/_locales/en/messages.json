@@ -48,12 +48,8 @@
     "description": "Context menu item for taking screenshot to recognize QR code"
   },
   "scanImage": {
-    "message": "Scan Local/Clipboard Image",
-    "description": "Toolbar context menu item that opens the image scanning page (local file or clipboard)"
-  },
-  "cameraScan": {
-    "message": "Scan with Camera",
-    "description": "Toolbar context menu item that opens the camera scanning page"
+    "message": "Upload / Paste / Camera Scan",
+    "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image, or scanning with the camera"
   },
   "cameraScanTitle": {
     "message": "Scan with Camera",
