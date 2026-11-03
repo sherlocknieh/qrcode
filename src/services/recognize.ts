@@ -14,7 +14,8 @@ export type RecognizeHost = {
 };
 
 export type DecodeOutcome =
-    | { status: 'ok'; results: DecodeResult[] }
+    // imageSize 是解码所用图像的像素尺寸, 用于把结果的 bounds 换算到画面上
+    | { status: 'ok'; results: DecodeResult[]; imageSize: { width: number; height: number } }
     | { status: 'empty' }
     | { status: 'stale' }
     | { status: 'failed'; error: unknown };
@@ -97,7 +98,11 @@ export async function recognizeImage(
     }
 
     await host.notifyResults(results);
-    return { status: 'ok', results };
+    return {
+        status: 'ok',
+        results,
+        imageSize: { width: settled.imageData.width, height: settled.imageData.height },
+    };
 }
 
 // 取图慢于阈值时先提示"正在获取图片", 图片就绪后由扫描提示替换

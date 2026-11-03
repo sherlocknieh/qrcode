@@ -1,10 +1,11 @@
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 // 非UI组件
 import {
     getImageDataFromDataUrl,
     loadImageDataFromUrl,
+    type DecodeResult,
 } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { sendMessage } from '@/services/messaging';
@@ -13,6 +14,7 @@ import { recognizeImage } from '@/services/recognize';
 
 // UI组件
 import NotifyHost from '@/components/NotifyHost.vue';
+import ScanMarks from '@/components/ScanMarks.vue';
 
 import { useScreenshot, type ScreenshotResult } from '@/composables/useScreenshot';
 import { useScanAnimation } from '@/composables/useScanAnimation';
@@ -24,6 +26,40 @@ const { startScreenshot } = useScreenshot();
 const { notify, notifyFetching, host } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
+
+// 全屏扫描命中后短暂标出每个码的位置, 让用户知道结果取自画面哪一块
+const MARKS_DURATION = 2600;
+const marks = ref<ScanRect[]>([]);
+let marksTimer: number | undefined;
+
+function clearMarks() {
+    if (marksTimer !== undefined) {
+        window.clearTimeout(marksTimer);
+        marksTimer = undefined;
+    }
+    marks.value = [];
+}
+
+function showMarks(results: DecodeResult[], imageSize: { width: number; height: number }) {
+    clearMarks();
+    // 截图按设备像素比放大, 用图像尺寸与视口尺寸的比例换算回 CSS 像素
+    const scaleX = imageSize.width > 0 ? window.innerWidth / imageSize.width : 1;
+    const scaleY = imageSize.height > 0 ? window.innerHeight / imageSize.height : 1;
+    const rects = results
+        .filter((result) => result.bounds)
+        .map((result) => {
+            const bounds = result.bounds!;
+            return {
+                x: bounds.x * scaleX,
+                y: bounds.y * scaleY,
+                width: bounds.width * scaleX,
+                height: bounds.height * scaleY,
+            };
+        });
+    if (!rects.length) return;
+    marks.value = rects;
+    marksTimer = window.setTimeout(clearMarks, MARKS_DURATION);
+}
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
 const mainProcess = (
@@ -57,6 +93,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     browser.runtime.onMessage.removeListener(mainProcess);
     void scanAnimation.stop();
+    clearMarks();
     imagePasteOverlay.close();
 });
 
@@ -152,6 +189,7 @@ function isScreenshotResult(error: unknown): error is ScreenshotResult {
 
 async function handleScreenshot() {
     screenshotEpoch++;
+    clearMarks();
     void scanAnimation.stop();
     try {
         const dataUrl = await startScreenshot();
@@ -164,17 +202,19 @@ async function handleScreenshot() {
 // 一键截屏扫描: 截取当前视口后直接扫描整张画面, 不进入框选交互
 async function handleQuickScreenshot() {
     screenshotEpoch++;
+    clearMarks();
     void scanAnimation.stop();
     const epoch = screenshotEpoch;
     try {
         const dataUrl = await captureVisibleTab();
         // 截图完成后才播放整屏动画, 动画不会被截进图片;
         // 动画在解码期间一直循环, 通知要等动画淡出后再弹出
-        await decodeAndNotify(() => getImageDataFromDataUrl(dataUrl), {
+        const outcome = await decodeAndNotify(() => getImageDataFromDataUrl(dataUrl), {
             isStale: () => epoch !== screenshotEpoch,
             beforeNotice: () => scanAnimation.play(),
             afterDecode: () => scanAnimation.stop(),
         });
+        if (outcome.status === 'ok') showMarks(outcome.results, outcome.imageSize);
     } catch (error) {
         void scanAnimation.stop();
         if (epoch !== screenshotEpoch) return;
@@ -222,5 +262,6 @@ async function fetchImageViaProxy(url: string): Promise<string> {
 <template>
     <div class="qr-content-root">
         <NotifyHost />
+        <ScanMarks :rects="marks" />
     </div>
 </template>

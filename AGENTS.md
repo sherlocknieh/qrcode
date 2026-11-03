@@ -37,6 +37,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：视口图框选 / 直出扫描（PDF、SVG 兜底） |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 自研框选截图（拖拽、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域，不拦截交互） |
+| [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 全屏扫描命中后标出码的位置（方框，纯展示） |
 | [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板（预览 + 单输入框） |
 | [src/components/ScanPanel.vue](./src/components/ScanPanel.vue) | 唯一扫描面板：图片 / 摄像头两种 `mode` |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴 / 拖放 / 选文件） |
@@ -110,6 +111,7 @@ flowchart LR
 
 - **右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加进两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
 - **二维码生成**：编码与 PNG 在 [qrCode.ts](./src/services/qrCode.ts)，输入/预览在 [QrCodePanel.vue](./src/components/QrCodePanel.vue)；条形码生成未接入。
+- **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。调用方用 `DecodeOutcome.imageSize` 与视口尺寸的比例换算成 CSS 像素再画框，别在解码层输出页面坐标。
 - **扫描效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。ZXing 用深路径导入（`@zxing/library/esm/core/...`），别改成包根导入；摄像头逐帧只走 `decodeCameraFrame`，换 `decodeAllFromImageData` 会卡预览。
 - **摄像头扫码**：右键菜单的“摄像头扫码”（`scanCamera`）直接开 `upload.html?camera=1`；面板本体仍只在 `ScanPanel.vue`，不要塞进 popup（失焦即关）。内容脚本也能 `getUserMedia`，但受页面安全上下文与 `Permissions-Policy` 约束、权限归页面源，故浮层失败时降级 `upload.html?camera=1`；媒体流与取帧在 `useCameraScan.ts`，命中即停，用户点“继续扫描”恢复。新增输入方式只实现一个“产出图像”的源，别拆第二套面板/扫描流程。
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。

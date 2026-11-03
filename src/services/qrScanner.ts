@@ -103,9 +103,11 @@ function isTaintedCanvasError(error: unknown): boolean {
 }
 
 // 扫描结果及来源类型，来源用于在通知中区分二维码和条形码。
+// bounds 是码在原图中的包围盒（像素），供调用方在画面上标出位置。
 export type DecodeResult = {
     text: string;
     kind: 'qr' | 'barcode';
+    bounds?: { x: number; y: number; width: number; height: number };
 };
 
 // 灰度图：每像素 1 字节。ZXing 只需要亮度，用灰度数据比 RGBA 少 3/4 内存，
@@ -469,7 +471,8 @@ function refineBoxToPixels(gray: GrayImage, coarse: Box): Box | null {
 }
 
 // 把矩形区域裁出来并补上指定数值的边框(白色相当于静区)。
-function cropWithPadding(gray: GrayImage, box: Box, padding: number, inset: number): GrayImage | null {
+// 记下裁剪图左上角在原图中的位置, 便于把命中位置换算回原图。
+function cropWithPadding(gray: GrayImage, box: Box, padding: number, inset: number): Candidate | null {
     const { width, height, data } = gray;
     const x0 = Math.max(0, box.x0 + inset);
     const y0 = Math.max(0, box.y0 + inset);
@@ -485,14 +488,18 @@ function cropWithPadding(gray: GrayImage, box: Box, padding: number, inset: numb
         output.set(data.subarray((y0 + y) * width + x0, (y0 + y) * width + x1), (y + padding) * outputWidth + padding);
     }
 
-    return { data: output, width: outputWidth, height: cropHeight + padding * 2 };
+    return {
+        image: { data: output, width: outputWidth, height: cropHeight + padding * 2 },
+        offsetX: x0 - padding,
+        offsetY: y0 - padding,
+    };
 }
 
 // 生成"按码面矩形裁剪并补白边"的候选图, 用于背景与模块同色、四周有大量干扰的截图。
-function createCodeAreaCandidates(gray: GrayImage): GrayImage[] {
+function createCodeAreaCandidates(gray: GrayImage): Candidate[] {
     if (gray.width < 32 || gray.height < 32) return [];
 
-    const candidates: GrayImage[] = [];
+    const candidates: Candidate[] = [];
     for (const coarse of findTexturedBoxes(gray)) {
         const box = refineBoxToPixels(gray, coarse);
         if (!box) continue;
@@ -527,7 +534,49 @@ const yieldToMainThread = () => new Promise<void>((resolve) => setTimeout(resolv
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 type LocatedResult = DecodeResult & { x: number; y: number };
 
+// 候选灰度图及其左上角在原图中的位置: 裁剪出的候选图需要用它把命中位置平移回原图。
+type Candidate = { image: GrayImage; offsetX: number; offsetY: number };
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+// 把包围盒换算成可直接用于绘制的矩形, 并限制在原图范围内。
+const toRect = (bounds: Bounds, width: number, height: number) => {
+    const minX = clamp(Math.floor(bounds.minX), 0, Math.max(0, width - 1));
+    const minY = clamp(Math.floor(bounds.minY), 0, Math.max(0, height - 1));
+    const maxX = clamp(Math.ceil(bounds.maxX), 0, Math.max(0, width - 1));
+    const maxY = clamp(Math.ceil(bounds.maxY), 0, Math.max(0, height - 1));
+    return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+};
+
+// ZXing 给出的包围盒只到定位点中心, 二维码外圈还有数据模块;
+// 按模块尺寸向外扩一圈, 让标记框住整个码面。
+const padBounds = (bounds: Bounds | null, pad: number, width: number, height: number): Bounds | null =>
+    bounds && {
+        minX: clamp(bounds.minX - pad, 0, Math.max(0, width - 1)),
+        minY: clamp(bounds.minY - pad, 0, Math.max(0, height - 1)),
+        maxX: clamp(bounds.maxX + pad, 0, Math.max(0, width - 1)),
+        maxY: clamp(bounds.maxY + pad, 0, Math.max(0, height - 1)),
+    };
+
+// 一维码的定位点只落在扫描行上, 竖直范围未知; 按条码常见的高宽比补出可见高度。
+const expandBarcodeBounds = (bounds: Bounds, height: number): Bounds => {
+    const padY = Math.max(4, (bounds.maxX - bounds.minX) * 0.08);
+    return {
+        minX: bounds.minX,
+        maxX: bounds.maxX,
+        minY: clamp(bounds.minY - padY, 0, Math.max(0, height - 1)),
+        maxY: clamp(bounds.maxY + padY, 0, Math.max(0, height - 1)),
+    };
+};
+
+// 裁剪候选图里的坐标平移回原图 (越界部分由 toRect 统一夹紧)。
+const shiftBounds = (bounds: Bounds | null, candidate: Candidate): Bounds | null =>
+    bounds && {
+        minX: bounds.minX + candidate.offsetX,
+        minY: bounds.minY + candidate.offsetY,
+        maxX: bounds.maxX + candidate.offsetX,
+        maxY: bounds.maxY + candidate.offsetY,
+    };
 
 // 扫描一张图片中的所有二维码和条形码。
 // 二维码一次扫描整张图收集全部定位点, 再对定位点三角组合逐个解码,
@@ -537,17 +586,25 @@ export async function decodeAllFromImageData(imageData: ImageData): Promise<Deco
     const found: LocatedResult[] = [];
     const seen = new Set<string>();
 
-    const add = (result: DecodeResult, x: number, y: number) => {
-        if (!result.text || found.length >= MULTI_MAX_RESULTS) return;
-        const key = `${result.kind}:${result.text}`;
+    // bounds 已在原图坐标系中, 用于排序和在页面上标出码的位置
+    const add = (text: string, kind: DecodeResult['kind'], bounds: Bounds | null) => {
+        if (!text || found.length >= MULTI_MAX_RESULTS) return;
+        const key = `${kind}:${text}`;
         if (seen.has(key)) return;
         seen.add(key);
-        found.push({ ...result, x, y });
+        const rect = bounds ? toRect(bounds, gray.width, gray.height) : null;
+        found.push({
+            text,
+            kind,
+            bounds: rect ?? undefined,
+            x: rect ? rect.x + rect.width / 2 : 0,
+            y: rect ? rect.y + rect.height / 2 : 0,
+        });
     };
 
     // 一维条形码先扫: 与单码流程保持一致, 命中时更省时间。
-    for (const text of decodeAllBarcodesWithZXing(gray)) {
-        add({ text, kind: 'barcode' }, 0, 0);
+    for (const hit of decodeAllBarcodesWithZXing(gray)) {
+        add(hit.text, 'barcode', hit.bounds);
     }
     await yieldToMainThread();
 
@@ -555,27 +612,18 @@ export async function decodeAllFromImageData(imageData: ImageData): Promise<Deco
     for (const candidate of createMultiQrCandidates(gray)) {
         if (found.length >= MULTI_MAX_RESULTS || candidateIndex >= MULTI_MAX_CANDIDATES) break;
 
-        const codes = decodeMultipleQrWithZXing(candidate);
+        const codes = decodeMultipleQrWithZXing(candidate.image);
         if (codes.length) {
             for (const code of codes) {
-                const bounds = code.bounds;
-                add(
-                    { text: code.text, kind: 'qr' },
-                    bounds ? (bounds.minX + bounds.maxX) / 2 : 0,
-                    bounds ? (bounds.minY + bounds.maxY) / 2 : 0,
-                );
+                add(code.text, 'qr', shiftBounds(code.bounds, candidate));
             }
         } else {
             // 定位点检测失败时退回单码扫描, 兼容彩色、圆点等特殊码面。
-            const fallback = decodeQrResultWithZXing(candidate);
+            const fallback = decodeQrResultWithZXing(candidate.image);
             const text = fallback?.getText() ?? '';
             if (fallback && text) {
-                const bounds = getResultBounds(fallback, candidate.width, candidate.height);
-                add(
-                    { text, kind: 'qr' },
-                    bounds ? (bounds.minX + bounds.maxX) / 2 : 0,
-                    bounds ? (bounds.minY + bounds.maxY) / 2 : 0,
-                );
+                const bounds = getResultBounds(fallback, candidate.image.width, candidate.image.height);
+                add(text, 'qr', shiftBounds(bounds, candidate));
             }
         }
 
@@ -585,7 +633,7 @@ export async function decodeAllFromImageData(imageData: ImageData): Promise<Deco
 
     // 按从上到下、从左到右的顺序展示。
     found.sort((a, b) => a.y - b.y || a.x - b.x);
-    return found.map(({ text, kind }) => ({ text, kind }));
+    return found.map(({ text, kind, bounds }) => ({ text, kind, bounds }));
 }
 
 // ---------------------------- 摄像头取帧 ----------------------------
@@ -613,11 +661,12 @@ export function decodeCameraFrame(imageData: ImageData, attempt = 0): DecodeResu
 }
 
 // 批量模式的整图候选, 按命中概率排序; 候选过多时优先处理最常见的几种。
-function* createMultiQrCandidates(gray: GrayImage): Generator<GrayImage> {
-    yield gray;
-    yield thresholdGray(gray, 160);
-    yield invertGray(gray);
-    yield dilateBlackPixels(thresholdGray(gray, 160), 1);
+function* createMultiQrCandidates(gray: GrayImage): Generator<Candidate> {
+    // 整图候选与原图同尺寸, 偏移为 0
+    yield { image: gray, offsetX: 0, offsetY: 0 };
+    yield { image: thresholdGray(gray, 160), offsetX: 0, offsetY: 0 };
+    yield { image: invertGray(gray), offsetX: 0, offsetY: 0 };
+    yield { image: dilateBlackPixels(thresholdGray(gray, 160), 1), offsetX: 0, offsetY: 0 };
 
     // 背景与码面同色、或截图里码面只占一小块时, 整图永远找不到静区,
     // 最后按码面矩形裁剪并补白边兜底。
@@ -680,9 +729,15 @@ function decodeMultipleQrWithZXing(gray: GrayImage): { text: string; bounds: Bou
                     const text = decoder.decodeBitMatrix(detected.getBits(), zxingHints).getText();
                     if (!text || seen.has(text)) continue;
                     seen.add(text);
+                    const moduleSize = sizes.reduce((sum, size) => sum + size, 0) / sizes.length;
                     results.push({
                         text,
-                        bounds: getPointBounds(detected.getPoints(), gray.width, gray.height),
+                        bounds: padBounds(
+                            getPointBounds(detected.getPoints(), gray.width, gray.height),
+                            moduleSize * 3.5,
+                            gray.width,
+                            gray.height,
+                        ),
                     });
                 } catch {
                     // 该组合不是有效二维码, 继续尝试其它组合。
@@ -741,33 +796,65 @@ const noopResultPointCallback: ResultPointCallback = {
     foundPossibleResultPoint: () => {},
 };
 
+type BarcodeHit = { text: string; bounds: Bounds };
+
+// 把候选图坐标映射回原图的函数: 缩放、旋转过的候选图都靠它换算位置。
+type BoundsMapper = (bounds: Bounds) => Bounds;
+
 // 逐个找出条形码: 一维结果只给出扫描行上的两个点, 因此需要随轮次增大竖直遮罩范围,
 // 直到同一个条形码被彻底遮住, 才能继续找到下一个。
-function decodeAllBarcodesWithZXing(gray: GrayImage): string[] {
+function decodeAllBarcodesWithZXing(gray: GrayImage): BarcodeHit[] {
     const scaled = downscaleGrayToMaxDimension(gray, BARCODE_SCAN_DIMENSION);
-    const texts: string[] = [];
+    // 缩小时按整数块取平均, 用实际比例换算回原图坐标
+    const scaleX = scaled.width > 0 ? gray.width / scaled.width : 1;
+    const scaleY = scaled.height > 0 ? gray.height / scaled.height : 1;
+    const hits: BarcodeHit[] = [];
     const seen = new Set<string>();
+
+    const scaleMapper: BoundsMapper = (bounds) => ({
+        minX: bounds.minX * scaleX,
+        minY: bounds.minY * scaleY,
+        maxX: bounds.maxX * scaleX,
+        maxY: bounds.maxY * scaleY,
+    });
+    // 顺时针旋转 90° 后的候选图: x' = height - 1 - y, y' = x
+    const rotateMapper: BoundsMapper = (bounds) => ({
+        minX: bounds.minY * scaleX,
+        maxX: bounds.maxY * scaleX,
+        minY: (scaled.height - 1 - bounds.maxX) * scaleY,
+        maxY: (scaled.height - 1 - bounds.minX) * scaleY,
+    });
 
     // 原图扫描后保留遮罩结果: 已找到的条形码在后续阈值图中保持空白,
     // 既能减少重复命中, 也能避免彩色背景在阈值下被误读成新的码。
-    const maskedImages = [scaled, rotateGray90(scaled)].map((base) =>
-        scanBarcodesWithMasking(cloneGray(base), texts, seen));
+    const maskedImages = [
+        { gray: scaled, mapper: scaleMapper },
+        { gray: rotateGray90(scaled), mapper: rotateMapper },
+    ].map((base) => ({
+        gray: scanBarcodesWithMasking(cloneGray(base.gray), hits, seen, base.mapper),
+        mapper: base.mapper,
+    }));
 
     // 只有原图已经找到条形码时才尝试阈值图:
     // 彩色标签上的黑色条码灰度对比度可能不足, 阈值化后能找到同图中其余低对比度的码;
     // 完全不包含条形码的图片可以跳过这些额外扫描, 保持常规扫描的速度。
-    if (texts.length) {
+    if (hits.length) {
         for (const masked of maskedImages) {
             for (const threshold of BARCODE_THRESHOLDS) {
-                scanBarcodesWithMasking(thresholdGray(masked, threshold), texts, seen);
+                scanBarcodesWithMasking(thresholdGray(masked.gray, threshold), hits, seen, masked.mapper);
             }
         }
     }
 
-    return texts;
+    return hits;
 }
 
-function scanBarcodesWithMasking(gray: GrayImage, texts: string[], seen: Set<string>): GrayImage {
+function scanBarcodesWithMasking(
+    gray: GrayImage,
+    hits: BarcodeHit[],
+    seen: Set<string>,
+    mapper: BoundsMapper,
+): GrayImage {
     for (let pass = 0; pass < MULTI_MAX_BARCODE_PASS; pass++) {
         const result = decodeOneDResultWithZXing(gray);
         const text = result?.getText() ?? '';
@@ -776,7 +863,7 @@ function scanBarcodesWithMasking(gray: GrayImage, texts: string[], seen: Set<str
 
         if (!seen.has(text)) {
             seen.add(text);
-            texts.push(text);
+            hits.push({ text, bounds: expandBarcodeBounds(mapper(bounds), gray.height) });
         }
 
         const padX = Math.max(6, Math.round(gray.width * 0.01));
