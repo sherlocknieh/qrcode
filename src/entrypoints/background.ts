@@ -272,7 +272,7 @@ export default defineBackground(() => {
     // 无法注入内容脚本的页面 (如 Firefox 内置 PDF 阅读器) 由后台截取视口后
     // 在新标签页 (capture.html?direct=1) 直接识别整图, 与 SVG 页面保持一致
     const requestQuickScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
-        if (await tryContentAction(tabId, "screenshotQRDirect")) return true;
+        if (await tryContentAction(tabId, "scanFullScreen")) return true;
         return showCropScan(tabId, windowId, true);
     };
 
@@ -302,13 +302,18 @@ export default defineBackground(() => {
         : {};
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
-    type MenuMessageKey = 'decodeQR' | 'generateQR_selection'
+    type MenuMessageKey = 'decodeQR' | 'selectionToQR'
         | 'screenShot' | 'scanFullScreen' | 'scanImage'
         | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji?: string) => {
         const title = browser.i18n.getMessage(key);
         return import.meta.env.FIREFOX || !emoji ? title : `${emoji} ${title}`;
     };
+
+    const pageActionMenuOptions = (visible: boolean) => ({
+        title: menuTitle(visible ? "hidePageAction" : "showPageAction", visible ? "🚫" : "👁️"),
+        ...menuIcons(visible ? "hide" : "show"),
+    });
 
     // 右键菜单初始化
     const addContextMenus = async () => {
@@ -317,20 +322,20 @@ export default defineBackground(() => {
             // 添加菜单: 识别图中二维码
             browser.contextMenus.create({
                 id: "decodeQR",
-                title: menuTitle("decodeQR"),
+                title: menuTitle("decodeQR", "🔍"),
                 contexts: ["image"],
                 ...menuIcons("scan")
             });
             // 添加菜单: 选中文字生成二维码
             browser.contextMenus.create({
-                id: "generateQR_selection",
-                title: menuTitle("generateQR_selection", "📝"),
+                id: "selectionToQR",
+                title: menuTitle("selectionToQR", "📝"),
                 contexts: ["selection"],
                 ...menuIcons("text")
             });
             // 添加菜单: 整屏识别
             browser.contextMenus.create({
-                id: "scanScreen",
+                id: "scanFullScreen",
                 title: menuTitle("scanFullScreen", "🖥️"),
                 contexts: ["page", "action", "page_action"],
                 ...menuIcons("scanFullScreen")
@@ -346,7 +351,7 @@ export default defineBackground(() => {
             // 添加菜单: 上传/粘贴图片或拍照扫码 (同一个识别面板, 可切换输入源)
             browser.contextMenus.create({
                 id: "scanImage",
-                title: menuTitle("scanImage", "📋"),
+                title: menuTitle("scanImage", "🖼️"),
                 contexts: ["action", "page_action"],
                 ...menuIcons("image")
             });
@@ -354,9 +359,8 @@ export default defineBackground(() => {
             if (browser.pageAction) {
                 browser.contextMenus.create({
                     id: "togglePageAction",
-                    title: menuTitle(pageActionVisible ? "hidePageAction" : "showPageAction", pageActionVisible ? "🚫" : "👁️"),
+                    ...pageActionMenuOptions(pageActionVisible),
                     contexts: ["action"],
-                    ...menuIcons(pageActionVisible ? "hide" : "show")
                 });
             }
         });
@@ -380,7 +384,7 @@ export default defineBackground(() => {
         if (tabId == null) {
             console.warn('tabId is null');  // tabId 不存在则警告并返回
             return;
-        } else if (info.menuItemId === "generateQR_selection") {
+        } else if (info.menuItemId === "selectionToQR") {
             // 选中文字生成二维码
             showQRcode(info.selectionText);
         } else if (info.menuItemId === "decodeQR") {
@@ -402,7 +406,7 @@ export default defineBackground(() => {
                 return;
             }
             void requestAreaScreenshot(tabId, tab?.windowId);
-        } else if (info.menuItemId === "scanScreen") {
+        } else if (info.menuItemId === "scanFullScreen") {
             // 一键截屏识别: 直接识别当前视口, 全程没有框选交互
             // SVG 文档同样截取视口后在新标签页直接识别整图, 避免 popup 窗口裁掉页面内容
             if (isSvgDocumentUrl(tab?.url)) {
@@ -417,8 +421,7 @@ export default defineBackground(() => {
     const syncPageActionMenu = async (visible?: boolean) => {
         const current = visible ?? await isPageActionVisible();
         browser.contextMenus.update('togglePageAction', {
-            title: menuTitle(current ? 'hidePageAction' : 'showPageAction', current ? '🚫' : '👁️'),
-            ...menuIcons(current ? 'hide' : 'show'),
+            ...pageActionMenuOptions(current),
         }).catch(() => {});
     };
 
@@ -517,7 +520,7 @@ export default defineBackground(() => {
                 .catch(() => sendResponse({ success: false }));
             return true;
         }
-        // 图片识别浮层里点"改用摄像头识别": 摄像头只能在扩展页运行,
+        // 图片识别浮层里点"从摄像头取图": 摄像头只能在扩展页运行,
         // 由后台打开 upload.html?camera=1, 并记录来源页以便关闭后切回
         if (request.action === "openCameraScan") {
             openCameraScanPage(_sender.tab?.id)

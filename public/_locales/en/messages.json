@@ -1,17 +1,17 @@
 {
   "appName": {
-    "message": "Minimal QR - Generate, Scan & Capture",
+    "message": "Pure QR Code - Generate, Scan & Capture",
     "description": "Application name"
   },
   "appShortName": {
-    "message": "Minimal QR",
+    "message": "Pure QR Code",
     "description": "Short name used for the toolbar tooltip"
   },
   "appDescription": {
-    "message": "Minimal UI, all-in-one scanning: generate QR codes from text and scan QR codes or barcodes from images, screenshots, or the camera.",
+    "message": "Minimal UI, All-in-one QR Code Handling: Generate QR codes from text; Scan QR codes or barcodes from images, screenshots, or the camera.",
     "description": "Application description"
   },
-  "generateQR_selection": {
+  "selectionToQR": {
     "message": "Text to QR Code",
     "description": "Context menu item for generating QR code from selected text"
   },
@@ -84,11 +84,11 @@
     "description": "Button that requests camera access"
   },
   "switchToImageScan": {
-    "message": "Use an Image Instead",
+    "message": "Upload/Paste an Image",
     "description": "Button that switches to the image scanning panel"
   },
   "switchToCameraScan": {
-    "message": "Use Camera Instead",
+    "message": "Use Camera",
     "description": "Button that switches from image scanning to camera scanning"
   },
   "cameraFailed": {
@@ -118,10 +118,6 @@
   "scanImageTitle": {
     "message": "Upload or Paste an Image to Scan",
     "description": "Title of the local image scanning page"
-  },
-  "scanPanelFooter": {
-    "message": "QR codes and barcodes, with multi-code support",
-    "description": "Capability note at the bottom of the scan panel"
   },
   "pickerHint": {
     "message": "Drop an image or click to choose",

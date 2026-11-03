@@ -11,7 +11,7 @@
     "message": "界面极简，功能全能——生成、识别、截图、摄像头扫码一个扩展全包",
     "description": "应用描述"
   },
-  "generateQR_selection": {
+  "selectionToQR": {
     "message": "文字 → 二维码",
     "description": "右键菜单项：为选中的文字生成二维码"
   },
@@ -44,7 +44,7 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanFullScreen": {
-    "message": "扫描屏幕",
+    "message": "全屏扫描",
     "description": "右键菜单项：直接截取当前屏幕并识别，无需框选区域"
   },
   "screenShot": {
@@ -52,7 +52,7 @@
     "description": "右键菜单项：截图并框选区域扫描二维码/条形码"
   },
   "scanImage": {
-    "message": "上传 / 粘贴 / 拍照扫码",
+    "message": "本地上传/粘贴/摄像头扫描",
     "description": "工具栏图标右键菜单项：打开识别面板，可上传或粘贴图片，也可切换到摄像头扫码"
   },
   "cameraScanTitle": {
@@ -84,11 +84,11 @@
     "description": "请求摄像头权限的按钮"
   },
   "switchToImageScan": {
-    "message": "改用图片识别",
+    "message": "本地上传/粘贴图片",
     "description": "切换到图片识别面板的按钮"
   },
   "switchToCameraScan": {
-    "message": "改用摄像头识别",
+    "message": "从摄像头取图",
     "description": "从图片识别切换到摄像头识别的按钮"
   },
   "cameraFailed": {
@@ -118,10 +118,6 @@
   "scanImageTitle": {
     "message": "上传/粘贴图片扫码",
     "description": "本地图片识别页面的标题"
-  },
-  "scanPanelFooter": {
-    "message": "支持二维码与一维条形码，多码也能同时识别",
-    "description": "识别面板底部的能力说明"
   },
   "pickerHint": {
     "message": "拖入图片或点击选择",

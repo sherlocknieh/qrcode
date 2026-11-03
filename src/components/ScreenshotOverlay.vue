@@ -29,7 +29,9 @@ const FLOATING_VIEWPORT_HEIGHT_RATIO = 0.8;
 const MIN_SELECTION = 8;
 const HANDLE_SIZE = 6;
 const HANDLE_HIT_SIZE = 9;
-const SIZE_LABEL_INSET = 6;
+// 确认按钮与选区、画面边缘之间的间距
+const TOOLBAR_GAP = 8;
+const TOOLBAR_MARGIN = 8;
 const ACCENT_COLOR = '#2CABFF';
 // 与整屏识别扫描动画的遮罩保持一致
 const MASK_COLOR = 'rgba(8, 12, 20, 0.22)';
@@ -97,8 +99,8 @@ const toolbarPosition = ref({ left: 0, top: 0 });
 const cursor = ref('crosshair');
 const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
-// 浮窗模式: 开启时截图为居中浮窗, 关闭时铺满整个视口
-const floatingMode = ref(props.intro);
+// 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中浮窗
+const floatingMode = ref(false);
 // 仅在浮窗模式且未要求减少动态效果时才播放入场动画
 const canAnimateIntro = computed(() => floatingMode.value && !prefersReducedMotion);
 const phase = ref<Phase>(canAnimateIntro.value ? 'cover' : 'select');
@@ -215,24 +217,6 @@ const sourceScaleY = computed(() =>
     layout.value.height > 0 ? imageSize.value.height / layout.value.height : 1,
 );
 
-const sizeLabel = computed(() => {
-    const rect = selection.value;
-    if (!rect) return '';
-    return `${Math.round(rect.width * sourceScaleX.value)} × ${Math.round(rect.height * sourceScaleY.value)}`;
-});
-
-const showSizeLabel = computed(() => loaded.value && !busy.value && hasSelection.value);
-
-// 尺寸标记独立于工具栏, 固定在选框内部左上角
-const sizeLabelStyle = computed(() => {
-    const rect = selection.value;
-    if (!rect) return {};
-    return {
-        left: `${Math.round(rect.x) + SIZE_LABEL_INSET}px`,
-        top: `${Math.round(rect.y) + SIZE_LABEL_INSET}px`,
-    };
-});
-
 const getPointerPosition = (event: PointerEvent) => {
     const canvas = canvasRef.value;
     if (!canvas) return { x: 0, y: 0 };
@@ -314,10 +298,25 @@ const updateToolbarPosition = () => {
     const rect = selection.value;
     if (!toolbar || !rect || !hasSelection.value) return;
 
-    // 识别按钮固定在选区正中央
+    const halfWidth = toolbar.offsetWidth / 2;
+    const halfHeight = toolbar.offsetHeight / 2;
+    const bottom = rect.y + rect.height;
+
+    // 确认按钮位于选框下方右对齐, 并限制在画面内
+    const left = rect.x + rect.width - halfWidth;
+    const top = bottom + TOOLBAR_GAP + halfHeight;
+
     toolbarPosition.value = {
-        left: rect.x + rect.width / 2,
-        top: rect.y + rect.height / 2,
+        left: clamp(
+            left,
+            halfWidth + TOOLBAR_MARGIN,
+            Math.max(halfWidth + TOOLBAR_MARGIN, layout.value.width - halfWidth - TOOLBAR_MARGIN),
+        ),
+        top: clamp(
+            top,
+            halfHeight + TOOLBAR_MARGIN,
+            Math.max(halfHeight + TOOLBAR_MARGIN, layout.value.height - halfHeight - TOOLBAR_MARGIN),
+        ),
     };
 };
 
@@ -648,6 +647,10 @@ const handleKeyDown = (event: KeyboardEvent) => {
 };
 
 const handleWindowResize = () => {
+    if (loaded.value && !floatingMode.value && !busy.value) {
+        floatingMode.value = true;
+        void setScreenshotIntroEnabled(true).catch(() => {});
+    }
     if (resizeFrame !== undefined) return;
     resizeFrame = window.requestAnimationFrame(() => {
         resizeFrame = undefined;
@@ -750,10 +753,6 @@ onBeforeUnmount(() => {
                 {{ t('screenshotHint', 'Drag to select the area you want to scan') }}
             </p>
         </Transition>
-        <!-- 尺寸标记 -->
-        <span v-if="showSizeLabel" class="qr-shot-size" :style="sizeLabelStyle">
-            {{ sizeLabel }}
-        </span>
         <!-- 截图操作组: 复制/保存/模式切换/关闭固定在右上角 -->
         <div v-if="showActions" class="qr-shot-actions">
             <span
@@ -874,23 +873,12 @@ onBeforeUnmount(() => {
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
             <!-- 确认按钮 -->
             <button
-                class="qr-shot-btn primary qr-shot-btn--confirm"
+                class="qr-shot-btn qr-shot-btn--confirm"
                 type="button"
-                :aria-label="t('confirm', 'Scan')"
-                :title="t('confirm', 'Scan')"
+                :aria-label="t('confirm', '确认')"
+                :title="t('confirm', '确认')"
                 @click="confirm"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path
-                        d="m5 12.5 4.5 4.5L19 7.5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    />
-                </svg>
-            </button>
+            >{{ t('confirm', '确认') }}</button>
         </div>
     </div>
 </template>
@@ -1147,19 +1135,6 @@ onBeforeUnmount(() => {
     transform: translate(-50%, -50%);
 }
 
-.qr-shot-size {
-    position: absolute;
-    padding: 2px 7px;
-    border-radius: 5px;
-    background: rgba(25, 25, 25, 0.48);
-    box-shadow: none;
-    color: rgba(255, 255, 255, 0.82);
-    font: 11px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-    pointer-events: none;
-}
-
 .qr-shot-status {
     padding: 0 4px;
     font-weight: 600;
@@ -1189,31 +1164,20 @@ onBeforeUnmount(() => {
     background: rgba(255, 255, 255, 0.16);
 }
 
-.qr-shot-btn.primary {
-    border-color: rgba(255, 255, 255, 0.35);
-    border-radius: 999px;
-    background: rgba(60, 64, 72, 0.55);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-}
-
-.qr-shot-btn.primary:hover {
-    background: rgba(80, 85, 94, 0.75);
-}
-
 .qr-shot-btn--confirm {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
+    min-width: 44px;
+    height: 26px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 5px;
+    background: #0a7dd1;
+    color: #fff;
+    font-size: 12px;
+    line-height: 26px;
 }
 
-.qr-shot-btn--confirm svg {
-    display: block;
-    width: 18px;
-    height: 18px;
+.qr-shot-btn--confirm:hover {
+    background: #1b93e8;
 }
 
 .qr-shot-close {

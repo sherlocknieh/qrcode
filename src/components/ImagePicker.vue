@@ -157,10 +157,9 @@ defineExpose({ pickFile });
     width: 100%;
     height: 100%;
     min-width: 0;
-    padding: 16px;
-    /* 浅灰虚线取景框, 与面板的白色底面区分 */
-    border: 1.5px dashed #cbd5e1;
-    border-radius: 14px;
+    /* padding: 8px; */
+    border: 0;
+    border-radius: 10px;
     background: transparent;
     cursor: pointer;
     /* 兜底: 预览图在部分浏览器 (Firefox) 仍可能撑出圆角 */
@@ -170,15 +169,13 @@ defineExpose({ pickFile });
 
 .qr-picker:hover,
 .qr-picker:focus-visible {
-    border-color: #94a3b8;
     background: #f8fafc;
     outline: none;
 }
 
 /* 拖入时用品牌蓝实线高亮, 是面板里唯一的有彩色状态 */
 .qr-picker--active {
-    border-style: solid;
-    border-color: #2563eb;
+    border: 0;
     background: #eff6ff;
 }
 
@@ -229,14 +226,10 @@ defineExpose({ pickFile });
     justify-content: center;
     box-sizing: border-box;
     width: 100%;
-    /* 占满取景框剩余空间: 不依赖图片固有尺寸,
-       Firefox 下 flex 子项的自动最小尺寸不会再把预览撑出面板 */
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-    border: 1px solid #e2e8f0;
     border-radius: 10px;
-    background: #fff;
 }
 
 .qr-picker-preview {

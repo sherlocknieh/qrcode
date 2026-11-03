@@ -37,7 +37,7 @@ const mainProcess = (
     if (message.action === 'screenshotQR') {
         handleScreenshot();
     }
-    if (message.action === 'screenshotQRDirect') {
+    if (message.action === 'scanFullScreen') {
         handleQuickScreenshot();
     }
     if (message.action === 'scanImageInline') {

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ImagePicker from '@/components/ImagePicker.vue';
+import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { useCameraScan } from '@/composables/useCameraScan';
 import { useImageSource } from '@/composables/useImageSource';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
@@ -67,16 +68,46 @@ async function runScan(
 const stageRef = ref<HTMLElement | null>(null);
 const picker = ref<InstanceType<typeof ImagePicker> | null>(null);
 
-// 扫描动画跟随当前源: 图片在预览图上, 摄像头在取景框上
+// 扫描动画跟随当前源: 图片贴合图片像素本身, 摄像头在取景框上
 async function playScanAnimation() {
-    const pickerRoot = picker.value?.$el as HTMLElement | undefined;
-    const target = isCamera.value
-        ? stageRef.value
-        : pickerRoot?.querySelector('.qr-picker-preview');
-    if (!target) return;
-    const rect = target.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) return;
+    const rect = isCamera.value
+        ? measureBlock(stageRef.value)
+        : await measureImage(picker.value?.$el.querySelector('.qr-picker-preview'));
+    if (!rect) return;
     await scanAnimation.play({ rect });
+}
+
+// 取景框是普通块元素, 盒子即动画区域
+function measureBlock(element: HTMLElement | null): ScanRect | undefined {
+    if (!element) return undefined;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return undefined;
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+}
+
+// 预览图用 object-fit: contain 铺满取景框, 元素盒子比实际图像大;
+// 按固有尺寸算出居中后的图像矩形, 让光带只扫过图片而不是整块黑底
+async function measureImage(element: Element | null): Promise<ScanRect | undefined> {
+    if (!(element instanceof HTMLImageElement)) return undefined;
+    // data URL 的图片在 DOM 更新后仍可能在解码, 解码完成才有固有尺寸
+    if (!element.complete) await element.decode().catch(() => undefined);
+    const box = element.getBoundingClientRect();
+    if (box.width < 2 || box.height < 2) return undefined;
+
+    const { naturalWidth, naturalHeight } = element;
+    if (!naturalWidth || !naturalHeight) {
+        return { x: box.left, y: box.top, width: box.width, height: box.height };
+    }
+
+    const scale = Math.min(box.width / naturalWidth, box.height / naturalHeight);
+    const width = naturalWidth * scale;
+    const height = naturalHeight * scale;
+    return {
+        x: box.left + (box.width - width) / 2,
+        y: box.top + (box.height - height) / 2,
+        width,
+        height,
+    };
 }
 
 // ---------------------------- 图片源 ----------------------------
@@ -229,7 +260,7 @@ onBeforeUnmount(() => {
                     </component>
 
                     <div class="qr-scan-panel-tools">
-                        <!-- 切换源: 独立页带文字说明, 浮层只留图标 -->
+                        <!-- 切换源: 两种承载保持相同的文字按钮样式 -->
                         <button
                             class="qr-scan-tool qr-scan-tool--switch"
                             type="button"
@@ -247,7 +278,7 @@ onBeforeUnmount(() => {
                                 <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
                                 <circle cx="12" cy="14.1" r="3.4" />
                             </svg>
-                            <span v-if="!overlay" class="qr-scan-tool-label">{{ switchLabel }}</span>
+                            <span class="qr-scan-tool-label">{{ switchLabel }}</span>
                         </button>
 
                         <button
@@ -269,7 +300,6 @@ onBeforeUnmount(() => {
                 <div
                     ref="stageRef"
                     class="qr-scan-stage"
-                    :class="{ 'qr-scan-stage--camera': isCamera }"
                 >
                     <template v-if="isCamera">
                         <video
@@ -328,8 +358,6 @@ onBeforeUnmount(() => {
                         @click="action.run"
                     >{{ action.label }}</button>
                 </div>
-
-                <p v-if="!overlay" class="qr-scan-panel-foot">{{ t('scanPanelFooter') }}</p>
             </section>
         </div>
     </Teleport>
@@ -367,7 +395,11 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     /* 两种承载使用同一宽度, 只在外边距与阴影上有区别 */
     width: min(560px, 100%);
-    padding: 26px;
+    /* 窄屏下限: 再窄标题栏的切换胶囊会顶到边缘, 两个等分按钮也会挤成多行;
+       下限必须是绝对值, 用 100% 会跟着容器一起缩, 起不到撑住的作用。
+       320px 是"互不挤压"的临界值, 360px 才能让标题露出几个字 */
+    min-width: 360px;
+    padding: 24px;
     border: 1px solid #e2e8f0;
     border-radius: 18px;
     background: #fff;
@@ -390,15 +422,10 @@ onBeforeUnmount(() => {
     }
 }
 
-/* 浮层里没有页面边距, 需要自己限制最大宽度并收紧留白;
-   小窗口下允许面板内部滚动, 避免整体溢出视口 */
+/* 浮层只负责承载遮罩，面板本体与独立页使用同一套规格 */
 .qr-scan-panel--overlay {
-    width: min(420px, calc(100vw - 32px));
     max-height: calc(100vh - 32px);
     overflow: auto;
-    padding: 18px 18px 20px;
-    border-color: #e2e8f0;
-    border-radius: 16px;
 }
 
 /* 标题栏: 标题左对齐, 工具按钮收在右侧, 高度固定 */
@@ -506,15 +533,11 @@ onBeforeUnmount(() => {
 .qr-scan-stage {
     position: relative;
     box-sizing: border-box;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 9;
     overflow: hidden;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
+    border: 1.5px dashed #cbd5e1;
+    border-radius: 10px;
     background: #fff;
-}
-
-.qr-scan-stage--camera {
-    background: #0f172a;
 }
 
 /* 取图区占满取景框, 内容居中; 虚线边框正好充当取景提示 */
@@ -537,7 +560,9 @@ onBeforeUnmount(() => {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    border-radius: 10px;
+    object-fit: contain;
+    transform: scaleX(-1);
 }
 
 /* 四角取景框: 与整屏扫描动画同一套白色括号语言, 比虚线更聚焦 */
@@ -588,14 +613,19 @@ onBeforeUnmount(() => {
 }
 
 /* 摄像头未开启: 用图标 + 一句说明填满深色取景框 */
-.qr-scan-camera-idle {
+.qr-scan-camera-idle,
+.qr-scan-state {
     position: absolute;
-    inset: 0;
+    inset: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 10px;
+    border-radius: 10px;
+}
+
+.qr-scan-camera-idle {
     color: #94a3b8;
 }
 
@@ -629,15 +659,6 @@ onBeforeUnmount(() => {
 }
 
 .qr-scan-state {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    margin: 0;
-    background: rgba(15, 23, 42, 0.72);
     color: #e2e8f0;
     font-size: 13px;
     letter-spacing: 0.02em;
@@ -678,17 +699,17 @@ onBeforeUnmount(() => {
 .qr-scan-panel-actions {
     display: flex;
     gap: 10px;
-    margin-top: 16px;
+    margin-top: 14px;
 }
 
 /* 固定高度: 一个按钮与两个按钮、换源后都保持同一行高 */
 .qr-scan-panel-btn {
     flex: 1 1 0;
     min-width: 0;
-    height: 42px;
+    height: 40px;
     padding: 0 18px;
     border: 1px solid #d1d5db;
-    border-radius: 11px;
+    border-radius: 10px;
     background: #fff;
     color: #1f2937;
     font: inherit;
@@ -723,43 +744,6 @@ onBeforeUnmount(() => {
 .qr-scan-panel-btn:disabled {
     opacity: 0.45;
     cursor: default;
-}
-
-/* 浮层空间更紧凑: 标题缩小, 取景框与按钮的相对关系保持不变 */
-.qr-scan-panel--overlay .qr-scan-panel-header {
-    min-height: 30px;
-    margin-bottom: 12px;
-}
-
-.qr-scan-panel--overlay .qr-scan-panel-title {
-    font-size: 14px;
-}
-
-.qr-scan-panel--overlay .qr-scan-hint {
-    margin-top: 10px;
-}
-
-.qr-scan-panel--overlay .qr-scan-panel-actions {
-    margin-top: 14px;
-}
-
-.qr-scan-panel--overlay .qr-scan-panel-btn {
-    height: 40px;
-}
-
-/* 页脚只在独立页出现, 补充能力说明 */
-.qr-scan-panel-foot {
-    margin: 14px 0 0;
-    text-align: center;
-    font-size: 12px;
-    line-height: 1.5;
-    color: #64748b;
-}
-
-.qr-scan-panel--overlay .qr-scan-tool--switch {
-    width: 32px;
-    padding: 0;
-    border-radius: 10px;
 }
 
 @media (prefers-reduced-motion: reduce) {

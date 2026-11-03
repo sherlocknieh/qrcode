@@ -108,11 +108,20 @@ export function useCameraScan(options: CameraScanOptions) {
         return context.getImageData(0, 0, width, height);
     }
 
+    // 不指定尺寸时浏览器默认给 4:3 (常见 640x480), 与 16:9 取景框不匹配;
+    // 这里用 ideal 请求 16:9, 设备不支持时浏览器会退回最接近的分辨率, 不会失败
+    const videoConstraints: MediaTrackConstraints = {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        aspectRatio: { ideal: 16 / 9 },
+    };
+
     // 桌面浏览器没有后置摄像头, facingMode 失败时退回默认设备
     async function requestStream(): Promise<MediaStream> {
         try {
             return await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' },
+                video: videoConstraints,
                 audio: false,
             });
         } catch (error) {
