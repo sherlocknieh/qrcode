@@ -45,8 +45,12 @@ async function copyInputText() {
     }, 1500);
 }
 
-// 鼠标划过底部矩形条或键盘聚焦时自动展开, 点击仍可用于收起
-function expandOnHover() {
+// 鼠标划过底部矩形条时切换: 收起时展开, 已展开时再次悬停收起; 键盘聚焦只负责展开
+function toggleOnHover() {
+    if (props.collapsible) expanded.value = !expanded.value;
+}
+
+function expandOnFocus() {
     if (props.collapsible) expanded.value = true;
 }
 </script>
@@ -71,8 +75,8 @@ function expandOnHover() {
                 :aria-expanded="expanded"
                 :aria-label="expanded ? t('collapseEditor') : t('moreOptions')"
                 :title="expanded ? t('collapseEditor') : t('moreOptions')"
-                @mouseenter="expandOnHover"
-                @focus="expandOnHover"
+                @mouseenter="toggleOnHover"
+                @focus="expandOnFocus"
                 @click="expanded = !expanded"
             >
                 <svg

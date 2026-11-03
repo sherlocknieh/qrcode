@@ -42,7 +42,7 @@ Chromium 系浏览器启动后，[.dev/pin-dev-extension.mjs](./.dev/pin-dev-ext
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | 独立截图识别页 `capture.html`：读取后台截取的视口图并框选识别（PDF、SVG 等无法注入内容脚本时的兜底）；带 `?direct=1` 时直接识别整图 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 本地重写的框选截图组件（拖拽选区、复制、保存） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域两种形态，纯展示不拦截交互） |
-| [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：实时预览 + 单一输入框（聚焦无高亮）；popup 用 `collapsible` 默认收起，只留二维码，展开入口是二维码底部白边上的满宽矩形条（悬停/聚焦自动展开，点击收起），两种状态二维码尺寸与留白完全一致；输入框聚焦即全选，输入框内还内嵌一个复制按钮（火狐 popup 里拖拽划选越过边界会中断，靠全选加复制代替） |
+| [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板：实时预览 + 单一输入框（聚焦无高亮）；popup 用 `collapsible` 默认收起，只留二维码，展开入口是二维码底部白边上的满宽矩形条（悬停切换：收起时展开、再次悬停收起；键盘聚焦只展开，点击切换），两种状态二维码尺寸与留白完全一致；输入框聚焦即全选，输入框内还内嵌一个复制按钮（火狐 popup 里拖拽划选越过边界会中断，靠全选加复制代替） |
 | [src/components/ScanPanel.vue](./src/components/ScanPanel.vue) | 唯一的识别面板：图片与摄像头是同一面板的两种输入源，`mode` 切换；两源只产出图像，提示/动画/解码/结果统一走 `recognizeImage`。共用深色 4:3 取景框与固定高的一行提示 + 一行按钮（换源时面板尺寸不变），标题左侧图标按钮切换源；`variant` 决定自带遮罩（浮层）还是原地渲染（独立页） |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴/拖放/选择文件），只有一个图标或预览图，文字提示与按钮由 `ScanPanel` 统一提供 |
 | [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ScanPanel, { variant: 'overlay', mode: 'image' })` 挂载/卸载；浮层里摄像头启动失败时关闭浮层并打开 `upload.html?camera=1` |
