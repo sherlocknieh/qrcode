@@ -25,7 +25,7 @@ pnpm submit:chrome|edge|firefox|all   # 构建并提交商店，由 wxt 自行�
 
 调试时的浏览器 profile 与自动打开的测试页配置在 [wxt.config.ts](./wxt.config.ts)，profile 按浏览器隔离（`.wxt/dev-profile/<browser>`），由 [.dev/dev.mjs](./.dev/dev.mjs) 通过 `WXT_DEV_*` 环境变量注入。
 
-`pnpm dev` 会并行启动多个 `wxt` 实例（dev server 端口 3000/3001/3002，日志带 `[chrome]` 前缀），没装的浏览器直接跳过；`pnpm dev:<browser>` 是严格模式，缺浏览器时直接退出。可执行文件路径可用 `CHROME_BINARY` / `EDGE_BINARY` / `FIREFOX_BINARY` 覆盖。
+`pnpm dev` 会并行启动多个 `wxt` 实例（dev server 端口按浏览器固定：Chrome 3000 / Edge 3001 / Firefox 3002，日志带 `[chrome]` 前缀），没装的浏览器直接跳过；`pnpm dev:<browser>` 是严格模式，缺浏览器时直接退出，端口与多浏览器模式保持一致。可执行文件路径可用 `CHROME_BINARY` / `EDGE_BINARY` / `FIREFOX_BINARY` 覆盖。`wxt.config.ts` 开了 `dev.server.strictPort`：端口被占用时直接报错退出，不会静默换端口（换端口会让已加载的 dev 扩展连不上新端口，热更新/重载失效，同一浏览器还会出现两个实例争写同一个 `.output` 目录）。遇到端口占用先结束上一次 dev 进程，或显式指定端口，如 `pnpm dev:chrome -- -p 3010`。
 
 多进程时子进程没有 TTY，wxt 自带的 `o + enter` 不会生效，所以由 [.dev/dev.mjs](./.dev/dev.mjs) 在父进程里监听，按下后会重启所有已启动的浏览器。
 

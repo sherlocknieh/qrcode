@@ -20,6 +20,14 @@ mkdirSync('.wxt/dev-profile/firefox', { recursive: true });
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'], // 使用 Vue 模块
   srcDir: 'src',                    // 自定义源码目录
+  // dev server 端口由 .dev/dev.mjs 按浏览器固定传入 (chrome 3000 / edge 3001 / firefox 3002)。
+  // 这里开启 strictPort: 端口被占用时直接报错, 不要静默换端口 —— 换端口后已加载的 dev 扩展
+  // 仍连旧端口, 热更新/重载会失效; 同一浏览器的两个 dev 实例还会争写同一个 .output 目录。
+  dev: {
+    server: {
+      strictPort: true,
+    },
+  },
   webExt: {
     keepProfileChanges: true,       // 记忆浏览器配置变更, 防止每次调试都打开全新无配置的浏览器
     chromiumProfile: resolve(`.wxt/dev-profile/${devBrowser}`), // 调试时 Chromium 配置文件路径(按浏览器隔离)

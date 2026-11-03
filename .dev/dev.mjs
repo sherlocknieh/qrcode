@@ -47,6 +47,11 @@ function withoutBrowserArgs() {
   });
 }
 
+// 用户显式传了端口就尊重用户, 否则用按浏览器固定的端口
+function hasPortArg(list) {
+  return list.some(arg => arg === '-p' || arg === '--port' || arg.startsWith('--port='));
+}
+
 function knownBinaryPaths(browser) {
   const env = process.env;
   if (process.platform === 'win32') {
@@ -205,7 +210,12 @@ if (explicitBrowser) {
   }
 
   console.log(`ℹ 使用 ${explicitBrowser}${binary ? `: ${binary}` : ''}`);
-  spawnWxt(explicitBrowser, args, { interactive: true });
+  // 单浏览器模式也用与 `pnpm dev` 相同的固定端口, 否则同一浏览器两次启动端口不同,
+  // 已加载的 dev 扩展会连不上新端口 (热更新/重载失效)
+  const wxtArgs = hasPortArg(args)
+    ? args
+    : ['-p', String(DEV_SERVER_PORTS[explicitBrowser]), ...args];
+  spawnWxt(explicitBrowser, wxtArgs, { interactive: true });
 
   const port = DEBUG_PORTS[explicitBrowser];
   if (port) {
