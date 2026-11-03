@@ -79,7 +79,7 @@ export default defineConfig({
         19: 'icon/19.png',
         38: 'icon/38.png',
       },
-      default_title: 'QRCode',
+      default_title: '__MSG_appShortName__',
       default_popup: '/popup.html',
     },
   },

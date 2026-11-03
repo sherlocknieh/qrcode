@@ -1,6 +1,6 @@
-# 二维码 - 浏览器插件
+# 极简二维码 - 浏览器插件
 
-极简主义 + 全功能 + 全平台二维码插件
+极简界面 + 全能扫码 + 全平台二维码插件
 
 
 | [Chrome](https://chromewebstore.google.com/detail/qrcode/hflmenbgannghieoagnegjlbmlnllkhc) | [Edge](https://microsoftedge.microsoft.com/addons/detail/clkjmabfjboobjkemgknlgpjjlhdghbp) | [Firefox](https://addons.mozilla.org/zh-CN/firefox/addon/qrcode-simple/) |

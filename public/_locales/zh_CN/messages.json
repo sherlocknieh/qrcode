@@ -1,10 +1,14 @@
 {
   "appName": {
-    "message": "全能极简二维码 - 生成与识别",
+    "message": "极简二维码 - 生成、识别与截图扫码",
     "description": "应用名称"
   },
+  "appShortName": {
+    "message": "极简二维码",
+    "description": "工具栏图标提示与短名称"
+  },
   "appDescription": {
-    "message": "全能的二维码生成与识别工具，极简主义设计",
+    "message": "界面极简，功能全能——生成、识别、截图、摄像头扫码一个扩展全包",
     "description": "应用描述"
   },
   "generateQR_selection": {

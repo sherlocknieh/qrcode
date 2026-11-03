@@ -1,10 +1,14 @@
 {
   "appName": {
-    "message": "QRCode",
+    "message": "Minimal QR - Generate, Scan & Capture",
     "description": "Application name"
   },
+  "appShortName": {
+    "message": "Minimal QR",
+    "description": "Short name used for the toolbar tooltip"
+  },
   "appDescription": {
-    "message": "QR Code Generator and Scanner",
+    "message": "Minimal UI, all-in-one scanning: generate QR codes from text and scan QR codes or barcodes from images, screenshots, or the camera.",
     "description": "Application description"
   },
   "generateQR_selection": {
