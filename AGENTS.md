@@ -146,6 +146,7 @@ flowchart LR
 - **通知竞态**：后台在 `openPopup` 期间用 `popupOpening` / `POPUP_OPEN_GRACE` 防丢通知，并靠自增 `id` 做 `clearNoticeIfCurrent`，不要简化掉。
 - **旧通知清理**：popup 断开连接时后台会删 `qrNotification`，避免下次打开重复弹出。
 - **页面全局 CSS 会泄漏进注入的 UI**：内容脚本 UI 挂在页面普通 DOM 里，站点规则会作用到我们的元素上，例如 `example.com` 注入 `svg { margin: -2.75em auto 0; opacity: .55 }`，会把截图工具栏图标顶到按钮外。新增图标时在对应根节点（`.qr-shot` / `.qr-notify-root` / `.qr-picker-icon`）声明完整 `margin` 与 `opacity` 做兜底。
+- **独立 SVG/XML 文档不要挂 integrated UI**：直接打开的 `.svg`（如 `https://app.trakt.tv/favicon.svg`）里 `document.createElement('div')` 返回的是没有 `.style` 的 XML 元素，WXT 的 `createIntegratedUi` 会在 `applyPosition` 设置 `overflow` 时抛 `Cannot set properties of undefined`。`content/index.ts` 已在 `main()` 开头用能力检查跳过这类文档，识别交给 popup / `capture.html`；不要删掉这道检查。
 - **开发时固定图标**：未打包扩展的 pin 只存在内存里，写 `.wxt/dev-profile/.../Preferences` 的 `extensions.pinned_extensions` 无效（Chrome 会忽略），只能由 `.dev/pin-dev-extension.mjs` 在运行时调 `chrome.developerPrivate.updateExtensionConfiguration`。Chrome 与 Edge 同时调试时要各用一个调试端口（9222/9223），否则第二个浏览器连不上。改这段前先用 CDP 实测，别按经验猜。
 
 ## 完成标准
