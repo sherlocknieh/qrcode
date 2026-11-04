@@ -24,6 +24,8 @@ export type PickAnchor = {
     mirrorX?: boolean;
     // 只允许标记落在这个范围内: 框选扫描只截取了画面的一部分
     clip?: ScanRect;
+    // 网页图片扫描时对应的图片元素: 蓝框据此挂进图片所在层, 只压住图片本身
+    element?: Element | null;
 };
 
 type CodePickerOptions = {
@@ -72,6 +74,8 @@ export function toMarkRects(
 // 全屏与面板共用的多码点选: 命中码后在画面上叠蓝点, 点哪个就把通知切到哪个
 export function useCodePicker(options: CodePickerOptions) {
     const picked = ref<(PickAnchor & { results: DecodeResult[] }) | null>(null);
+    // 蓝框跟随的图片元素: 供宿主把它渲染进图片所在层, 没有实体图片时为空
+    const anchorElement = computed(() => picked.value?.element ?? null);
     // 页面滚动后框要跟着码走, 滚动位置用响应式保存下来触发重算
     const scrollPos = ref({ x: window.scrollX, y: window.scrollY });
 
@@ -176,5 +180,5 @@ export function useCodePicker(options: CodePickerOptions) {
         document.removeEventListener('click', onDocumentClick, true);
     });
 
-    return { marks, show, clear, pick };
+    return { marks, anchorElement, show, clear, pick };
 }

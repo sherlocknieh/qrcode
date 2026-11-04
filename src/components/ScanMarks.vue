@@ -1,12 +1,21 @@
 <script lang="ts" setup>
+import { computed } from 'vue';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
+import { overlayMountPoint, overlayZIndex } from '@/services/overlayHost';
 import { t } from '@/services/i18n';
 
 // 扫描命中后标出码的位置: 每个码上叠可点击蓝点, 由用户选用哪一个
-const props = defineProps<{ rects: ScanRect[] }>();
+// anchor 传图片元素时蓝框跟随图片所在层, 只压住图片而不遮挡页面自己的浮层(如维基的下载面板);
+// 整屏截图等没有实体图片的场景不传, 仍覆盖整个视口
+const props = defineProps<{ rects: ScanRect[]; anchor?: Element | null }>();
 const emit = defineEmits<{ pick: [index: number] }>();
 
 const pickHint = t('pickCodeHint');
+
+const anchored = computed(() => (props.anchor ? overlayMountPoint(props.anchor) : null));
+// 只有真的挂进了图片所在容器才交给页面层级; 退回 body 时仍需覆盖视口的最高层, 否则会被页面浮层盖住
+const inPageLayer = computed(() => anchored.value !== null && anchored.value !== document.body);
+const rootStyle = computed(() => (inPageLayer.value ? { zIndex: overlayZIndex(props.anchor) ?? 'auto' } : undefined));
 
 const rectStyle = (rect: ScanRect) => ({
     left: `${rect.x}px`,
@@ -23,30 +32,32 @@ function dotStyle(rect: ScanRect) {
 </script>
 
 <template>
-    <Transition name="qr-marks-fade">
-        <div v-if="props.rects.length" class="qr-marks-root">
-            <div
-                v-for="(rect, index) in props.rects"
-                :key="index"
-                class="qr-marks-item"
-                :style="rectStyle(rect)"
-            >
-                <span class="qr-marks-box" />
-                <button
-                    type="button"
-                    class="qr-marks-dot"
-                    :style="dotStyle(rect)"
-                    :title="pickHint"
-                    :aria-label="pickHint"
-                    @click="emit('pick', index)"
+    <Teleport :to="anchored ?? 'body'" :disabled="!anchored">
+        <Transition name="qr-marks-fade">
+            <div v-if="props.rects.length" class="qr-marks-root" :style="rootStyle">
+                <div
+                    v-for="(rect, index) in props.rects"
+                    :key="index"
+                    class="qr-marks-item"
+                    :style="rectStyle(rect)"
                 >
-                    <svg class="qr-marks-dot-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M5 12h13m-5-6 6 6-6 6" />
-                    </svg>
-                </button>
+                    <span class="qr-marks-box" />
+                    <button
+                        type="button"
+                        class="qr-marks-dot"
+                        :style="dotStyle(rect)"
+                        :title="pickHint"
+                        :aria-label="pickHint"
+                        @click="emit('pick', index)"
+                    >
+                        <svg class="qr-marks-dot-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h13m-5-6 6 6-6 6" />
+                        </svg>
+                    </button>
+                </div>
             </div>
-        </div>
-    </Transition>
+        </Transition>
+    </Teleport>
 </template>
 
 <style scoped>

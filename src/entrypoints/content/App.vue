@@ -31,6 +31,7 @@ const imagePasteOverlay = useImagePasteOverlay();
 // 命中码后统一在画面上叠蓝点: 整屏截屏 / 框选截图 / 网页图片只是锚点不同
 const picker = useCodePicker({ notifyResults });
 const marks = picker.marks;
+const marksAnchor = picker.anchorElement;
 const pickMark = picker.pick;
 const clearMarks = picker.clear;
 
@@ -169,6 +170,7 @@ async function handleImageUrl(imageUrl: string) {
                 // 图片查看器等浮层里的图片不随页面滚动, 只按滚动差量平移会把蓝框推偏,
                 // 交一个重测函数让蓝框每次都以图片的实时位置为准
                 measureRect: () => measureVisibleImage(image),
+                element: image,
             });
         } else {
             await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
@@ -351,6 +353,6 @@ async function fetchImageViaProxy(url: string): Promise<string> {
 <template>
     <div class="qr-content-root">
         <NotifyHost />
-        <ScanMarks :rects="marks" @pick="pickMark" />
+        <ScanMarks :rects="marks" :anchor="marksAnchor" @pick="pickMark" />
     </div>
 </template>

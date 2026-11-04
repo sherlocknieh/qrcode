@@ -1,5 +1,6 @@
 import { createApp, h, reactive, type App } from 'vue';
 import ScanOverlay, { type ScanRect } from '@/components/ScanOverlay.vue';
+import { overlayMountPoint, overlayZIndex } from '@/services/overlayHost';
 
 // 扫过动画默认时长; 与 ScanOverlay 的 CSS 变量保持一致
 const DEFAULT_SWEEP_DURATION = 700;
@@ -30,24 +31,6 @@ type ScanSession = {
 
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
-// 修复图片区域动画盖住页面自身浮层(如维基媒体查看器的下载面板)的问题:
-// 动画原先挂在 body 上, 只能靠抬高 z-index 压过图片, 却会越过后加入的同层浮层;
-// 改为挂进图片所在容器, 让它和图片同处一个层叠上下文且紧排在图片之后,
-// 只压住图片本身, 页面上更靠后/更高的浮层仍显示在它上面
-function mountTarget(rect: ScanRect | undefined, anchor: Element | null | undefined): HTMLElement {
-    if (rect && anchor?.parentElement) return anchor.parentElement;
-    return document.body;
-}
-
-// 只考虑图片自己的层级: 图片本身是带 z-index 的定位元素时才需要抬一格
-function aboveImageZIndex(anchor: Element | null | undefined): number | null {
-    if (!anchor) return null;
-    const style = getComputedStyle(anchor);
-    if (style.position === 'static' || style.zIndex === 'auto') return null;
-    const z = Number.parseInt(style.zIndex, 10);
-    return Number.isFinite(z) ? z + 1 : null;
-}
-
 // 扫描动画: 图片数据就绪后才挂载, 避免动画被截进图片;
 // 光带在扫描期间一直循环扫过, play() 只等首帧就返回,
 // stop() 负责收尾: 至少完整扫过一遍 → 淡出 → 卸载, 淡出结束后才 resolve
@@ -63,11 +46,14 @@ export function useScanAnimation() {
         if (session) return;
 
         const duration = options.duration ?? DEFAULT_SWEEP_DURATION;
-        // 只在挂载时算一次: 动画淡出期间图片可能已被移除, 免得层级中途变化
-        const zIndex = options.rect ? aboveImageZIndex(options.anchor) : null;
+        // 只在挂载时算一次: 动画淡出期间图片可能已被移除, 免得层级与挂载点中途变化
+        const anchor = options.rect ? options.anchor : null;
+        const mount = overlayMountPoint(anchor);
+        // 挂进图片容器时才跟随页面层级; 退回 body 时保留覆盖视口的最高层
+        const zIndex = mount === document.body ? null : overlayZIndex(anchor);
         const host = document.createElement('div');
         host.style.display = 'contents';
-        mountTarget(options.rect, options.anchor).appendChild(host);
+        mount.appendChild(host);
         const state = reactive<ScanState>({ ...options, leaving: false });
         const app = createApp({
             render: () => h(ScanOverlay, {

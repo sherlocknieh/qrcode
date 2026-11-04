@@ -36,8 +36,9 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | `upload.html`：`?camera=1` 以摄像头模式开 `ScanPanel`；内容脚本注入不了时的兜底页 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：视口图框选 / 直出扫描（PDF、SVG 兜底） |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 自研框选截图（拖拽、复制、保存）；确认后冻结为结果底图，识别结束时本次选区与高亮一起消失、蓝色选框与手柄退场，蓝框标在截图上且仍可继续框选下一块 |
-| [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域，不拦截交互）；图片区域由 [useScanAnimation.ts](./src/composables/useScanAnimation.ts) 挂进图片所在容器并排在图片之后，只压住图片而不越过后加入的页面浮层 |
-| [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 全屏扫描命中后标出码的位置（方框，纯展示） |
+| [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域，不拦截交互）；图片区域按 [overlayHost.ts](./src/services/overlayHost.ts) 挂进图片所在容器并排在图片之后，只压住图片而不越过后加入的页面浮层 |
+| [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 扫描命中后在码上标蓝框与可点蓝点；传 `anchor` 时跟随图片所在层（同 [overlayHost.ts](./src/services/overlayHost.ts)），不传则覆盖视口最高层 |
+| [src/services/overlayHost.ts](./src/services/overlayHost.ts) | 扫码叠加层（扫描动画、命中蓝框）的挂载策略：优先挂进图片容器只压住图片；祖先改掉 `fixed` 参照时退回 `body` 保持最高层 |
 | [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板（预览 + 单输入框） |
 | [src/components/ScanPanel.vue](./src/components/ScanPanel.vue) | 唯一扫描面板：图片 / 摄像头两种 `mode` |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴 / 拖放 / 选文件） |
