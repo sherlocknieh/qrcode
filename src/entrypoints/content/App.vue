@@ -144,8 +144,9 @@ async function handleImageUrl(imageUrl: string) {
             notifyFetching,
             // 图片取到、扫描提示出现后, 再在网页上的图片区域播放扫描动画
             beforeNotice: async () => {
-                const rect = measureVisibleImage(findImageElement(imageUrl));
-                if (rect) await scanAnimation.play({ rect });
+                const image = findImageElement(imageUrl);
+                const rect = measureVisibleImage(image);
+                if (rect) await scanAnimation.play({ rect, anchor: image });
             },
             afterDecode: () => scanAnimation.stop(),
             // 结果通知与蓝点同时给出, 由这里统一处理

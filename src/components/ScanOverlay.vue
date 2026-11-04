@@ -9,9 +9,11 @@ const props = withDefaults(
         rect?: ScanRect | null;
         // 扫过动画时长, 由调用方与 composable 的等待时长保持一致
         duration?: number;
+        // 图片区域扫描时压在图片之上所需的层级; 不传则用兜底的最大值
+        zIndex?: number | null;
         leaving?: boolean;
     }>(),
-    { rect: null, duration: 700, leaving: false },
+    { rect: null, duration: 700, zIndex: null, leaving: false },
 );
 
 const region = computed(() => props.rect !== null);
@@ -28,6 +30,9 @@ const rootStyle = computed(() => {
         style.top = `${rect.y}px`;
         style.width = `${rect.width}px`;
         style.height = `${rect.height}px`;
+        // 修复图片区域动画盖住页面其他悬浮元素、压低后又整块看不见的问题:
+        // 层级由调用方按图片所在层算出"刚好多一层", 不写死也不抬到最高
+        if (props.zIndex !== null) style.zIndex = `${props.zIndex}`;
     }
     return style;
 });
@@ -65,6 +70,9 @@ const rootStyle = computed(() => {
 /* 图片区域: 只覆盖图片, 用白色描边强调范围 */
 .qr-scan--region {
     inset: auto;
+    /* 动画挂在图片容器里, 靠排在图片之后压住图片即可;
+       层级交给页面自身, 免得越过后加入的浮层(如维基的下载面板) */
+    z-index: auto;
     border-radius: 6px;
     box-shadow:
         0 0 0 2px rgba(255, 255, 255, 0.92),
