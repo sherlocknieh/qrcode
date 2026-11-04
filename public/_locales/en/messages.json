@@ -164,8 +164,8 @@
     "description": "Success dialog title"
   },
   "barcodeScanSuccess": {
-    "message": "Barcode Scanned",
-    "description": "Success dialog title when a barcode is detected"
+    "message": "Barcode Found",
+    "description": "Title shown when a barcode is detected"
   },
   "openLink": {
     "message": "Open Link",

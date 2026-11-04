@@ -164,8 +164,8 @@
     "description": "扫描到二维码时的提示标题"
   },
   "barcodeScanSuccess": {
-    "message": "条形码扫描成功",
-    "description": "扫描到条形码时的成功对话框标题"
+    "message": "发现条形码",
+    "description": "扫描到条形码时的提示标题"
   },
   "openLink": {
     "message": "打开链接",
