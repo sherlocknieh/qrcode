@@ -2,6 +2,7 @@
 import { defineConfig } from 'wxt';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // dev 时每个浏览器用独立 profile 和调试端口, 多个浏览器才能同时运行
 const devBrowser = process.env.WXT_DEV_BROWSER ?? 'chrome';
@@ -38,12 +39,12 @@ export default defineConfig({
     binaries: binary ? { [devBrowser]: binary } : undefined, // 由 .dev/dev.mjs 探测后传入
     // 调试时自动打开的页面
     startUrls: [
-      'about:newtab',
+      // 'about:newtab',
       'https://inftab.com/',
       'https://en.wikipedia.org/wiki/QR_code',
       'https://en.wikipedia.org/wiki/Barcode',
+      pathToFileURL(resolve('.dev/codes.pdf')).href,
       'https://www.deepseek.com/images/app-qrcode.png',
-      'https://pdfobject.com/pdf/sample.pdf',
       'https://app.trakt.tv/favicon.svg',
     ],
   },

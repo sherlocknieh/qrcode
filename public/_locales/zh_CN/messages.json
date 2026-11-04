@@ -160,8 +160,8 @@
     "description": "解析二维码或条形码时的加载提示"
   },
   "qrcodeScanSuccess": {
-    "message": "二维码扫描成功",
-    "description": "成功对话框标题"
+    "message": "发现二维码",
+    "description": "扫描到二维码时的提示标题"
   },
   "barcodeScanSuccess": {
     "message": "条形码扫描成功",
@@ -180,11 +180,11 @@
     "description": "复制成功后按钮显示的文字"
   },
   "multiScanSuccess": {
-    "message": "批量扫描完成",
+    "message": "发现多个二维码/条形码",
     "description": "一次扫描到多个二维码/条形码时的标题"
   },
   "pickCodeHint": {
-    "message": "点击蓝点, 选择要扫的码",
+    "message": "点击查看扫描结果",
     "description": "全屏扫描命中多个码时, 提示用户在画面上点选其中一个"
   },
   "copyItem": {
@@ -275,13 +275,13 @@
     "message": "复制内容",
     "description": "复制按钮文字"
   },
-  "recognitionFailedMsg": {
-    "message": "未发现有效的二维码/条形码",
-    "description": "扫描失败的提示"
-  },
   "recognitionFailed": {
-    "message": "扫描失败",
-    "description": "扫描出错后的标题"
+    "message": "未发现有效的二维码/条形码",
+    "description": "扫描失败的标题"
+  },
+  "recognitionFailedMsg": {
+    "message": "也许是不支持的码格式",
+    "description": "扫描失败的提示信息"
   },
   "clearImage": {
     "message": "清空图片",

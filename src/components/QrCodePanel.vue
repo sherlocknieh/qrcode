@@ -50,7 +50,7 @@ function toggleExpanded() {
             <p v-else-if="error" class="qr-panel-error">{{ error }}</p>
             <p v-else class="qr-panel-hint">{{ t('qrEmptyHint') }}</p>
 
-            <!-- 点击整块二维码展开/收起, 不再显示箭头; 悬停提示只说明点击动作 -->
+            <!-- 点击整块二维码展开/收起 -->
             <button
                 v-if="collapsible"
                 class="qr-panel-toggle"
@@ -59,18 +59,7 @@ function toggleExpanded() {
                 :aria-label="expanded ? t('collapseEditor') : t('moreOptions')"
                 :title="expanded ? t('collapseEditor') : t('moreOptions')"
                 @click="toggleExpanded"
-            >
-                <!-- 收起态悬停时在二维码中央提示可以编辑 -->
-                <svg
-                    v-if="!expanded"
-                    class="qr-panel-edit-icon"
-                    viewBox="0 0 16 16"
-                    aria-hidden="true"
-                >
-                    <path d="M10.7 2.4a1.5 1.5 0 0 1 2.1 0l.8.8a1.5 1.5 0 0 1 0 2.1l-7.2 7.2-3 .7.7-3z" />
-                    <path d="m9.6 3.5 2.9 2.9" />
-                </svg>
-            </button>
+            ></button>
         </div>
 
         <div v-if="expanded" class="qr-panel-form">
@@ -90,6 +79,9 @@ function toggleExpanded() {
 
 <style scoped>
 .qr-panel {
+    /* 展开入口的图标: 收起态铅笔提示可编辑, 展开态上箭头提示可收起 */
+    --qr-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.7 2.4a1.5 1.5 0 0 1 2.1 0l.8.8a1.5 1.5 0 0 1 0 2.1l-7.2 7.2-3 .7.7-3z'/%3E%3Cpath d='m9.6 3.5 2.9 2.9'/%3E%3C/svg%3E");
+    --qr-chevron-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 10 4-4 4 4'/%3E%3C/svg%3E");
     position: relative;
     box-sizing: border-box;
     display: flex;
@@ -165,17 +157,21 @@ function toggleExpanded() {
     outline: none;
 }
 
-/* 展开入口: 透明的整块二维码热区, 点击即展开/收起 */
+/* 展开入口: 整块二维码都是热区, 平时完全透明, 悬停或键盘聚焦时整块浮出 */
 .qr-panel-toggle {
+    --qr-toggle-icon: var(--qr-chevron-up);
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    background: none;
+    color: #ffffff;
+    background: rgb(15 23 42 / 10%);
     border: 0;
     cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease;
 }
 
 /* 键盘聚焦时给出可见框, 鼠标点击不画框 */
@@ -184,32 +180,29 @@ function toggleExpanded() {
     outline-offset: -1px;
 }
 
-/* 编辑提示图标: 全透明圆底 */
-.qr-panel-edit-icon {
-    box-sizing: content-box;
-    width: 18px;
-    height: 18px;
-    padding: 8px;
-    color: #ffffff;
-    background: rgb(15 23 42 / 0%);
-    border-radius: 50%;
-    opacity: 0;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    transition: opacity 120ms ease;
-}
-
 /* 悬停提示只在能真正悬停的设备上出现, 触屏点完不会残留 */
 @media (hover: hover) {
-    .qr-panel-toggle:hover .qr-panel-edit-icon {
+    .qr-panel-toggle:hover {
         opacity: 1;
     }
 }
 
-.qr-panel-toggle:focus-visible .qr-panel-edit-icon {
+.qr-panel-toggle:focus-visible {
     opacity: 1;
+}
+
+/* 收起态换成铅笔: 同样的悬停浮现, 图标提示这一下是"展开编辑"而不是"收起" */
+.qr-panel--compact .qr-panel-toggle {
+    --qr-toggle-icon: var(--qr-pencil);
+}
+
+/* 图标直接画在热区按钮的伪元素上, 不再单独占一个 svg 节点 */
+.qr-panel-toggle::after {
+    content: '';
+    width: 18px;
+    height: 18px;
+    background: currentColor;
+    -webkit-mask: var(--qr-toggle-icon) center / 18px 18px no-repeat;
+    mask: var(--qr-toggle-icon) center / 18px 18px no-repeat;
 }
 </style>
