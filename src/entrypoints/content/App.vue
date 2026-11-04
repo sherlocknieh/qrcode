@@ -6,7 +6,7 @@ import { getImageDataFromDataUrl, loadImageDataFromUrl, type DecodeResult } from
 import { t } from '@/services/i18n';
 import { sendMessage } from '@/services/messaging';
 import { describeImageError, errorNotice, warningNotice } from '@/services/decodeResultNotice';
-import { recognizeImage, type DecodeOutcome } from '@/services/recognize';
+import { recognizeImage, type DecodeOutcome, type RetryKind } from '@/services/recognize';
 import { measureImageRect } from '@/services/imageRect';
 
 // UI组件
@@ -64,6 +64,9 @@ const mainProcess = (
     }
     if (message.action === 'scanLocalImage') {
         imagePasteOverlay.open();
+    }
+    if (message.action === 'frameScan') {
+        void openFrameScan();
     }
     // 立即回执: 后台以"是否收到回应"判断内容脚本是否可用, 不回应会被当成不可用而回退到新标签页
     sendResponse({ success: true });
@@ -217,25 +220,23 @@ function isScreenshotResult(error: unknown): error is ScreenshotResult {
 // 扫描屏幕的结果画面: 已经解出结果, 把这次截图交给截图容器承载展示
 type ScreenScanResult = { dataUrl: string; results: DecodeResult[] };
 
-// 截图容器承载结果: 整屏扫描与本地图片兜底共用, 蓝框标在静止的截图上
-async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult) {
+// 截图容器: 承载结果画面与后续框选。dataUrl 缺省时由容器自己截取当前视口;
+// 没有可定位的结果时直接进入框选状态, 由用户指定要扫的区域
+async function openShotSession(
+    { dataUrl, results: found }: { dataUrl?: string; results?: DecodeResult[] } = {},
+): Promise<boolean> {
     screenshotEpoch++;
     clearMarks();
     void scanAnimation.stop();
     const epoch = screenshotEpoch;
     // 点蓝点时用的结果: 与容器里的蓝框一一对应, 只能放可定位的码
-    const seedResults = allResults.filter((result) => result.bounds);
-    // 一个码都定位不到时截图容器没有可点的蓝点, 直接给结果通知即可
-    if (!seedResults.length) {
-        await notifyResults(allResults, { pickHint: allResults.length > 1 });
-        return;
-    }
+    const seedResults = (found ?? []).filter((result) => result.bounds);
     let results: DecodeResult[] = seedResults;
     // 框选轮次: 用户在结果画面上再框一块时, 前一轮的结果作废
     let captureSeq = 0;
     let shot: ScreenshotSession | null = null;
 
-    // 在结果画面上再框一块: 命中后蓝框留在截图上, 用户可接着框下一块
+    // 在画面上框一块: 命中后蓝框留在截图上, 用户可接着框下一块
     async function scanCapture(capture: ScreenshotCapture) {
         if (!shot) return;
         const seq = ++captureSeq;
@@ -269,7 +270,7 @@ async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult
         shot = await startScreenshot({
             // 复用扫描时截好的那张图, 不再重复截取
             src: dataUrl,
-            // 截图就是结果画面, 打开即标出码, 不进入框选
+            // 有结果时截图就是结果画面, 打开即标出码; 没有结果则停在框选状态
             initialResults: seedResults.flatMap((result) => (result.bounds ? [result.bounds] : [])),
             onPick: (index) => {
                 const result = results[index];
@@ -283,10 +284,27 @@ async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult
             onError: () => void notifyScreenshotError({ type: 'failed' }),
         });
         activeShot = shot;
-        await notifyResults(allResults, { pickHint: allResults.length > 1 });
+        return true;
     } catch (error) {
         notifyScreenshotError(error);
+        return false;
     }
+}
+
+// 截图容器承载结果: 整屏扫描与本地图片兜底共用, 蓝框标在静止的截图上
+async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult) {
+    // 一个码都定位不到时截图容器没有可点的蓝点, 直接给结果通知即可
+    if (!allResults.some((result) => result.bounds)) {
+        await notifyResults(allResults, { pickHint: allResults.length > 1 });
+        return;
+    }
+    if (!(await openShotSession({ dataUrl, results: allResults }))) return;
+    await notifyResults(allResults, { pickHint: allResults.length > 1 });
+}
+
+// 框选扫描: 全屏扫描没扫到码时, 让用户在重新截取的视口图上自己框一块
+async function openFrameScan() {
+    await openShotSession();
 }
 
 // 扫描屏幕: 截取当前视口 → 在页面上播放扫描动画 → 结果交给截图容器承载展示。
@@ -306,6 +324,9 @@ async function handleScreenScan() {
             afterDecode: () => scanAnimation.stop(),
             // 结果通知由截图容器给出
             deferResults: true,
+            // 整屏都没扫到码时, 让用户在截图上框选一块再扫
+            noResultRetry: 'frameScan',
+            onRetry: () => void openFrameScan(),
         });
         if (epoch !== screenshotEpoch || outcome.status !== 'ok') return;
         await showScanResult({ dataUrl, results: outcome.results });
@@ -322,6 +343,7 @@ function decodeAndNotify(
     options: {
         isStale?: () => boolean;
         onRetry?: () => void;
+        noResultRetry?: RetryKind;
         errorTitle?: string;
         beforeNotice?: () => Promise<void>;
         notifyFetching?: () => Promise<unknown>;
@@ -332,8 +354,9 @@ function decodeAndNotify(
     return recognizeImage(loadImageData, {
         host,
         isStale: options.isStale,
-        // 只有调用方确认"再截一次图"有意义时才传 onRetry (截图流程自己就不该再给截图入口)
+        // 只有调用方确认"再试一次"有意义时才传 onRetry (截图流程自己就不该再给截图入口)
         onRetry: options.onRetry,
+        noResultRetry: options.noResultRetry,
         errorTitle: options.errorTitle,
         beforeNotice: options.beforeNotice,
         notifyFetching: options.notifyFetching,
