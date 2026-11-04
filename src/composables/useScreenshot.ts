@@ -22,6 +22,8 @@ export type ScreenshotSession = {
     showResults(marks: ScanRect[]): void;
     // 没扫到码: 清掉蓝框但留住截图, 让用户可以继续框选别的区域
     clearResults(): void;
+    // 点中一个蓝点后只撤掉它自己的蓝框, 剩下的继续可点
+    removeResult(index: number): void;
     // 收起浮层, 回到页面
     close(): void;
 };
@@ -101,6 +103,7 @@ export function useScreenshot() {
             resolve({
                 showResults: (marks: ScanRect[]) => overlay?.showResults(marks),
                 clearResults: () => overlay?.clearResults(),
+                removeResult: (index: number) => overlay?.removeResult(index),
                 close: dispose,
             });
         });

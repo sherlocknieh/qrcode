@@ -71,7 +71,7 @@ export function toMarkRects(
     return marks;
 }
 
-// 全屏与面板共用的多码点选: 命中码后在画面上叠蓝点, 点哪个就把通知切到哪个
+// 全屏与面板共用的多码点选: 命中码后在画面上叠蓝点, 点哪个就把通知切到哪个并撤掉该码的标记
 export function useCodePicker(options: CodePickerOptions) {
     const picked = ref<(PickAnchor & { results: DecodeResult[] }) | null>(null);
     // 蓝框跟随的图片元素: 供宿主把它渲染进图片所在层, 没有实体图片时为空
@@ -111,11 +111,15 @@ export function useCodePicker(options: CodePickerOptions) {
         picked.value = null;
     }
 
-    // 点中蓝点: 通知切到这个码的结果, 蓝点保留以便继续挑选
+    // 点中蓝点: 通知切到这个码的结果, 并把这个码的蓝框蓝点一并撤掉,
+    // 剩下的继续可点, 避免已经看过的码还挂在画面上
     function pick(index: number) {
-        const result = picked.value?.results[index];
-        if (!result) return;
+        const current = picked.value;
+        const result = current?.results[index];
+        if (!current || !result) return;
         void options.notifyResults([result]);
+        const rest = current.results.filter((_, i) => i !== index);
+        picked.value = rest.length ? { ...current, results: rest } : null;
     }
 
     // 通知窗口是否还开着 (含刚被这次点击点掉的情况): 内容脚本发起的通知都落在 popup 里

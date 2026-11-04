@@ -748,6 +748,56 @@ function refineBarcodeEdge(
     return edge;
 }
 
+// 条空排列方向上, 定位点向外走多远算离开条面 (静区), 以及最多向外看多远。
+// 一维码内部的空隙最多 4 模块, 比例按整条码宽估算, 取 5% 时对 EAN/UPC 约 4.75 模块。
+const BARCODE_QUIET_RATIO = 0.05;
+const BARCODE_EDGE_PAD_RATIO = 0.12;
+
+// 修复条形码标记框不包含最外两根黑条的问题:
+// 一维结果的定位点落在起始/终止图案的中心 (UPC/EAN 取 3 模块定界符中间的空隙,
+// Code 128 取起始符中心), 直接当包围盒会让框两侧各少一根黑条。
+// 这里从定位点沿条空方向向外走, 跨过起始/终止图案, 到静区为止, 取最后一个黑像素的外沿。
+function measureBarEdges(
+    gray: GrayImage,
+    center: number,
+    from: number,
+    to: number,
+    rows: boolean,
+): { min: number; max: number } | null {
+    const span = to - from;
+    if (span <= 0) return null;
+
+    const quiet = Math.max(4, Math.round(span * BARCODE_QUIET_RATIO));
+    const pad = Math.max(12, Math.round(span * BARCODE_EDGE_PAD_RATIO));
+    const last = Math.max(0, (rows ? gray.width : gray.height) - 1);
+    const start = clamp(from - pad, 0, last);
+    const end = clamp(to + pad, 0, last);
+
+    const profile = readCodeProfile(gray, center, start, end, rows);
+    if (!profile) return null;
+
+    const { bits } = profile;
+    // 只认向外走到的黑像素, 定位点以外没有黑条时保持原边界
+    const walk = (fromIndex: number, step: -1 | 1) => {
+        let edge = fromIndex;
+        let gap = 0;
+        for (let index = fromIndex + step; index >= 0 && index < bits.length; index += step) {
+            if (bits[index]) {
+                edge = index;
+                gap = 0;
+                continue;
+            }
+            if (++gap >= quiet) break;
+        }
+        return edge;
+    };
+
+    return {
+        min: start + walk(from - start, -1),
+        max: start + walk(to - start, 1) + 1,
+    };
+}
+
 // 在原图上实测条高方向的范围; 剖面或解码都失败时退回比例估算。
 function measureBarcodeBounds(gray: GrayImage, bounds: Bounds, text: string): Bounds {
     const rows = isBarcodeRowAxis(bounds);
@@ -767,15 +817,19 @@ function measureBarcodeBounds(gray: GrayImage, bounds: Bounds, text: string): Bo
     const band = base && profileCodeBand(gray, base, from, to, center, rows);
     if (!band) return expandBarcodeBounds(bounds, rows, limit);
 
+    const edges = measureBarEdges(gray, center, from, to, rows);
+    const barMin = edges?.min ?? from;
+    const barMax = edges?.max ?? to;
+
     if (!rows) {
         // 竖直条码的条高沿列分布, ZXing 的行解码确认不适用, 边界误差在 1~2 像素内。
-        return { minX: band.min, maxX: band.max, minY: bounds.minY, maxY: bounds.maxY };
+        return { minX: band.min, maxX: band.max, minY: barMin, maxY: barMax };
     }
 
     const bitmap = createZXingBitmap(gray);
     return {
-        minX: bounds.minX,
-        maxX: bounds.maxX,
+        minX: barMin,
+        maxX: barMax,
         minY: refineBarcodeEdge(bitmap, gray.width, gray.height, text, band.min, -1),
         maxY: refineBarcodeEdge(bitmap, gray.width, gray.height, text, band.max, 1),
     };

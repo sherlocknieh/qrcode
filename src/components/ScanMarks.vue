@@ -53,8 +53,11 @@ function dotStyle(rect: ScanRect) {
                         :aria-label="pickHint"
                         @click.stop.prevent="emit('pick', index)"
                     >
+                        <!-- 实现"点蓝点看信息"的语义: 点蓝点只是把通知切到这个码的扫描结果,
+                             并不打开链接, 用箭头容易被当成跳转, 改为字母 i -->
                         <svg class="qr-marks-dot-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M5 12h13m-5-6 6 6-6 6" />
+                            <path d="M12 11v6" />
+                            <path d="M12 7h.01" />
                         </svg>
                     </button>
                 </div>

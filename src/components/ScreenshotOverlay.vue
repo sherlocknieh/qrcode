@@ -836,6 +836,12 @@ defineExpose({
         selection.value = null;
         resultMarks.value = [];
     },
+    // 点掉一个蓝点就只撤掉它的蓝框: 已看过的码不该继续挂在结果画面上,
+    // 剩下的蓝框保持原位, 直接按数组位置删除, 不重新换算坐标
+    removeResult(index: number) {
+        if (index < 0 || index >= resultMarks.value.length) return;
+        resultMarks.value = resultMarks.value.filter((_, markIndex) => markIndex !== index);
+    },
 });
 </script>
 

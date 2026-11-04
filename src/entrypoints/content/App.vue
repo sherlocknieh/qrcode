@@ -254,7 +254,7 @@ async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult
         results = outcome.results.filter((result) => result.bounds);
         // 识别结束后只收起这次的选区高亮, 结果蓝框蓝点要继续留在冻结的截图上供点选;
         // 早先这里清掉整层结果, 多码点选就跟着消失了
-        shot.showResults(toMarkRects(outcome.results, {
+        shot.showResults(toMarkRects(results, {
             rect: capture.rect,
             imageSize: outcome.imageSize,
             scroll: { x: 0, y: 0 },
@@ -273,7 +273,11 @@ async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult
             initialResults: seedResults.flatMap((result) => (result.bounds ? [result.bounds] : [])),
             onPick: (index) => {
                 const result = results[index];
-                if (result) void notifyResults([result]);
+                if (!result) return;
+                void notifyResults([result]);
+                // 点一个撤一个: 已看过的码不必再把蓝框留在结果画面上
+                results = results.filter((_, resultIndex) => resultIndex !== index);
+                shot?.removeResult(index);
             },
             onCapture: (capture) => void scanCapture(capture),
             onError: () => void notifyScreenshotError({ type: 'failed' }),
