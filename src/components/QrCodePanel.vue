@@ -130,42 +130,48 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <div v-if="expanded" class="qr-panel-expanded">
-            <input
-                id="qr-panel-input"
-                ref="inputRef"
-                v-model="text"
-                class="qr-panel-input"
-                type="text"
-                spellcheck="false"
-                :placeholder="t('qrInputPlaceholder')"
-                @focus="selectOnFocus"
-            />
+        <Transition name="qr-drawer">
+            <div v-if="expanded" class="qr-panel-drawer">
+                <div class="qr-panel-drawer-clip">
+                    <div class="qr-panel-expanded">
+                        <input
+                            id="qr-panel-input"
+                            ref="inputRef"
+                            v-model="text"
+                            class="qr-panel-input"
+                            type="text"
+                            spellcheck="false"
+                            :placeholder="t('qrInputPlaceholder')"
+                            @focus="selectOnFocus"
+                        />
 
-            <div class="qr-panel-actions">
-                <button
-                    class="qr-panel-action qr-panel-action--image"
-                    type="button"
-                    :aria-label="t('scanImage')"
-                    :title="t('scanImage')"
-                    @click="emit('scan', 'image')"
-                ></button>
-                <button
-                    class="qr-panel-action qr-panel-action--screen"
-                    type="button"
-                    :aria-label="t('scanFullScreen')"
-                    :title="t('scanFullScreen')"
-                    @click="emit('scan', 'screen')"
-                ></button>
-                <button
-                    class="qr-panel-action qr-panel-action--camera"
-                    type="button"
-                    :aria-label="t('cameraScanTitle')"
-                    :title="t('cameraScanTitle')"
-                    @click="emit('scan', 'camera')"
-                ></button>
+                        <div class="qr-panel-actions">
+                            <button
+                                class="qr-panel-action qr-panel-action--image"
+                                type="button"
+                                :aria-label="t('scanImage')"
+                                :title="t('scanImage')"
+                                @click="emit('scan', 'image')"
+                            ></button>
+                            <button
+                                class="qr-panel-action qr-panel-action--screen"
+                                type="button"
+                                :aria-label="t('scanFullScreen')"
+                                :title="t('scanFullScreen')"
+                                @click="emit('scan', 'screen')"
+                            ></button>
+                            <button
+                                class="qr-panel-action qr-panel-action--camera"
+                                type="button"
+                                :aria-label="t('cameraScanTitle')"
+                                :title="t('cameraScanTitle')"
+                                @click="emit('scan', 'camera')"
+                            ></button>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+        </Transition>
     </section>
 </template>
 
@@ -226,6 +232,24 @@ onBeforeUnmount(() => {
 
 .qr-panel-error {
     color: #dc2626;
+}
+
+/* 展开区像抽屉一样从二维码下方滑出: 用 grid 行高做 0fr → 1fr,
+   不用写死高度, 输入框和扫码入口增减时动画仍然贴合内容 */
+.qr-panel-drawer {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 220ms ease;
+}
+
+.qr-panel-drawer-clip {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.qr-drawer-enter-from,
+.qr-drawer-leave-to {
+    grid-template-rows: 0fr;
 }
 
 .qr-panel-expanded {
