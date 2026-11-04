@@ -3,11 +3,13 @@ import type { NotifyIcon, NotifyResultItem } from '@/composables/useNotify';
 // 页面通知统一转发给 popup 显示, 该键保存 popup 尚未展示的最新一条通知
 export const POPUP_NOTICE_KEY = 'qrNotification';
 
-// open/copy 由 popup 直接执行; screenScan 需要 popup 通知当前页面重新截屏扫描
+// open/copy 由 popup 直接执行; screenScan / frameScan 需要 popup 通知当前页面
+// 重新截屏扫描 (整屏 / 框选)
 export type PopupNoticeAction =
     | { kind: 'open'; value: string }
     | { kind: 'copy'; value: string }
-    | { kind: 'screenScan' };
+    | { kind: 'screenScan' }
+    | { kind: 'frameScan' };
 
 // 可跨进程传递的通知参数: didOpen 等函数无法序列化, 用 loading 标记加载状态
 export interface PopupNoticeOptions {

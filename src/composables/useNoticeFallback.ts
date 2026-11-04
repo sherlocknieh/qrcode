@@ -8,7 +8,7 @@ import {
 import type { PopupNoticePayload } from '@/services/popupNotice';
 import { showPopupNotice } from '@/services/popupNotice';
 import type { DecodeResult } from '@/services/qrScanner';
-import type { RecognizeHost } from '@/services/recognize';
+import type { RecognizeHost, RetryKind } from '@/services/recognize';
 import { t } from '@/services/i18n';
 
 // 通知统一策略: 优先在 popup 中展示, 失败时回退到当前页面。
@@ -104,9 +104,10 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         });
     }
 
-    // 未扫描到码: 只有调用方真的能再截一次屏时才提供"改用扫描屏幕"
-    function notifyNoResult(onRetry?: () => void): Promise<boolean> {
-        return deliver(resultNotice([], { retryScreenScan: Boolean(onRetry) }), onRetry);
+    // 未扫描到码: 只有调用方真的能再试一次时才给出重试按钮,
+    // 按钮方式 (整屏重扫 / 框选) 由调用方决定
+    function notifyNoResult(onRetry?: () => void, retry: RetryKind = 'screenScan'): Promise<boolean> {
+        return deliver(resultNotice([], { retry: onRetry ? { kind: retry } : false }), onRetry);
     }
 
     // 供 recognizeImage 使用的宿主: 与上面的函数同一套实现

@@ -437,6 +437,17 @@ export default defineBackground(() => {
                 .catch(() => sendResponse({ success: false }));
             return true;
         }
+        // popup 通知里点"框选扫描": 全屏扫描没扫到码, 由内容脚本打开框选浮层让用户自己选一块
+        if (request.action === "requestFrameScan") {
+            browser.tabs.query({ active: true, currentWindow: true })
+                .then(async ([tab]) => {
+                    if (tab?.id == null) throw new Error('No active tab.');
+                    return tryContentAction(tab.id, "frameScan");
+                })
+                .then(success => sendResponse({ success }))
+                .catch(() => sendResponse({ success: false }));
+            return true;
+        }
         // popup 展开面板里的"扫描图片": 与右键菜单共用同一套分发,
         // 优先在当前页开扫描浮层, 内容脚本不可注入时再打开独立扫描页
         if (request.action === "openImageScan") {

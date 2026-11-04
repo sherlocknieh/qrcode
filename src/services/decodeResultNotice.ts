@@ -103,17 +103,25 @@ export function describeImageError(error: unknown): string {
 // 扫描结果的通用通知构造: content / popup / capture 三个入口共用同一套分支
 // (无结果重试 → 多码列表 → 单码链接/复制), 避免各写一遍文案与动作
 
+// 重试方式决定按钮文案: 整屏重扫, 还是在刚截的视口图上自己框一块
+function retryLabel(action?: PopupNoticeAction): string | undefined {
+    if (action?.kind === 'screenScan') return t('scanScreenRetry');
+    if (action?.kind === 'frameScan') return t('frameScanRetry');
+    return undefined;
+}
+
 // 未扫描到任何码
-function noResultNotice(retryScreenScan: boolean): PopupNoticePayload {
+function noResultNotice(retry?: PopupNoticeAction): PopupNoticePayload {
     return {
         options: {
             toast: false,
             icon: 'info',
             title: t('recognitionFailed'),
             text: t('recognitionFailedMsg'),
+            extraButtonText: retryLabel(retry),
             showCloseButton: true,
         },
-        extraAction: retryScreenScan ? { kind: 'screenScan' } : undefined,
+        extraAction: retry,
     };
 }
 
@@ -162,13 +170,16 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 }
 
 // 按结果数量选择对应的通知。
-// retryScreenScan: 当前入口能否真的再截一次屏 (独立扫描页里截图只会截到自己, 传 false)
+// retry: 未扫到码时提供的重试方式, 传 false 表示当前入口无法再试
+// (独立扫描页里截图只会截到自己); 缺省为整屏重扫
 // pickHint: 画面上同时给出可点选的蓝点时提示怎么选
 export function resultNotice(
     results: DecodeResult[],
-    options: { retryScreenScan?: boolean; pickHint?: boolean } = {},
+    options: { retry?: PopupNoticeAction | false; pickHint?: boolean } = {},
 ): PopupNoticePayload {
-    if (!results.length) return noResultNotice(options.retryScreenScan ?? true);
+    if (!results.length) {
+        return noResultNotice(options.retry === false ? undefined : options.retry ?? { kind: 'screenScan' });
+    }
     if (results.length > 1) return multiResultNotice(results, options.pickHint === true);
     return singleResultNotice(results[0]!);
 }

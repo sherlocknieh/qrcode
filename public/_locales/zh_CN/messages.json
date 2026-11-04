@@ -239,6 +239,10 @@
     "message": "扫描屏幕",
     "description": "图片读取失败时改用扫描屏幕的按钮"
   },
+  "frameScanRetry": {
+    "message": "框选扫描",
+    "description": "全屏扫描未找到码时, 改为在截图上框选一块重扫的按钮"
+  },
   "screenshotFailed": {
     "message": "截图失败",
     "description": "截图操作失败的提示标题"
@@ -308,11 +312,11 @@
     "description": "复制按钮文字"
   },
   "recognitionFailed": {
-    "message": "未发现有效的二维码/条形码",
+    "message": "未发现有效二维码/条形码",
     "description": "扫描失败的标题"
   },
   "recognitionFailedMsg": {
-    "message": "也许是不支持的码格式",
+    "message": "也许是不支持的格式\n也许是图片太大或二维码太小\n可以试试框选出更精准的区域再扫描",
     "description": "扫描失败的提示信息"
   },
   "clearImage": {

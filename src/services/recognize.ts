@@ -10,8 +10,13 @@ export type RecognizeHost = {
     notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<unknown>;
     notifyDecoding(): Promise<void>;
     notifyResults(results: DecodeResult[]): Promise<boolean>;
-    notifyNoResult(onRetry?: () => void): Promise<boolean>;
+    // retry: 未扫到码时的重试方式, 与 onRetry 一一对应 (本地兜底执行 onRetry,
+    // popup 代管时按 retry 转告页面)
+    notifyNoResult(onRetry?: () => void, retry?: RetryKind): Promise<boolean>;
 };
+
+// 未扫到码后的重试方式: 整屏重扫, 或在刚截的视口图上框选一块
+export type RetryKind = 'screenScan' | 'frameScan';
 
 export type DecodeOutcome =
     // imageSize 是解码所用图像的像素尺寸, 用于把结果的 bounds 换算到画面上
@@ -31,8 +36,10 @@ export type RecognizeOptions = {
     notifyFetching?: () => Promise<unknown>;
     // 解码结束时回调, 通常用于停止动画 (返回 Promise 时会等淡出结束再继续)
     afterDecode?: () => void | Promise<void>;
-    // 未扫描到码时点击"改用扫描屏幕"的处理
+    // 未扫描到码时点击重试按钮的处理
     onRetry?: () => void;
+    // 重试按钮的方式, 缺省为整屏重扫; 全屏扫描本身失败时改为框选扫描
+    noResultRetry?: RetryKind;
     // 结果是否已被新一轮扫描取代
     isStale?: () => boolean;
     // 结果通知交给调用方处理: 全屏扫描要先在画面上叠蓝点, 不能直接弹通知
@@ -95,7 +102,7 @@ export async function recognizeImage(
     if (isStale()) return { status: 'stale' };
 
     if (!results.length) {
-        await host.notifyNoResult(options.onRetry);
+        await host.notifyNoResult(options.onRetry, options.noResultRetry);
         return { status: 'empty' };
     }
 

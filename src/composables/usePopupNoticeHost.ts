@@ -20,10 +20,12 @@ export function usePopupNoticeHost() {
 
     async function runAction(action?: PopupNoticeAction) {
         if (!action) return;
-        if (action.kind === 'screenScan') {
-            // popup 随后会被关闭, 由后台转告内容脚本重新截屏扫描
+        if (action.kind === 'screenScan' || action.kind === 'frameScan') {
+            // popup 随后会被关闭, 由后台转告内容脚本重新截屏扫描或打开框选浮层
             try {
-                await browser.runtime.sendMessage({ action: 'requestScreenScan' });
+                await browser.runtime.sendMessage({
+                    action: action.kind === 'frameScan' ? 'requestFrameScan' : 'requestScreenScan',
+                });
             } catch {
                 // 页面不支持截图时保持安静, 避免再叠一层通知
             }
