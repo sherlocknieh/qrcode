@@ -40,11 +40,11 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanFullScreen": {
-    "message": "扫描屏幕",
+    "message": "扫描当前页面",
     "description": "右键菜单项：直接截取当前视口并扫描，无需框选区域"
   },
   "cameraScanTitle": {
-    "message": "摄像头扫描",
+    "message": "打开摄像头扫描",
     "description": "摄像头扫描页面的标题"
   },
   "scanImage": {
@@ -298,5 +298,17 @@
   "cancel": {
     "message": "取消",
     "description": "取消按钮文本"
+  },
+  "qrCopy": {
+    "message": "复制二维码",
+    "description": "复制二维码图片的按钮提示"
+  },
+  "qrDownload": {
+    "message": "下载二维码",
+    "description": "下载二维码图片的按钮提示"
+  },
+  "qrFileName": {
+    "message": "二维码",
+    "description": "下载二维码时的默认文件名"
   }
 }

@@ -522,6 +522,14 @@ export default defineBackground(() => {
                 .catch(() => sendResponse({ success: false }));
             return true;
         }
+        // popup 展开面板里的"扫描图片": 与右键菜单共用同一套分发,
+        // 优先在当前页开扫描浮层, 内容脚本不可注入时再打开独立扫描页
+        if (request.action === "openImageScan") {
+            requestInlineImageScan(_sender.tab?.id)
+                .then(success => sendResponse({ success }))
+                .catch(() => sendResponse({ success: false }));
+            return true;
+        }
         // 图片扫描浮层里点"从摄像头取图": 摄像头只能在扩展页运行,
         // 由后台打开 upload.html?camera=1, 并记录来源页以便关闭后切回
         if (request.action === "openCameraScan") {

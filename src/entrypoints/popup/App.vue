@@ -194,6 +194,19 @@ function prepareScanView() {
   if (document.body) document.body.style.minHeight = '220px';
 }
 
+// 实现展开面板里的扫码入口: 扫描要在网页浮层或独立扫描页里完成,
+// popup 失焦即关闭且会挡住页面浮层, 因此拿到后台成功回执后主动收起 popup;
+// 失败时保留窗口, 让后台给出的错误通知还能被看到
+async function startPanelScan(entry: 'image' | 'screen' | 'camera') {
+  const action = entry === 'image'
+    ? 'openImageScan'
+    : entry === 'screen'
+      ? 'requestScreenScan'
+      : 'openCameraScan';
+  const response = await trySendMessage(action);
+  if (response?.success) window.close();
+}
+
 async function startScan(imageUrl: string) {
   if (scanning) return;
   scanning = true;
@@ -282,6 +295,7 @@ onBeforeUnmount(() => {
     v-if="!notifyState.open && !scanActive"
     v-model="qrText"
     collapsible
+    @scan="startPanelScan"
   />
   <NotifyHost embedded />
 </template>

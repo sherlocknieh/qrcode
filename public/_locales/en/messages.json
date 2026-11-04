@@ -298,5 +298,17 @@
   "cancel": {
     "message": "Cancel",
     "description": "Cancel button text"
+  },
+  "qrCopy": {
+    "message": "Copy QR Code",
+    "description": "Tooltip of the button that copies the QR code image"
+  },
+  "qrDownload": {
+    "message": "Download QR Code",
+    "description": "Tooltip of the button that downloads the QR code image"
+  },
+  "qrFileName": {
+    "message": "QR Code",
+    "description": "Default file name of the downloaded QR code"
   }
 }

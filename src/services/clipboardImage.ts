@@ -13,6 +13,24 @@ export function getImageFileFromDataTransfer(data: DataTransfer | null): File | 
     return null;
 }
 
+// 复制二维码等图片到剪贴板: 不使用 clipboardWrite 权限,
+// Clipboard API 的写入发生在点击手势里, 不支持图片写入时返回 false
+export async function copyImageDataUrl(dataUrl: string): Promise<boolean> {
+    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
+    const [head, base64] = dataUrl.split(',');
+    const type = head?.match(/^data:(.*?);/)?.[1] ?? 'image/png';
+    if (!base64) return false;
+    try {
+        const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+        await navigator.clipboard.write([
+            new ClipboardItem({ [type]: new Blob([bytes], { type }) }),
+        ]);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export function blobToDataUrl(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
