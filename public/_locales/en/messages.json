@@ -160,8 +160,8 @@
     "description": "Loading message when decoding QR code"
   },
   "qrcodeScanSuccess": {
-    "message": "QR Code Scanned",
-    "description": "Success dialog title"
+    "message": "QR Code Found",
+    "description": "Title shown when a QR code is detected"
   },
   "barcodeScanSuccess": {
     "message": "Barcode Found",
