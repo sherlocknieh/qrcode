@@ -17,6 +17,9 @@ export type PickAnchor = {
     viewportWidth: number;
     // 页面内容会随滚动移动时为 true; 固定在浮层里的面板传 false
     followScroll: boolean;
+    // 能重新测量图像实时位置时传进来, 传入后 rect 只在锚定时用一次,
+    // 之后每次重算都以实测结果为准, 图片完全离开视口时返回 undefined
+    measureRect?: () => ScanRect | undefined;
     // 预览是镜像显示的 (摄像头) 时横向坐标要反过来算
     mirrorX?: boolean;
     // 只允许标记落在这个范围内: 框选扫描只截取了画面的一部分
@@ -72,9 +75,21 @@ export function useCodePicker(options: CodePickerOptions) {
     // 页面滚动后框要跟着码走, 滚动位置用响应式保存下来触发重算
     const scrollPos = ref({ x: window.scrollX, y: window.scrollY });
 
-    const marks = computed<ScanRect[]>(() =>
-        picked.value ? toMarkRects(picked.value.results, picked.value, scrollPos.value) : [],
-    );
+    const marks = computed<ScanRect[]>(() => {
+        // 滚动位置同时是重算的触发器: 必须无条件先读一次,
+        // 否则走 measureRect 分支时 Vue 收不到依赖, 滚动后不会重新求值
+        const scroll = scrollPos.value;
+        const current = picked.value;
+        if (!current) return [];
+        // 修复固定不随页面滚动的图片(如图片查看器里的图)上蓝框滚一下就漂移的问题:
+        // 这类图片的屏幕位置与滚动无关, 按滚动差量平移会把框推离码所在位置,
+        // 改为每次都测量图片实时位置, 图片动没动都能对准
+        if (current.measureRect) {
+            const rect = current.measureRect();
+            return rect ? toMarkRects(current.results, { ...current, rect, followScroll: false }) : [];
+        }
+        return toMarkRects(current.results, current, scroll);
+    });
 
     // 结果显示在画面上: 与结果通知同时给出, 点哪个就把通知切到哪个
     function show(results: DecodeResult[], anchor: PickAnchor) {
@@ -126,15 +141,25 @@ export function useCodePicker(options: CodePickerOptions) {
     }
 
     function onScroll() {
-        if (!picked.value?.followScroll) return;
+        const current = picked.value;
+        if (!current) return;
+        // 带测量函数的锚点也要重算: 图片可能固定不动, 但位置要以实测为准,
+        // 内部容器滚动时 window.scrollY 不变, 靠新对象赋值照常触发
+        if (!current.followScroll && !current.measureRect) return;
         scrollPos.value = { x: window.scrollX, y: window.scrollY };
     }
 
-    // 宽度变了页面会重新排版, 码的位置跟着变, 框没法再对准, 直接收起;
-    // 只改高度时横向排版没动, 框的位置仍然有效, 不必关闭
+    // 宽度变了页面会重新排版, 码的位置跟着变: 能重测位置的锚点(网页图片)直接重算即可,
+    // 其余锚点的位置是按旧排版算死的, 框没法再对准, 直接收起。
+    // 只改高度时横向排版没动, 框的位置仍然有效, 一律不必关闭
     function onResize() {
         const current = picked.value;
-        if (!current || window.innerWidth === current.viewportWidth) return;
+        if (!current) return;
+        if (current.measureRect) {
+            scrollPos.value = { x: window.scrollX, y: window.scrollY };
+            return;
+        }
+        if (window.innerWidth === current.viewportWidth) return;
         clear();
     }
 

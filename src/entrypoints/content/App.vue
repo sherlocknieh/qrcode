@@ -149,14 +149,18 @@ async function handleImageUrl(imageUrl: string) {
 
     if (outcome.status === 'ok') {
         // 码坐标按图片实际显示区域换算, 点蓝点即可切换到该码的结果
-        const rect = measureVisibleImage(findImageElement(imageUrl));
-        if (rect) {
+        const image = findImageElement(imageUrl);
+        const rect = measureVisibleImage(image);
+        if (rect && image) {
             await showResults(outcome, {
                 rect,
                 imageSize: outcome.imageSize,
                 scroll: { x: window.scrollX, y: window.scrollY },
                 viewportWidth: window.innerWidth,
                 followScroll: true,
+                // 图片查看器等浮层里的图片不随页面滚动, 只按滚动差量平移会把蓝框推偏,
+                // 交一个重测函数让蓝框每次都以图片的实时位置为准
+                measureRect: () => measureVisibleImage(image),
             });
         } else {
             await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
