@@ -4,9 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "node .dev/dev.mjs",
-    "dev:chrome": "node .dev/dev.mjs -b chrome",
-    "dev:edge": "node .dev/dev.mjs -b edge",
-    "dev:firefox": "node .dev/dev.mjs -b firefox --mv3",
+    "dev:firefox": "wxt -b firefox --mv3",
+    "dev:android": "node .dev/android.mjs",
     "build": "wxt zip",
     "build:firefox": "wxt zip -b firefox --mv3",
     "submit:firefox": "node .dev/submit.mjs firefox",

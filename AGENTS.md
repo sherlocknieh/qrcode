@@ -13,18 +13,22 @@
 
 ```bash
 pnpm install       # postinstall 会执行 wxt prepare
-pnpm dev           # 并行调试 Chrome/Edge/Firefox，缺的浏览器静默跳过
-pnpm dev:chrome    # 只调试 Chrome，缺浏览器则报错退出（edge / firefox 同理）
+pnpm dev           # 只调试 Chrome：wxt -b chrome -p 3001，并自动固定 dev 图标
+pnpm dev:firefox   # 只调试桌面 Firefox：wxt -b firefox --mv3（端口 3000）
+pnpm dev:android   # Firefox for Android：wxt 只出 dev 版，web-ext 经 adb 装到手机，dev server 端口走 adb reverse 供热更新
+pnpm wxt -b edge -p 3002  # Edge 没有专用脚本，需要时手敲（不带 -p 会撞 Firefox 的 3000）
 pnpm compile       # 类型检查，提交前必须通过
 pnpm build         # 打包 Chrome/Edge zip
 pnpm build:firefox # 打包 Firefox zip（含 sources）
 pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.submit（不要先 source：PEM 私钥是单行 \n）
 ```
 
-- profile 按浏览器隔离于 `.wxt/dev-profile/<browser>`；测试页与端口配置在 [wxt.config.ts](./wxt.config.ts) 和 [.dev/dev.mjs](./.dev/dev.mjs)（后者注入 `WXT_DEV_BROWSER` / `WXT_DEV_CDP_PORT`）。
-- 端口固定（Chrome 3000 / Edge 3001 / Firefox 3002，日志带 `[chrome]` 前缀，`pnpm dev:<browser>` 严格模式端口一致），可执行文件用 `CHROME_BINARY` / `EDGE_BINARY` / `FIREFOX_BINARY` 覆盖；`dev.server.strictPort` 开启，被占即报错（换端口会断热更新，两个实例还会争写 `.output`）。先结束旧进程或 `pnpm dev:chrome -- -p 3010`。
-- 子进程没有 TTY，wxt 的 `o + enter` 失效，改由 [.dev/dev.mjs](./.dev/dev.mjs) 监听并重启全部浏览器。
-- Chromium 启动后 [.dev/pin-dev-extension.mjs](./.dev/pin-dev-extension.mjs) 连调试端口（Chrome 9222 / Edge 9223），在 `chrome://extensions` 上下文调 `chrome.developerPrivate` 固定 dev 图标；Firefox 无此能力。
+- profile 按浏览器隔离于 `.wxt/dev-profile/<browser>`；[wxt.config.ts](./wxt.config.ts) 从 `-b` 参数推导浏览器，据此选 profile 与调试端口，测试页也在那里配置。
+- 端口固定（Chrome 3001 / Firefox 3000，Edge 手敲时用 3002），可执行文件用 `CHROME_BINARY` / `EDGE_BINARY` / `FIREFOX_BINARY` 覆盖（脚本不探测浏览器路径，缺浏览器由 wxt 报错）；`dev.server.strictPort` 开启，被占即报错（换端口会断热更新，两个实例还会争写 `.output`）。先结束旧进程再重启。
+- `pnpm dev` 把 stdio 直接交给 wxt，wxt 自带的 `o` 键重启照常可用；`pnpm dev:android` 没有 TTY，日志按 `[wxt]` / `[android]` 前缀转发。
+- `pnpm dev` 启动后 [.dev/pin-dev-extension.mjs](./.dev/pin-dev-extension.mjs) 连调试端口（Chrome 9222），在 `chrome://extensions` 上下文调 `chrome.developerPrivate` 固定 dev 图标；Firefox 无此能力。`pnpm dev:firefox` 与手敲的 Edge 不跑这层，需要时在 `chrome://extensions` 手动固定。
+- 手机调试只支持 Firefox for Android（Chromium 系手机浏览器基本不支持扩展）：手机开 USB 调试并授权后跑 `pnpm dev:android`，脚本自动找 adb（`ADB_BIN` 可覆盖，默认按 `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `~/Android/Sdk` 探测），`ANDROID_DEVICE` 指定多设备里的哪台，`FIREFOX_APK` 换 Nightly 等包名。桌面 Firefox 不会被拉起，装包与设备连接由 [.dev/android.mjs](./.dev/android.mjs) 负责（重装重跑命令，外壳脚本不再接管 `o` 键）；热更新复用 WXT dev server（端口 3000 经 `adb reverse` 打通），所以 web-ext 那边关了自带的 reload。
+- 无线调试同一套流程：Android 11+ 在开发者选项里开「无线调试」→ `adb pair <ip>:<配对端口>` 输配对码 → `adb connect <ip>:<调试端口>`，`adb devices` 出现 `ip:port` 后脚本下一轮轮询就会自动安装（换设备时 `ANDROID_DEVICE=<ip>:port`）。`adb reverse` 走 adb 隧道，无线下热更新同样有效。
 
 ## 目录导航
 
@@ -69,7 +73,8 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | [src/services/menuIcons.ts](./src/services/menuIcons.ts) | Firefox 菜单内联图标 |
 | [public/_locales/](./public/_locales/) | `en` / `zh_CN` 文案，key 成对维护 |
 | [.dev/submit.mjs](./.dev/submit.mjs) | 清旧包 → 构建 → `wxt submit` |
-| [.dev/dev.mjs](./.dev/dev.mjs) | `pnpm dev` 入口：多浏览器并行 |
+| [.dev/dev.mjs](./.dev/dev.mjs) | `pnpm dev` 入口：只调 Chrome，固定端口 + 自动固定 dev 图标 |
+| [.dev/android.mjs](./.dev/android.mjs) | `pnpm dev:android` 入口：adb + web-ext 装到手机 |
 | [.dev/pin-dev-extension.mjs](./.dev/pin-dev-extension.mjs) | 经调试端口固定 dev 图标 |
 
 `@/` 指向 `src/`（WXT 自动生成，见 `.wxt/tsconfig.json`）。`.wxt/`、`.output/`、`node_modules/` 是产物目录，不要手改。

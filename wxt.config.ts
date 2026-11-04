@@ -4,15 +4,22 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// dev 时每个浏览器用独立 profile 和调试端口, 多个浏览器才能同时运行
-const devBrowser = process.env.WXT_DEV_BROWSER ?? 'chrome';
-const cdpPort = process.env.WXT_DEV_CDP_PORT ?? '';
-// 可执行文件沿用用户环境变量; .dev/dev.mjs 探测到路径时也写进同名变量
+// 浏览器取自 `-b` 参数 (.dev/dev.mjs 与手敲的 wxt 命令都会传), 据此选 dev profile 与调试端口
+const browserFlag = process.argv.indexOf('-b');
+const devBrowser = (browserFlag >= 0 && process.argv[browserFlag + 1]) || 'chrome';
+// Chromium 系预留的远程调试端口, 供 .dev/pin-dev-extension.mjs 连接固定 dev 图标; Firefox 不支持
+const CDP_PORTS: Record<string, string> = { chrome: '9222', edge: '9223' };
+const cdpPort = CDP_PORTS[devBrowser] ?? '';
+// 可执行文件一律沿用用户环境变量, 脚本里不再自己探测浏览器路径
 const BINARY_ENV: Record<string, string> = { chrome: 'CHROME_BINARY', edge: 'EDGE_BINARY', firefox: 'FIREFOX_BINARY' };
 const binary = process.env[BINARY_ENV[devBrowser] ?? ''];
 
 const chromiumProfile = resolve(`.wxt/dev-profile/${devBrowser}`);
 const firefoxProfile = resolve('.wxt/dev-profile/firefox');
+
+// 手机调试由 `.dev/android.mjs` 触发: 装到 Android 的任务交给 web-ext,
+// wxt 只当 dev server 与打包器, 再去拉桌面 Firefox 会多开一个用不上的窗口
+const androidDebug = process.env.WXT_DEV_ANDROID === '1';
 
 // 确保 dev profile 目录存在
 for (const profile of new Set([chromiumProfile, firefoxProfile])) {
@@ -22,8 +29,8 @@ for (const profile of new Set([chromiumProfile, firefoxProfile])) {
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'], // 使用 Vue 模块
-  srcDir: 'src',                    // 自定义源码目录
-  // dev server 端口由 .dev/dev.mjs 按浏览器固定传入 (chrome 3000 / edge 3001 / firefox 3002)。
+  srcDir: 'src',                    // 指定源码目录
+  // dev server 端口固定: Chrome 3001 (pnpm dev 传入), Firefox 3000 (wxt 默认, pnpm dev:firefox / dev:android)。
   // 这里开启 strictPort: 端口被占用时直接报错, 不要静默换端口 —— 换端口后已加载的 dev 扩展
   // 仍连旧端口, 热更新/重载会失效; 同一浏览器的两个 dev 实例还会争写同一个 .output 目录。
   dev: {
@@ -32,14 +39,15 @@ export default defineConfig({
     },
   },
   webExt: {
-    keepProfileChanges: true,       // 记忆浏览器配置变更, 防止每次调试都打开全新无配置的浏览器
-    chromiumProfile,                // 调试时 Chromium 配置文件路径(按浏览器隔离)
-    firefoxProfile,                 // 调试时 Firefox 配置文件路径
+    disabled: androidDebug,           // 手机调试时浏览器进程由 web-ext 拉起
+    keepProfileChanges: true,         // 开启浏览器配置记忆, 防止每次调试都打开全新无配置的浏览器
+    chromiumProfile: chromiumProfile, // Chromium 配置文件路径
+    firefoxProfile: firefoxProfile,   // Firefox 配置文件路径
     chromiumArgs: cdpPort ? [`--remote-debugging-port=${cdpPort}`] : [], // 暴露调试端口, 供 .dev/pin-dev-extension.mjs 自动固定工具栏图标
-    binaries: binary ? { [devBrowser]: binary } : undefined, // 由 .dev/dev.mjs 探测后传入
-    // 调试时自动打开的页面
-    startUrls: [
-      // 'about:newtab',
+    binaries: binary ? { [devBrowser]: binary } : undefined, // 由 CHROME_BINARY 等环境变量传入
+    // 调试时自动打开哪些页面
+    startUrls: androidDebug ? [] : [
+      // 'about:newtab',  // 新标签页
       'https://inftab.com/',
       'https://en.wikipedia.org/wiki/QR_code',
       'https://en.wikipedia.org/wiki/Barcode',
