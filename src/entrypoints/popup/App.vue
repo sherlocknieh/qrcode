@@ -163,7 +163,7 @@ async function decodeAndShow(
   if (single && response.isConfirmed) runNoticeAction(payload.confirmAction);
 }
 
-function scanImage(imageUrl: string) {
+function scanLocalImage(imageUrl: string) {
   return decodeAndShow(
     () => loadImageDataUrl(imageUrl),
     t('imageFetchFailed'),
@@ -213,7 +213,7 @@ async function startScan(imageUrl: string) {
   scanActive.value = true;
   prepareScanView();
   try {
-    await scanImage(imageUrl);
+    await scanLocalImage(imageUrl);
   } finally {
     // 扫描流程结束就退出扫描态: 否则关掉结果通知后 popup 既没有二维码也没有内容,
     // 空窗兜底会因为 scanActive 仍为 true 而不关闭窗口, 留下白窗

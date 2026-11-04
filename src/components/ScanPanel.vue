@@ -156,10 +156,10 @@ async function handleFile(blob: Blob) {
     if (!(await loadBlob(blob))) return;
     // 预览先渲染出来, 扫描动画才能定位到图片区域
     await nextTick();
-    await scanImage();
+    await scanLocalImage();
 }
 
-function scanImage() {
+function scanLocalImage() {
     if (!previewUrl.value || recognizing.value) return;
     return runScan(
         () => getImageDataFromDataUrl(previewUrl.value),
@@ -213,7 +213,7 @@ async function handleCameraError(error: unknown) {
 
 // ---------------------------- 布局与交互 ----------------------------
 
-const title = computed(() => t(isCamera.value ? 'cameraScanTitle' : 'scanImageTitle'));
+const title = computed(() => t(isCamera.value ? 'cameraScanTitle' : 'scanLocalImageTitle'));
 
 // 提示始终占一行, 换源不改变面板高度
 const hint = computed(() => {
@@ -249,7 +249,7 @@ const actions = computed<PanelAction[]>(() => {
                 // 图片清掉后蓝点没有可标的区域
                 run: () => { clear(); codePicker.clear(); },
             },
-            { label: t('scanNow'), primary: true, disabled: recognizing.value, run: () => void scanImage() },
+            { label: t('scanNow'), primary: true, disabled: recognizing.value, run: () => void scanLocalImage() },
         ];
     }
     return [{

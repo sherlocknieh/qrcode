@@ -105,7 +105,7 @@ onMounted(async () => {
         ref="stillRef"
         class="qr-capture-still"
         :src="src"
-        :alt="t('scanFullScreen')" />
+        :alt="t('scanScreen')" />
     <ScanMarks :rects="marks" @pick="pickMark" />
     <NotifyHost />
 </template>

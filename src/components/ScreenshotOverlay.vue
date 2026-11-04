@@ -1001,15 +1001,6 @@ defineExpose({
                 @click="close"
             >×</button>
         </div>
-        <!-- 结果态只留关闭: 截图仍可继续框选, Esc 也能收起 -->
-        <div v-else-if="loaded && frozen" class="qr-shot-actions">
-            <button
-                class="qr-shot-close"
-                type="button"
-                :aria-label="t('closeBtn', 'Close')"
-                @click="close"
-            >×</button>
-        </div>
         <!-- 截图工具栏: 取消 / 确认 -->
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
             <!-- 取消按钮 -->

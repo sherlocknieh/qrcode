@@ -35,15 +35,15 @@
     "message": "Content is too long to generate a QR code",
     "description": "Hint shown when the content exceeds the QR code capacity"
   },
-  "decodeQR": {
+  "scanWebImage": {
     "message": "Scan Image",
     "description": "Context menu item for recognizing QR code in image"
   },
-  "scanFullScreen": {
+  "scanScreen": {
     "message": "Scan Screen",
     "description": "Context menu item for capturing the visible page and scanning it directly without selecting an area"
   },
-  "scanImage": {
+  "scanLocalImage": {
     "message": "Scan Local Image",
     "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image"
   },
@@ -107,7 +107,7 @@
     "message": "Turn on the camera and point it at a code",
     "description": "Hint under the viewfinder while the camera is off"
   },
-  "scanImageTitle": {
+  "scanLocalImageTitle": {
     "message": "Upload or Paste an Image to Scan",
     "description": "Title of the local image scanning page"
   },

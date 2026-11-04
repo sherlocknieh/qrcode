@@ -35,11 +35,11 @@
     "message": "内容过长，无法生成二维码",
     "description": "内容超出二维码容量时的提示"
   },
-  "decodeQR": {
+  "scanWebImage": {
     "message": "扫描图片",
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
-  "scanFullScreen": {
+  "scanScreen": {
     "message": "扫描当前页面",
     "description": "右键菜单项：直接截取当前视口并扫描，无需框选区域"
   },
@@ -47,8 +47,8 @@
     "message": "打开摄像头扫描",
     "description": "摄像头扫描页面的标题"
   },
-  "scanImage": {
-    "message": "本地图片扫描",
+  "scanLocalImage": {
+    "message": "扫描本地图片",
     "description": "工具栏图标右键菜单项：在当前页面打开扫描面板，上传或粘贴图片"
   },
   "cameraHint": {
@@ -107,7 +107,7 @@
     "message": "开启摄像头后对准二维码或条形码",
     "description": "摄像头未启动时取景框下方的提示"
   },
-  "scanImageTitle": {
+  "scanLocalImageTitle": {
     "message": "上传/粘贴图片扫码",
     "description": "本地图片扫描页面的标题"
   },

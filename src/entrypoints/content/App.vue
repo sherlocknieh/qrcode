@@ -56,13 +56,13 @@ const mainProcess = (
         activeShot?.close();
         activeShot = null;
     }
-    if (message.action === 'decodeQR' && message.imageUrl) {
+    if (message.action === 'scanWebImage' && message.imageUrl) {
         handleImageUrl(message.imageUrl);
     }
-    if (message.action === 'scanFullScreen') {
+    if (message.action === 'scanScreen') {
         handleScreenScan();
     }
-    if (message.action === 'scanImageInline') {
+    if (message.action === 'scanLocalImage') {
         imagePasteOverlay.open();
     }
     // 立即回执: 后台以"是否收到回应"判断内容脚本是否可用, 不回应会被当成不可用而回退到新标签页

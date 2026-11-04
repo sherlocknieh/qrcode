@@ -25,7 +25,7 @@ const MENU_ICONS = {
         + '<path d="M8 3v10"/>'
         + '<path d="M5.5 13h5"/>'),
     // 扫描屏幕: 显示器 + 扫描线
-    scanFullScreen: icon('scanFullScreen',
+    scanScreen: icon('scanScreen',
         '<rect x="1.5" y="2.5" width="13" height="9" rx="1.5"/>'
         + '<path d="M8 11.5v2"/>'
         + '<path d="M5.5 14h5"/>'

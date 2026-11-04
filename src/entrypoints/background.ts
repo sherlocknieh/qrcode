@@ -1,105 +1,23 @@
-// WXT 后台脚本入口
-import {
-    POPUP_NOTICE_KEY,
-    type PopupNoticePayload,
-    type PopupNoticeRecord,
-} from '@/services/popupNotice';
+import { createPopupHost } from '@/services/popupHost';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { storageArea } from '@/services/storage';
 
+// WXT 后台脚本入口
 export default defineBackground(() => {
 
-    // Firefox 地址栏图标 (page action) 的显/隐状态
-    const PAGE_ACTION_VISIBLE_KEY = 'pageActionVisible';
-    const isPageActionVisible = async () => {
-        const stored = await browser.storage.local.get(PAGE_ACTION_VISIBLE_KEY);
-        return stored[PAGE_ACTION_VISIBLE_KEY] !== false;
+    // Firefox 地址栏图标 (page action) 相关变量
+    const IS_FIREFOX = import.meta.env.FIREFOX;     // 只有 Firefox 有地址栏图标 (page action) 
+    const PAGE_ACTION_KEY = 'pageActionVisible';    // Firefox 地址栏图标显/隐状态持久化储存键
+    const isPageActionVisible = async () => {       // Firefox 地址栏图标状态查询函数
+        const stored = await browser.storage.local.get(PAGE_ACTION_KEY);
+        return stored[PAGE_ACTION_KEY] !== false;   // 只要未明确设置为false, 就取true (默认显示)
     };
 
-    // popup 打开状态
-    let popupPort: Browser.runtime.Port | null = null;
-    // openPopup 会短暂占用弹窗, 期间到达的通知直接等待 popup 读取存储
-    let popupOpening = false;
-    let lastPopupOpenAt = 0;
-    // popup 关闭时刻: 用户点到页面会让 popup 失焦关闭, 内容脚本据此区分
-    // "这一下是在关通知窗口" 还是 "在点空白处收起扫描标记"
-    let lastPopupCloseAt = 0;
-    const POPUP_OPEN_GRACE = 1500;
-    const POPUP_CLOSE_GRACE = 600;
-
-    // 打开 popup 窗口
-    // 优先使用 pageAction.openPopup, 不可用或被拒绝时回退 action.openPopup
-    const openPopup = async () => {
-        // 类型声明里 pageAction 没有 openPopup, 但 Firefox 运行时提供
-        const pageAction = browser.pageAction as unknown as { openPopup?: () => Promise<void> } | undefined;
-        try {
-            if (!pageAction?.openPopup) throw new Error('unavailable');
-            await pageAction.openPopup();
-        } catch {
-            await browser.action.openPopup();
-        }
-        lastPopupOpenAt = Date.now();
-    };
-
-    // 页面通知先写入存储, 保证 popup 打开后能读到; 已打开的 popup 直接通过长连接推送
-    let noticeSeq = 0;
-    const clearNoticeIfCurrent = async (id: number) => {
-        const stored = await storageArea().get(POPUP_NOTICE_KEY);
-        const current = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
-        if (current?.id === id) await storageArea().remove(POPUP_NOTICE_KEY);
-    };
-
-    // 通知结束 (popup 展示完毕或 popup 被关闭) 后清理记录;
-    // 独立扫描页 (capture.html) 发起的通知会把该标签页一并关闭, 并切回来源页面
-    const finishNotice = async (id?: number) => {
-        const stored = await storageArea().get(POPUP_NOTICE_KEY);
-        const current = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
-        if (!current) return;
-        if (id != null && current.id !== id) return;
-        await storageArea().remove(POPUP_NOTICE_KEY);
-        if (current.closeTabId != null) {
-            await closeTabAndReturn(current.closeTabId);
-        }
-    };
-
-    // 返回 false 表示当前无法显示 popup, 内容脚本将回退到页面内通知
-    const showPopupNotification = async (
-        payload?: PopupNoticePayload,
-        sourceTabId?: number,
-    ): Promise<boolean> => {
-        if (!payload?.options) return false;
-
-        // 通知总是先落盘, 无论 popup 是否已打开都能读到最新一条
-        const record: PopupNoticeRecord = {
-            ...payload,
-            id: ++noticeSeq,
-            closeTabId: payload.closeOriginTab ? sourceTabId : undefined,
-        };
-        await storageArea().set({ [POPUP_NOTICE_KEY]: record });
-
-        if (popupPort) {
-            try {
-                popupPort.postMessage({ action: 'showNotification', payload: record });
-                return true;
-            } catch {
-                popupPort = null;
-            }
-        }
-
-        // popup 正在打开或刚刚打开: 它挂载后会读取最新通知
-        if (popupOpening || Date.now() - lastPopupOpenAt < POPUP_OPEN_GRACE) return true;
-
-        popupOpening = true;
-        try {
-            await openPopup();
-            return true;
-        } catch {
-            await clearNoticeIfCurrent(record.id);
-            return false;
-        } finally {
-            popupOpening = false;
-        }
-    };
+    // popup 窗口控制服务
+    const popupControl = createPopupHost({
+        // 注入 "关闭标签页" 这一后台能力
+        closeTab: (tabId) => closeTabAndReturn(tabId),
+    });
 
     // 生成并显示二维码
     const showQRcode = (text?: string) => {
@@ -110,7 +28,7 @@ export default defineBackground(() => {
         // 文本储存到本地
         void storageArea().set({ qrCodeText: value });
         // 打开 popup 窗口, 由 popup 生成二维码
-        void openPopup().catch(() => {});
+        void popupControl.open().catch(() => {});
     };
 
     // 把图片交给 popup 扫描: 非 HTML 页面 (SVG/PDF) 与截图降级共用同一条交接方式。
@@ -118,8 +36,8 @@ export default defineBackground(() => {
     const sendImageToPopup = async (imageUrl?: string): Promise<boolean> => {
         if (!imageUrl) return false;
         await storageArea().set({ qrImageUrl: imageUrl });
-        if (popupPort) return true;
-        await openPopup();
+        if (popupControl.isConnected()) return true;
+        await popupControl.open();
         return true;
     };
 
@@ -128,7 +46,7 @@ export default defineBackground(() => {
     };
 
     // 后台发起操作失败时的统一提示 (toast 形态)
-    const notifyError = (title: string, text?: string) => showPopupNotification({
+    const notifyError = (title: string, text?: string) => popupControl.showNotification({
         options: { toast: true, icon: 'error', title, text, showCloseButton: true },
     });
 
@@ -269,7 +187,7 @@ export default defineBackground(() => {
     // 在新标签页 (capture.html) 直接扫描整图, 与 SVG 页面保持一致。
     // 内容脚本必须在收到消息时立即回执, 否则浏览器会以"消息端口关闭"拒绝, 被误判为不可用
     const requestScreenScan = async (tabId: number, windowId?: number): Promise<boolean> => {
-        if (await tryContentAction(tabId, "scanFullScreen")) return true;
+        if (await tryContentAction(tabId, "scanScreen")) return true;
         return showScreenScan(tabId, windowId);
     };
 
@@ -279,15 +197,15 @@ export default defineBackground(() => {
 
     // 摄像头扫码: 只在扩展页面里运行 (popup 失焦即关闭, 内容脚本受页面自身摄像头权限约束),
     // 复用 upload.html 的扫描页, 用 ?camera=1 让页面直接进入摄像头模式
-    const openCameraScanPage = async (originTabId?: number) =>
+    const openCamerascanScreen = async (originTabId?: number) =>
         openExtensionPage('/upload.html?camera=1', await resolveActiveTabId(originTabId));
 
     // 上传/粘贴图片: 优先在当前页面弹出扫描浮层, 内容脚本不可用 (如 PDF、SVG) 时
     // 退回独立扫描页, 与扫描屏幕的降级策略保持一致。
     // 工具栏图标的右键菜单不一定会带上 tab 参数, 因此主动查询当前活动标签页。
-    const requestInlineImageScan = async (tabId?: number): Promise<boolean> => {
+    const requestLocalImageScan = async (tabId?: number): Promise<boolean> => {
         const targetTabId = await resolveActiveTabId(tabId);
-        if (await tryContentAction(targetTabId, "scanImageInline")) return true;
+        if (await tryContentAction(targetTabId, "scanLocalImage")) return true;
         return openLocalFilePage(targetTabId);
     };
 
@@ -298,27 +216,26 @@ export default defineBackground(() => {
         : {};
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
-    type MenuMessageKey = 'decodeQR' | 'selectionToQR'
-        | 'scanFullScreen' | 'scanImage' | 'cameraScanTitle'
-        | 'showPageAction' | 'hidePageAction';
+    type MenuMessageKey = 'scanWebImage' | 'selectionToQR' | 'scanScreen' | 'scanLocalImage' | 'cameraScanTitle';
     const menuTitle = (key: MenuMessageKey, emoji?: string) => {
         const title = browser.i18n.getMessage(key);
         return import.meta.env.FIREFOX || !emoji ? title : `${emoji} ${title}`;
     };
 
+    // 地址栏图标开关只在 Firefox 的工具栏右键菜单里出现, 已有图标故不再拼 emoji
     const pageActionMenuOptions = (visible: boolean) => ({
-        title: menuTitle(visible ? "hidePageAction" : "showPageAction", visible ? "🚫" : "👁️"),
-        ...menuIcons(visible ? "hide" : "show"),
+        title: browser.i18n.getMessage(visible ? 'hidePageAction' : 'showPageAction'),
+        ...menuIcons(visible ? 'hide' : 'show'),
     });
 
-    // 右键菜单初始化
+    // 初始化右键菜单
     const addContextMenus = async () => {
-        const pageActionVisible = await isPageActionVisible();
+        const pageActionVisible = IS_FIREFOX && await isPageActionVisible();
         browser.contextMenus.removeAll(() => {
             // 添加菜单: 扫描图中二维码
             browser.contextMenus.create({
-                id: "decodeQR",
-                title: menuTitle("decodeQR", "🔍"),
+                id: "scanWebImage",
+                title: menuTitle("scanWebImage", "🔍"),
                 contexts: ["image"],
                 ...menuIcons("scan")
             });
@@ -329,29 +246,29 @@ export default defineBackground(() => {
                 contexts: ["selection"],
                 ...menuIcons("text")
             });
-            // 添加菜单: 扫描屏幕
+            // 添加菜单: 扫描当前页面
             browser.contextMenus.create({
-                id: "scanFullScreen",
-                title: menuTitle("scanFullScreen", "🖥️"),
+                id: "scanScreen",
+                title: menuTitle("scanScreen", "🖥️"),
                 contexts: ["page", "action", "page_action"],
-                ...menuIcons("scanFullScreen")
+                ...menuIcons("scanScreen")
             });
-            // 添加菜单: 摄像头扫码, 直接以摄像头模式打开扫描页
+            // 添加菜单: 扫描本地图片
+            browser.contextMenus.create({
+                id: "scanLocalImage",
+                title: menuTitle("scanLocalImage", "🏞️"),
+                contexts: ["action", "page_action"],
+                ...menuIcons("image")
+            });
+            // 添加菜单: 打开摄像头扫描
             browser.contextMenus.create({
                 id: "scanCamera",
                 title: menuTitle("cameraScanTitle", "📷"),
                 contexts: ["action", "page_action"],
                 ...menuIcons("camera")
             });
-            // 添加菜单: 上传/粘贴图片扫描
-            browser.contextMenus.create({
-                id: "scanImage",
-                title: menuTitle("scanImage", "🏞️"),
-                contexts: ["action", "page_action"],
-                ...menuIcons("image")
-            });
-            // Firefox 地址栏图标开关: 统一放在工具栏图标右键菜单, 按当前状态显示"显示/隐藏"
-            if (browser.pageAction) {
+            // Firefox 地址栏图标开关
+            if (IS_FIREFOX) {
                 browser.contextMenus.create({
                     id: "togglePageAction",
                     ...pageActionMenuOptions(pageActionVisible),
@@ -363,48 +280,57 @@ export default defineBackground(() => {
 
     // 右键菜单点击事件处理
     const handleContextMenusClick = (info: Browser.contextMenus.OnClickData, tab?: Browser.tabs.Tab) => {
-        // 地址栏图标开关不依赖标签页
+        // 地址栏图标开关
         if (info.menuItemId === "togglePageAction") {
-            void (async () => {
-                await setPageActionVisible(!(await isPageActionVisible()));
-            })();
+            void togglePageAction();
             return;
         }
-        // 上传/粘贴图片: 在当前页弹出扫描浮层
-        if (info.menuItemId === "scanImage") {
-            void requestInlineImageScan(tab?.id);
+        // 选中文字生成二维码
+        if (info.menuItemId === "selectionToQR") {
+            showQRcode(info.selectionText);
             return;
         }
-        // 摄像头扫码: 打开以摄像头模式进入的扫描页
-        if (info.menuItemId === "scanCamera") {
-            void openCameraScanPage(tab?.id);
-            return;
-        }
-        const tabId = tab?.id;      // 获取当前标签页 ID
+
+        // 下面的操作都依赖标签页, 先查询当前前台标签页 ID
+        const tabId = tab?.id;   // 获取当前标签页 ID
         if (tabId == null) {
             console.warn('tabId is null');  // tabId 不存在则警告并返回
             return;
-        } else if (info.menuItemId === "selectionToQR") {
-            // 选中文字生成二维码
-            showQRcode(info.selectionText);
-        } else if (info.menuItemId === "decodeQR") {
-            // 页面图片二维码扫描, 扫描过程的提示统一由 popup 显示
+        }
+
+        // 扫描本地图片: 弹出图片上传/粘贴窗口
+        if (info.menuItemId === "scanLocalImage") {
+            // 请求内容脚本弹出扫描面板, 内容脚本不可用时回退到独立扩展页
+            void requestLocalImageScan(tabId);
+            return;
+        }
+        // 打开摄像头扫码: 打开以摄像头模式进入的扫描页
+        if (info.menuItemId === "scanCamera") {
+            void openCamerascanScreen(tabId);
+            return;
+        }
+        // 页面图片二维码扫描, 扫描过程的提示统一由 popup 显示
+        if (info.menuItemId === "scanWebImage") {
             // 此URL是包含域名的完整URL, 无论图片是否用了相对路径
             browser.tabs.sendMessage(tabId, {
-                action: "decodeQR",
+                action: "scanWebImage",
                 imageUrl: info.srcUrl
             }).catch(() => {
-                // SVG 等无法注入内容脚本的页面: 交给 popup 就地扫描图片地址, 不必新开标签
+                // 如果当前打开的是 PDF、SVG 等无法注入内容脚本的特殊页面
+                // 直接把链接传给 popup 打开, 由 popup 完成图片获取和扫描
                 showQrFromImagePage(info.srcUrl);
             });
-        } else if (info.menuItemId === "scanFullScreen") {
-            // 扫描屏幕: 直接扫描当前视口, 全程没有框选交互
+            return;
+        }
+        // 扫描当前页面: 由内容脚本直接截取视口并扫描整图, 内容脚本不可用时回退到独立扩展页
+        if (info.menuItemId === "scanScreen") {
             // SVG 文档同样截取视口后在新标签页直接扫描整图, 避免 popup 窗口裁掉页面内容
             if (isSvgDocumentUrl(tab?.url)) {
                 void showScreenScan(tabId, tab?.windowId);
                 return;
             }
             void requestScreenScan(tabId, tab?.windowId);
+            return;
         }
     };
 
@@ -416,43 +342,34 @@ export default defineBackground(() => {
         }).catch(() => {});
     };
 
-    // 显示/隐藏地址栏图标 (Firefox), 并记住状态
-    const setPageActionVisible = async (visible: boolean) => {
-        await browser.storage.local.set({ [PAGE_ACTION_VISIBLE_KEY]: visible });
+    // 把显隐状态应用到标签页: 单标签的显隐在导航后会重置, 所以既要能全量应用也要能只作用于一个标签页
+    const applyPageAction = async (visible: boolean, tabId?: number) => {
         const pageAction = browser.pageAction;
-        if (pageAction) {
-            const tabs = await browser.tabs.query({});
-            await Promise.all(tabs.map(async (tab) => {
-                if (tab.id == null) return;
-                try {
-                    await (visible ? pageAction.show(tab.id) : pageAction.hide(tab.id));
-                } catch {
-                    // 个别标签页 (如扩展页面) 可能不允许操作, 忽略即可
-                }
-            }));
-        }
+        if (!pageAction) return;
+        const tabs = tabId != null ? [{ id: tabId }] : await browser.tabs.query({});
+        await Promise.all(tabs.map(async (tab) => {
+            if (tab.id == null) return;
+            try {
+                await (visible ? pageAction.show(tab.id) : pageAction.hide(tab.id));
+            } catch {
+                // 个别标签页 (如扩展页面) 可能不允许操作, 忽略即可
+            }
+        }));
+    };
+
+    // 切换地址栏图标显隐: 菜单项表达的是"切换", 当前状态查询、取反、持久化与刷新都收敛在这里
+    const togglePageAction = async () => {
+        if (!IS_FIREFOX) return;
+        const visible = !(await isPageActionVisible());
+        await browser.storage.local.set({ [PAGE_ACTION_KEY]: visible });
+        await applyPageAction(visible);
         void syncPageActionMenu(visible);
     };
 
     // 显示地址栏图标 (Firefox)
-    const showPageAction = async (tabId?: number) => {
-        const pageAction = browser.pageAction;
-        if (!pageAction) return;
-        try {
-            if (!(await isPageActionVisible())) return;
-            const tabs = tabId != null ? [{ id: tabId }] : await browser.tabs.query({});
-            for (const tab of tabs) {
-                if (tab.id == null) continue;
-                try {
-                    // show() 在部分类型定义中返回 void, 运行时则可能是 Promise
-                    void Promise.resolve(pageAction.show(tab.id)).catch(() => {});
-                } catch {
-                    // 忽略受限标签页导致的失败
-                }
-            }
-        } catch {
-            // 忽略受限标签页导致的失败
-        }
+    const showPageAction = async (tabId: number) => {
+        if (!IS_FIREFOX || !(await isPageActionVisible())) return;
+        await applyPageAction(true, tabId);
     };
 
     // 内容脚本消息处理
@@ -460,24 +377,19 @@ export default defineBackground(() => {
         // 全屏扫描的蓝点被点空白处收起前先问一句: 通知窗口是否还开着。
         // 开着说明这一下点击是去关 popup 的, 内容脚本会保留蓝点等下一次点击
         if (request.action === "popupNoticeOpen") {
-            sendResponse({
-                success: true,
-                open: Boolean(popupPort)
-                    || popupOpening
-                    || Date.now() - lastPopupCloseAt < POPUP_CLOSE_GRACE,
-            });
+            sendResponse({ success: true, open: popupControl.isOpen() });
             return false;
         }
         // 页面通知转发到 popup; 独立扫描页会带上 closeOriginTab, 记录发起它的标签页
         if (request.action === "showNotification") {
-            showPopupNotification(request.payload, _sender.tab?.id)
+            popupControl.showNotification(request.payload, _sender.tab?.id)
                 .then(success => sendResponse({ success }))
                 .catch(() => sendResponse({ success: false }));
             return true;
         }
         // popup 已展示通知, 清理待展示内容 (需要时一并关闭发起它的标签页)
         if (request.action === "notificationResolved") {
-            void finishNotice(request.id);
+            void popupControl.finish(request.id);
             sendResponse({ success: true });
             return false;
         }
@@ -525,7 +437,7 @@ export default defineBackground(() => {
         // popup 展开面板里的"扫描图片": 与右键菜单共用同一套分发,
         // 优先在当前页开扫描浮层, 内容脚本不可注入时再打开独立扫描页
         if (request.action === "openImageScan") {
-            requestInlineImageScan(_sender.tab?.id)
+            requestLocalImageScan(_sender.tab?.id)
                 .then(success => sendResponse({ success }))
                 .catch(() => sendResponse({ success: false }));
             return true;
@@ -533,7 +445,7 @@ export default defineBackground(() => {
         // 图片扫描浮层里点"从摄像头取图": 摄像头只能在扩展页运行,
         // 由后台打开 upload.html?camera=1, 并记录来源页以便关闭后切回
         if (request.action === "openCameraScan") {
-            openCameraScanPage(_sender.tab?.id)
+            openCamerascanScreen(_sender.tab?.id)
                 .then(success => sendResponse({ success }))
                 .catch(() => sendResponse({ success: false }));
             return true;
@@ -553,28 +465,13 @@ export default defineBackground(() => {
         // 防止 Error: The message port closed before a response was received.
     };
 
-    // 事件监听
-    browser.runtime.onConnect.addListener((port) => {
-        if (port.name !== 'popup') return;
-        popupPort = port;
-        // 补推挂载期间写入的通知, 避免 openPopup 与端口连接之间的竞态导致通知丢失
-        void storageArea().get(POPUP_NOTICE_KEY).then((stored) => {
-            const record = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
-            if (record && popupPort === port) port.postMessage({ action: 'showNotification', payload: record });
-        }).catch(() => {});
-        port.onDisconnect.addListener(() => {
-            if (popupPort === port) popupPort = null;
-            lastPopupOpenAt = 0;
-            lastPopupCloseAt = Date.now();
-            // popup 关闭后清除未处理的通知, 避免下次打开时旧通知再次出现;
-            // 通知来自独立扫描页时同时关闭该标签页 (用户关掉通知即视为结束)
-            void finishNotice().catch(() => {});
-        });
-    });
+    // popup 打开后建立长连接; 关闭时收起未处理的通知
+    browser.runtime.onConnect.addListener(popupControl.connect);
 
     browser.runtime.onInstalled.addListener(addContextMenus);               // 扩展安装完成时, 初始化右键菜单
     // browser.runtime.onStartup.addListener(addContextMenus);                 // 浏览器启动时, 初始化右键菜单
-    browser.tabs.onUpdated.addListener((tabId) => void showPageAction(tabId)); // 标签页加载完成后, 显示地址栏图标
+    // 标签页加载完成后, 显示 Firefox 地址栏图标; 其他浏览器没有该图标, 不必监听
+    if (IS_FIREFOX) browser.tabs.onUpdated.addListener((tabId) => void showPageAction(tabId));
     // 用户手动关闭临时扩展页 (capture / scan) 时, 同样把焦点还给来源页;
     // 由后台主动关闭的标签页已先清除记录, 不会重复处理
     browser.tabs.onRemoved.addListener((tabId) => {

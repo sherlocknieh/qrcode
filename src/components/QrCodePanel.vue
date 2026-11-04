@@ -149,15 +149,15 @@ onBeforeUnmount(() => {
                             <button
                                 class="qr-panel-action qr-panel-action--image"
                                 type="button"
-                                :aria-label="t('scanImage')"
-                                :title="t('scanImage')"
+                                :aria-label="t('scanLocalImage')"
+                                :title="t('scanLocalImage')"
                                 @click="emit('scan', 'image')"
                             ></button>
                             <button
                                 class="qr-panel-action qr-panel-action--screen"
                                 type="button"
-                                :aria-label="t('scanFullScreen')"
-                                :title="t('scanFullScreen')"
+                                :aria-label="t('scanScreen')"
+                                :title="t('scanScreen')"
                                 @click="emit('scan', 'screen')"
                             ></button>
                             <button

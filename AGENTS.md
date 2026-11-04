@@ -35,7 +35,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | 路径 | 职责 |
 | --- | --- |
 | [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台：右键菜单、打开 popup、通知中转、跨域取图、截图、关标签页、图标开关 |
-| [src/entrypoints/content/](./src/entrypoints/content/) | 全站注入 UI；消息 `decodeQR` / `scanFullScreen` / `scanImageInline`；页面内通知兜底 |
+| [src/entrypoints/content/](./src/entrypoints/content/) | 全站注入 UI；消息 `scanWebImage` / `scanScreen` / `scanLocalImage`；页面内通知兜底 |
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、扫描图片 |
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | `upload.html`：`?camera=1` 以摄像头模式开 `ScanPanel`；内容脚本注入不了时的兜底页 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：截视口后直出扫描（PDF、SVG 等注入不了内容脚本的页面兜底） |
@@ -67,6 +67,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | [src/services/qrCode.ts](./src/services/qrCode.ts) | 编码与 PNG 生成 |
 | [src/services/qrScanner.ts](./src/services/qrScanner.ts) | 扫描核心（ZXing） |
 | [src/services/popupNotice.ts](./src/services/popupNotice.ts) | 跨进程通知协议 |
+| [src/services/popupHost.ts](./src/services/popupHost.ts) | 后台侧 popup 宿主：通知落盘/推送、打开窗口、开合竞态兜底 |
 | [src/services/clipboard.ts](./src/services/clipboard.ts) | 复制文本 |
 | [src/services/clipboardImage.ts](./src/services/clipboardImage.ts) | 从 DataTransfer 取图 |
 | [src/services/linkText.ts](./src/services/linkText.ts) | 链接判断与补协议 |
@@ -96,7 +97,7 @@ flowchart LR
   Content -->|captureVisibleTab| BG
 ```
 
-1. **特殊页面就地处理**：网页 / 本地 / 剪贴板图片走 `decodeQR`、`scanImageInline`；直接打开的 SVG 注入不了内容脚本，图片交 popup；扫描屏幕在内容脚本不可用时由后台截视口后开 `capture.html` 直识整图（Firefox 内置 PDF 阅读器同此）。扫描要在需要 DOM 的地方完成，降级分发统一走 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage`。
+1. **特殊页面就地处理**：网页 / 本地 / 剪贴板图片走 `scanWebImage`、`scanLocalImage`；直接打开的 SVG 注入不了内容脚本，图片交 popup；扫描屏幕在内容脚本不可用时由后台截视口后开 `capture.html` 直识整图（Firefox 内置 PDF 阅读器同此）。扫描要在需要 DOM 的地方完成，降级分发统一走 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage`。
 2. **通知统一走 popup**：`showPopupNotice()` → 后台写 `qrNotification` 经 `popup` 长连接推送；popup 未开则优先 `pageAction.openPopup()`，不可用或被拒绝时回退 `action.openPopup()`，失败返回 `false` 时调用方回退页面内 `NotifyHost`。`capture.html` 的 payload 带 `closeOriginTab`，通知结束（`notificationResolved` 或 popup 关闭）时后台按 `originTabId` 关掉来源页。
 3. **通知参数必须可序列化**：`PopupNoticeOptions` 只有 `loading`，动作由 `PopupNoticeAction`（`open` / `copy` / `screenshot`）描述。不要为“收起通知”加消息：通知已结束而 popup 被保留会留空白窗口，用下一条通知（如 `decodingQR`）替换；`notifyState.open` 转 false 且无内容时 popup 自行关闭。
 4. **popup 易失焦**：选本地文件会关 popup，故 `upload.html` 与 `capture.html` 各自取图，结果走 `useNoticeFallback`；扫描结束**不自动关闭**（例外：popup 的“改用扫描屏幕”要让出焦点）。`capture.html` 通知结束即关自身：popup 里由后台按 `closeTabId` 关，页面内由 `onLocalNoticeDone` 关（被替换不算结束）。临时页由 `openExtensionPage` 打开（`tabs.create` 带来源页 `windowId` 与 `index + 1` 紧邻原页，并在 `qrExtensionOriginTabs` 登记）：关闭走 `closeTabAndReturn`（先 `tabs.update(来源页, { active: true })` 再 `tabs.remove`），用户点 X 由 `tabs.onRemoved` 同样切回。
@@ -125,7 +126,7 @@ flowchart LR
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。
 - **新增 UI 文案**：`public/_locales/en/messages.json` 与 `zh_CN/messages.json` 同时添加，代码里统一 `browser.i18n.getMessage(key)`（各入口有本地 `t()` 包装）。
 - **权限 / manifest / 图标**：只改 [wxt.config.ts](./wxt.config.ts)。不要声明 `clipboardRead` / `clipboardWrite`：图片只从 paste/拖放事件读，文本复制在点击手势里，失败用 `execCommand('copy')` 兜底。
-- **截图**：视图层 `ScreenshotOverlay.vue`；普通页面由 `useScreenshot.ts` 就地挂载承载扫描结果（`startScreenshot({ src, initialResults })`，`close` 收起），SVG / PDF 等页面由 [capture/App.vue](./src/entrypoints/capture/App.vue) 接管（后台截视口 → 存储 → 直出扫描）。扫描屏幕（`scanFullScreen`）先播整屏扫描动画，解码结束再把截图交给这个浮层，不要再改回在页面上叠蓝框；没有独立的框选扫描入口了。
+- **截图**：视图层 `ScreenshotOverlay.vue`；普通页面由 `useScreenshot.ts` 就地挂载承载扫描结果（`startScreenshot({ src, initialResults })`，`close` 收起），SVG / PDF 等页面由 [capture/App.vue](./src/entrypoints/capture/App.vue) 接管（后台截视口 → 存储 → 直出扫描）。扫描屏幕（`scanScreen`）先播整屏扫描动画，解码结束再把截图交给这个浮层，不要再改回在页面上叠蓝框；没有独立的框选扫描入口了。
 
 ## 编码约定
 
@@ -145,10 +146,11 @@ flowchart LR
 - **跨域 / 防盗链图片**：直接 fetch 常失败，失败提示里保留“改用扫描屏幕”出口；不要再加“跨域可能稍慢”通知，与“正在获取图片...”重复。
 - **同源重定向到 CDN**：如 GitHub 的 `/owner/repo/raw/...` 302 到 `raw.githubusercontent.com`，`isSameOrigin` 只看跳转前地址，Chrome 因此判 canvas 被污染。`loadImageDataFromUrl` 捕获污染错误后自动改走后台代理，这层兜底不能删；`fetchViaProxy` 也别改回只在跨域时传。
 - **`file://` 页面**：Firefox 扩展页/后台无法 fetch，但内容脚本能读已渲染图片画到 canvas，失败再回退截取视口。
-- **通知竞态与清理**：后台 `openPopup` 期间用 `popupOpening` / `POPUP_OPEN_GRACE` 防丢通知，靠自增 `id` 做 `clearNoticeIfCurrent`；popup 断开连接时后台删 `qrNotification`，避免下次重复弹出。都不要简化。
+- **通知竞态与清理**：后台 `popupHost`（[popupHost.ts](./src/services/popupHost.ts)）打开窗口期间用 `opening` / `POPUP_OPEN_GRACE` 防丢通知，靠自增 `id` 做 `clearIfCurrent`；popup 断开连接时后台删 `qrNotification`，避免下次重复弹出。都不要简化。
 - **页面全局 CSS 会泄漏进注入 UI**：如 `example.com` 的 `svg { margin: -2.75em auto 0; opacity: .55 }` 会把图标顶到按钮外；新增图标时在 `.qr-shot` / `.qr-notify-root` / `.qr-picker-icon` 上声明完整 `margin` 与 `opacity`。
 - **独立 SVG/XML 文档不要挂 integrated UI**：直接打开的 `.svg`（如 `https://app.trakt.tv/favicon.svg`）里 `document.createElement('div')` 没有 `.style`，`createIntegratedUi` 会在 `applyPosition` 设 `overflow` 时抛 `Cannot set properties of undefined`。`content/index.ts` 已在 `main()` 开头做能力检查跳过这类文档，扫描交 popup / `capture.html`，不要删。
 - **开发时固定图标**：未打包扩展的 pin 只在内存里，写 `.wxt/dev-profile/.../Preferences` 的 `extensions.pinned_extensions` 无效；只能由 `.dev/pin-dev-extension.mjs` 运行时调 `chrome.developerPrivate.updateExtensionConfiguration`。改这段前先用 CDP 实测。
+- **开发端口号变化**：开发时使用的端口号变化时，浏览器可能会无法加载最新版本的扩展。需要卸载旧扩展再重新加载。
 
 ## 完成标准
 
