@@ -42,13 +42,16 @@ function dotStyle(rect: ScanRect) {
                     :style="rectStyle(rect)"
                 >
                     <span class="qr-marks-box" />
+                    <!-- 修复点蓝点会顺带触发下层交互的问题:
+                         蓝框挂在图片所在容器里, 点击继续冒泡会被当成点了图片/面板
+                         (网页打开看图浮层、面板重新弹出选文件), 这里就地截断这次点击 -->
                     <button
                         type="button"
                         class="qr-marks-dot"
                         :style="dotStyle(rect)"
                         :title="pickHint"
                         :aria-label="pickHint"
-                        @click="emit('pick', index)"
+                        @click.stop.prevent="emit('pick', index)"
                     >
                         <svg class="qr-marks-dot-icon" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M5 12h13m-5-6 6 6-6 6" />
