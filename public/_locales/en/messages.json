@@ -176,8 +176,16 @@
     "description": "Button text after content is copied"
   },
   "multiScanSuccess": {
-    "message": "Batch Scan Complete",
-    "description": "Title shown when several codes are recognized at once"
+    "message": "Multiple QR Codes and Barcodes Found",
+    "description": "Title shown when several codes are recognized at once and both QR codes and barcodes are present"
+  },
+  "multiQrcodeScanSuccess": {
+    "message": "Multiple QR Codes Found",
+    "description": "Title shown when several codes are recognized at once and all of them are QR codes"
+  },
+  "multiBarcodeScanSuccess": {
+    "message": "Multiple Barcodes Found",
+    "description": "Title shown when several codes are recognized at once and all of them are barcodes"
   },
   "pickCodeHint": {
     "message": "Click a blue dot to choose a code",

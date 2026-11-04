@@ -176,8 +176,16 @@
     "description": "复制成功后按钮显示的文字"
   },
   "multiScanSuccess": {
-    "message": "发现多个二维码/条形码",
-    "description": "一次扫描到多个二维码/条形码时的标题"
+    "message": "发现多个二维码和条形码",
+    "description": "一次扫描到多个码, 且二维码与条形码同时存在时的标题"
+  },
+  "multiQrcodeScanSuccess": {
+    "message": "发现多个二维码",
+    "description": "一次扫描到多个码, 且全是二维码时的标题"
+  },
+  "multiBarcodeScanSuccess": {
+    "message": "发现多个条形码",
+    "description": "一次扫描到多个码, 且全是条形码时的标题"
   },
   "pickCodeHint": {
     "message": "点击查看扫描结果",

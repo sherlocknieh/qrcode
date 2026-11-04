@@ -82,13 +82,22 @@ function noResultNotice(retryScreenScan: boolean): PopupNoticePayload {
     };
 }
 
+// 批量结果的标题按实际码型区分:
+// 混排时才能说"二维码和条形码", 纯二维码/纯条形码各自表述, 避免标题指向根本没扫到的类型
+function multiResultTitle(results: DecodeResult[]): string {
+    const hasQr = results.some((result) => result.kind === 'qr');
+    const hasBarcode = results.some((result) => result.kind === 'barcode');
+    if (hasQr && hasBarcode) return t('multiScanSuccess');
+    return t(hasBarcode ? 'multiBarcodeScanSuccess' : 'multiQrcodeScanSuccess');
+}
+
 // 多个结果: 逐条列出, 由用户分别打开/复制; pickHint 时额外提示在画面上点选
 function multiResultNotice(results: DecodeResult[], pickHint: boolean): PopupNoticePayload {
     return {
         options: {
             toast: false,
             icon: 'success',
-            title: t('multiScanSuccess'),
+            title: multiResultTitle(results),
             text: pickHint ? t('pickCodeHint') : undefined,
             items: toNoticeItems(results),
             showCloseButton: true,
