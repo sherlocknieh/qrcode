@@ -23,6 +23,17 @@ const { fire, close, showLoading } = useNotify();
 // 接收内容脚本转发的通知并代为处理结果操作
 usePopupNoticeHost();
 
+// HTML 里的 __MSG_*__ 只有 manifest 会被替换, 页面标题必须在运行时取文案
+document.title = t('appShortName');
+// 移动端浏览器把 popup 当作普通标签页打开, 此时铺满视口居中;
+// 真弹窗不能给 #app 设 100vh, 浏览器会随之放大窗口, 收起输入框后收不回去
+void browser.tabs
+  .getCurrent()
+  .then((tab) => {
+    if (tab) document.documentElement.classList.add('popup-page');
+  })
+  .catch(() => {});
+
 
 let scanning = false;
 // 扫描期间隐藏二维码面板
@@ -281,5 +292,9 @@ body {
 }
 
 /* 不能给 #app 设 min-height: 100vh: 浏览器只会放大 popup 窗口,
-   高度被撑高后 1vh 也随之变大, 收起输入框时窗口收不回去 */
+   高度被撑高后 1vh 也随之变大, 收起输入框时窗口收不回去。
+   作为标签页打开时没有这个限制, 由 .popup-page 单独铺满视口居中 */
+html.popup-page #app {
+  min-height: 100vh;
+}
 </style>

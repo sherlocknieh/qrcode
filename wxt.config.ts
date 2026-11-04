@@ -66,6 +66,11 @@ export default defineConfig({
       48: 'icon/48.png',   // Chrome 扩展管理页面
       128: 'icon/128.png', // 扩展商店页面
     },
+    // 工具栏提示文案: popup 的 <title> 会被 WXT 拿来当 action.default_title,
+    // 那里要放运行时标题, 所以在此显式声明 (占位符由浏览器按 _locales 替换)
+    action: {
+      default_title: '__MSG_appShortName__',
+    },
     // Firefox 上传要求填写的项目
     browser_specific_settings: {
       gecko: {

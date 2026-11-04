@@ -45,13 +45,18 @@ async function copyInputText() {
     }, 1500);
 }
 
-// 鼠标划过底部矩形条时切换: 收起时展开, 已展开时再次悬停收起; 键盘聚焦只负责展开
-function toggleOnHover() {
+// 鼠标划过底部矩形条时切换: 收起时展开, 已展开时再次悬停收起
+// 触摸屏点击也会派发 pointerenter 与 focus, 会与随后的 click 互相抵消, 所以这两处只认鼠标和键盘
+function toggleOnHover(event: PointerEvent) {
+    if (event.pointerType !== 'mouse') return;
     if (props.collapsible) expanded.value = !expanded.value;
 }
 
-function expandOnFocus() {
-    if (props.collapsible) expanded.value = true;
+// :focus-visible 为 false 说明是点击带来的焦点, 展开交给 click
+function expandOnFocus(event: FocusEvent) {
+    if (!props.collapsible) return;
+    if (!(event.target as HTMLElement).matches(':focus-visible')) return;
+    expanded.value = true;
 }
 </script>
 
@@ -75,7 +80,7 @@ function expandOnFocus() {
                 :aria-expanded="expanded"
                 :aria-label="expanded ? t('collapseEditor') : t('moreOptions')"
                 :title="expanded ? t('collapseEditor') : t('moreOptions')"
-                @mouseenter="toggleOnHover"
+                @pointerenter="toggleOnHover"
                 @focus="expandOnFocus"
                 @click="expanded = !expanded"
             >
