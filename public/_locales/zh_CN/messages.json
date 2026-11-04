@@ -27,10 +27,6 @@
     "message": "收起编辑",
     "description": "收起二维码输入框的按钮提示"
   },
-  "copyInput": {
-    "message": "复制",
-    "description": "复制二维码输入框文字的按钮"
-  },
   "qrEmptyHint": {
     "message": "输入内容后显示二维码",
     "description": "输入为空时二维码区域的提示"
@@ -186,6 +182,10 @@
   "multiScanSuccess": {
     "message": "批量扫描完成",
     "description": "一次扫描到多个二维码/条形码时的标题"
+  },
+  "pickCodeHint": {
+    "message": "点击蓝点, 选择要扫的码",
+    "description": "全屏扫描命中多个码时, 提示用户在画面上点选其中一个"
   },
   "copyItem": {
     "message": "复制",

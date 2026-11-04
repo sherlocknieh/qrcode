@@ -74,9 +74,13 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     }
 
     // 扫描结果: popup 可用时由 popup 直接完成打开/复制。
-    // 返回 true 表示通知已由 popup 接管 (调用方可以关闭自己的临时页面)
-    function notifyResults(results: DecodeResult[]): Promise<boolean> {
-        return deliver(resultNotice(results));
+    // 返回 true 表示通知已由 popup 接管 (调用方可以关闭自己的临时页面)。
+    // pickHint: 画面上同时给出可点选的蓝点时, 在批量结果里说明怎么点
+    function notifyResults(
+        results: DecodeResult[],
+        options: { pickHint?: boolean } = {},
+    ): Promise<boolean> {
+        return deliver(resultNotice(results, options));
     }
 
     // 扫描中的加载提示: 等待一帧让提示先渲染, 再做计算密集的解码

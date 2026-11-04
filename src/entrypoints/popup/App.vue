@@ -23,10 +23,13 @@ const { fire, close, showLoading } = useNotify();
 // 接收内容脚本转发的通知并代为处理结果操作
 usePopupNoticeHost();
 
-// HTML 里的 __MSG_*__ 只有 manifest 会被替换, 页面标题必须在运行时取文案
+// 修复手机上标题显示为 __MSG_appShortName__ 的问题:
+// 手机浏览器把 popup 页面当普通标签页打开, 标题会直接照搬源码里的占位符
+// 改为运行时设置标题, 由浏览器按 _locales 本地化标题
 document.title = t('appShortName');
-// 移动端浏览器把 popup 当作普通标签页打开, 此时铺满视口居中;
-// 真弹窗不能给 #app 设 100vh, 浏览器会随之放大窗口, 收起输入框后收不回去
+// 修复手机上二维码不居中的问题:
+// 手机浏览器把 popup 页面当普通标签页打开, 铺满整屏, 内容仍按弹窗高度顶对齐
+// 此时让内容铺满视口并居中, 真弹窗仍保持内容高度
 void browser.tabs
   .getCurrent()
   .then((tab) => {
@@ -291,9 +294,10 @@ body {
   align-items: center;     /* 垂直居中 */
 }
 
-/* 不能给 #app 设 min-height: 100vh: 浏览器只会放大 popup 窗口,
-   高度被撑高后 1vh 也随之变大, 收起输入框时窗口收不回去。
-   作为标签页打开时没有这个限制, 由 .popup-page 单独铺满视口居中 */
+/* 修复手机上二维码不居中的问题:
+   手机浏览器把 popup 页面当普通标签页打开, 需要铺满视口才能居中;
+   弹窗里设 100vh 会让浏览器放大窗口, 收起输入框时窗口收不回去,
+   所以只在标签页场景生效 */
 html.popup-page #app {
   min-height: 100vh;
 }

@@ -71,7 +71,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 
 `@/` 指向 `src/`（WXT 自动生成，见 `.wxt/tsconfig.json`）。`.wxt/`、`.output/`、`node_modules/` 是产物目录，不要手改。
 
-面板交互约束（别丢）：`QrCodePanel` 在 popup 里 `collapsible` 默认收起，入口是二维码白边上的满宽条（悬停切换、键盘聚焦只展开、点击切换），两态尺寸与留白一致，聚焦即全选并内嵌复制按钮（火狐划选越界会中断）；`ScanPanel` 两源共用固定深色 4:3 取景框 + 一行提示 + 一行按钮（换源尺寸不变），标题右侧切源，`variant` 决定自带遮罩（浮层）或原地渲染（独立页）。
+面板交互约束（别丢）：`QrCodePanel` 在 popup 里 `collapsible` 默认收起，入口是整块二维码热区（点击切换、键盘聚焦可切换且带描边，不再有箭头图标），两态尺寸与留白一致，聚焦即全选（复制走键盘，不再内嵌复制按钮）；`ScanPanel` 两源共用固定深色 4:3 取景框 + 一行提示 + 一行按钮（换源尺寸不变），标题右侧切源，`variant` 决定自带遮罩（浮层）或原地渲染（独立页）。
 
 ## 运行时架构
 
@@ -111,7 +111,7 @@ flowchart LR
 
 - **右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加进两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
 - **二维码生成**：编码与 PNG 在 [qrCode.ts](./src/services/qrCode.ts)，输入/预览在 [QrCodePanel.vue](./src/components/QrCodePanel.vue)；条形码生成未接入。
-- **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。调用方用 `DecodeOutcome.imageSize` 与视口尺寸的比例换算成 CSS 像素再画框，别在解码层输出页面坐标。
+- **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。调用方用 `DecodeOutcome.imageSize` 与视口尺寸的比例换算成 CSS 像素再画框，别在解码层输出页面坐标。一键截屏扫描命中码时不分单码多码：`recognizeImage` 传 `deferResults` 暂缓结果通知，`ScanMarks` 用 `interactive` + `pick` 在码上叠可点击蓝点，结果通知与蓝点同时给出（多码时加 `pickHint` 说明怎么点），点哪个码就把通知切到哪个码，点完蓝点仍在、可连续挑选，直到用户点空白处（`dismiss`）或开始新一轮扫描才收起，不设超时。收起前内容脚本会问后台 `popupNoticeOpen`：通知窗口还开着或刚被这次点击关掉时保留蓝点，因为那一下多半是在关 popup，下一次点击才真正收起。框是固定定位的：`MarksSource` 记住截图时的视口宽高、滚动位置与像素比例，`marks` 按滚动差量重算，滚动页面时框跟着码走，不要在滚动时把框收掉；只有窗口**宽度**变化会让页面重新排版、需要收起标记，只改高度时排版没动，框仍然对准码，别一起关。
 - **扫描效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。ZXing 用深路径导入（`@zxing/library/esm/core/...`），别改成包根导入；摄像头逐帧只走 `decodeCameraFrame`，换 `decodeAllFromImageData` 会卡预览。
 - **摄像头扫码**：右键菜单的“摄像头扫码”（`scanCamera`）直接开 `upload.html?camera=1`；面板本体仍只在 `ScanPanel.vue`，不要塞进 popup（失焦即关）。内容脚本也能 `getUserMedia`，但受页面安全上下文与 `Permissions-Policy` 约束、权限归页面源，故浮层失败时降级 `upload.html?camera=1`；媒体流与取帧在 `useCameraScan.ts`，命中即停，用户点“继续扫描”恢复。新增输入方式只实现一个“产出图像”的源，别拆第二套面板/扫描流程。
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。

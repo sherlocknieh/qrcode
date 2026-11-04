@@ -66,8 +66,9 @@ export default defineConfig({
       48: 'icon/48.png',   // Chrome 扩展管理页面
       128: 'icon/128.png', // 扩展商店页面
     },
-    // 工具栏提示文案: popup 的 <title> 会被 WXT 拿来当 action.default_title,
-    // 那里要放运行时标题, 所以在此显式声明 (占位符由浏览器按 _locales 替换)
+    // 修复手机上名称显示为 __MSG_appShortName__ 的问题:
+    // 页面标题改到运行时设置后, 工具栏提示不再跟着 <title> 走
+    // 在此保留本地化短名称
     action: {
       default_title: '__MSG_appShortName__',
     },

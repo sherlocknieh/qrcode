@@ -21,7 +21,11 @@ export default defineBackground(() => {
     // openPopup 会短暂占用弹窗, 期间到达的通知直接等待 popup 读取存储
     let popupOpening = false;
     let lastPopupOpenAt = 0;
+    // popup 关闭时刻: 用户点到页面会让 popup 失焦关闭, 内容脚本据此区分
+    // "这一下是在关通知窗口" 还是 "在点空白处收起扫描标记"
+    let lastPopupCloseAt = 0;
     const POPUP_OPEN_GRACE = 1500;
+    const POPUP_CLOSE_GRACE = 600;
 
     // 打开 popup 窗口
     // 优先使用 pageAction.openPopup, 不可用或被拒绝时回退 action.openPopup
@@ -477,6 +481,17 @@ export default defineBackground(() => {
 
     // 内容脚本消息处理
     const handleContentScriptMessage = (request: any, _sender: Browser.runtime.MessageSender, sendResponse: (response: any) => void) => {
+        // 全屏扫描的蓝点被点空白处收起前先问一句: 通知窗口是否还开着。
+        // 开着说明这一下点击是去关 popup 的, 内容脚本会保留蓝点等下一次点击
+        if (request.action === "popupNoticeOpen") {
+            sendResponse({
+                success: true,
+                open: Boolean(popupPort)
+                    || popupOpening
+                    || Date.now() - lastPopupCloseAt < POPUP_CLOSE_GRACE,
+            });
+            return false;
+        }
         // 页面通知转发到 popup; 独立扫描页会带上 closeOriginTab, 记录发起它的标签页
         if (request.action === "showNotification") {
             showPopupNotification(request.payload, _sender.tab?.id)
@@ -566,6 +581,7 @@ export default defineBackground(() => {
         port.onDisconnect.addListener(() => {
             if (popupPort === port) popupPort = null;
             lastPopupOpenAt = 0;
+            lastPopupCloseAt = Date.now();
             // popup 关闭后清除未处理的通知, 避免下次打开时旧通知再次出现;
             // 通知来自独立扫描页时同时关闭该标签页 (用户关掉通知即视为结束)
             void finishNotice().catch(() => {});

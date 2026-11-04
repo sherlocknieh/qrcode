@@ -82,13 +82,14 @@ function noResultNotice(retryScreenshot: boolean): PopupNoticePayload {
     };
 }
 
-// 多个结果: 逐条列出, 由用户分别打开/复制
-function multiResultNotice(results: DecodeResult[]): PopupNoticePayload {
+// 多个结果: 逐条列出, 由用户分别打开/复制; pickHint 时额外提示在画面上点选
+function multiResultNotice(results: DecodeResult[], pickHint: boolean): PopupNoticePayload {
     return {
         options: {
             toast: false,
             icon: 'success',
             title: t('multiScanSuccess'),
+            text: pickHint ? t('pickCodeHint') : undefined,
             items: toNoticeItems(results),
             showCloseButton: true,
         },
@@ -118,12 +119,13 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 
 // 按结果数量选择对应的通知。
 // retryScreenshot: 当前入口能否真的再截一次图 (独立扫描页里截图只会截到自己, 传 false)
+// pickHint: 画面上同时给出可点选的蓝点时提示怎么选
 export function resultNotice(
     results: DecodeResult[],
-    options: { retryScreenshot?: boolean } = {},
+    options: { retryScreenshot?: boolean; pickHint?: boolean } = {},
 ): PopupNoticePayload {
     if (!results.length) return noResultNotice(options.retryScreenshot ?? true);
-    if (results.length > 1) return multiResultNotice(results);
+    if (results.length > 1) return multiResultNotice(results, options.pickHint === true);
     return singleResultNotice(results[0]!);
 }
 
