@@ -5,7 +5,7 @@ import NotifyHost from '@/components/NotifyHost.vue';
 import ScanMarks from '@/components/ScanMarks.vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
-import { useCodePicker, type PickAnchor } from '@/composables/useCodePicker';
+import { toMarkRects, useCodePicker, type PickAnchor } from '@/composables/useCodePicker';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { t } from '@/services/i18n';
@@ -35,6 +35,7 @@ const scanAnimation = useScanAnimation();
 const picker = useCodePicker({ notifyResults });
 const marks = picker.marks;
 const pickMark = picker.pick;
+const overlayRef = ref<InstanceType<typeof ScreenshotOverlay> | null>(null);
 
 // 扫描流程与图片/摄像头面板共用同一个 recognizeImage; 直出模式在解码前播放整屏扫描动画
 async function scan(dataUrl: string, anchor: (imageSize: { width: number; height: number }) => PickAnchor) {
@@ -46,8 +47,15 @@ async function scan(dataUrl: string, anchor: (imageSize: { width: number; height
         // 结果通知与蓝点同时给出, 由这里统一处理
         deferResults: true,
     });
-    if (outcome.status !== 'ok') return;
-    picker.show(outcome.results, anchor(outcome.imageSize));
+    if (outcome.status !== 'ok') {
+        if (!directMode) overlayRef.value?.clearResults();
+        return;
+    }
+    const pickAnchor = anchor(outcome.imageSize);
+    picker.show(outcome.results, pickAnchor);
+    if (!directMode) {
+        overlayRef.value?.showResults(toMarkRects(outcome.results, pickAnchor));
+    }
     await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
 }
 
@@ -55,8 +63,6 @@ async function scan(dataUrl: string, anchor: (imageSize: { width: number; height
 // 后台截取的视口图; 扫描结束后仍保留在页面上, 标签页里原本没有其它内容
 const src = ref('');
 const stillRef = ref<HTMLImageElement | null>(null);
-// 框选层是否可见: 确认后只卸载框选层, 截图继续铺在页面上
-const showOverlay = ref(!directMode);
 // 入场动画开关, 由扩展图标右键菜单控制
 const introEnabled = ref(false);
 
@@ -69,39 +75,17 @@ function closeTab() {
         .catch(() => window.close());
 }
 
-// 框选确认: 只卸载框选层, 保留截图作为页面内容, 再交给统一扫描流程。
-// 选区与截图时的视口一起换算到页面上的截图区域, 扫描后才能标出码的位置
+// 框选确认: 冻结截图底图并保留框选层, 识别完成后可继续在同一张截图上框选。
+// 选区本身就按浮层显示区域给出, 直接作为蓝框的锚点, 结果才能对准码的位置
 async function handleConfirm(payload: { dataUrl: string; rect: ScanRect; viewport: { width: number; height: number } }) {
-    showOverlay.value = false;
-    // 先让截图铺到页面上, 后面才能量出它的绘制区域
-    await nextTick();
-    await stillRef.value?.decode().catch(() => undefined);
-    const imageSize = payload.viewport;
     await scan(payload.dataUrl, (decoded) => {
-        // 截图以 object-fit contain 铺在页面上, 可能留边, 先量出实际绘制区域
-        const drawn = (stillRef.value && measureImageRect(stillRef.value)) ?? {
-            x: 0,
-            y: 0,
-            width: window.innerWidth,
-            height: window.innerHeight,
-        };
-        const scaleX = imageSize.width > 0 ? drawn.width / imageSize.width : 1;
-        const scaleY = imageSize.height > 0 ? drawn.height / imageSize.height : 1;
-        // 裁剪图的锚点 = 选区在绘制区域中的那一块, 才能与解码坐标对齐;
-        // 选区之外没有可点的地方, 同时用作裁剪范围
-        const region = {
-            x: drawn.x + payload.rect.x * scaleX,
-            y: drawn.y + payload.rect.y * scaleY,
-            width: payload.rect.width * scaleX,
-            height: payload.rect.height * scaleY,
-        };
         return {
-            rect: region,
+            rect: payload.rect,
             imageSize: decoded,
             scroll: { x: window.scrollX, y: window.scrollY },
             viewportWidth: window.innerWidth,
             followScroll: false,
-            clip: region,
+            clip: payload.rect,
         };
     });
 }
@@ -154,14 +138,16 @@ onMounted(async () => {
 
 <template>
     <ScreenshotOverlay
-        v-if="src && showOverlay"
+        v-if="src && !directMode"
+        ref="overlayRef"
         :src="src"
         :intro="introEnabled"
         @confirm="handleConfirm"
+        @pick="pickMark"
         @cancel="closeTab"
         @error="notifyScreenshotError"
     />
-    <!-- 无框选层时 (直出模式 / 框选已确认) 把后台截取的视口图铺在页面上 -->
+    <!-- 直出模式没有框选层: 把后台截取的视口图铺在页面上作为背景 -->
     <img
         v-else-if="src"
         ref="stillRef"
@@ -169,6 +155,6 @@ onMounted(async () => {
         :src="src"
         :alt="t('screenShot')"
     />
-    <ScanMarks :rects="marks" @pick="pickMark" />
+    <ScanMarks v-if="directMode" :rects="marks" @pick="pickMark" />
     <NotifyHost />
 </template>

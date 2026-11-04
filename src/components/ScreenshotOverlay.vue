@@ -16,7 +16,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-    // rect 是选区换算到视口后的位置, viewport 是截图时的视口尺寸
+    // rect 是选区在浮层显示区域中的位置, viewport 是截图时的视口尺寸
     (event: 'confirm', payload: { dataUrl: string; rect: Rect; viewport: { width: number; height: number } }): void;
     // 点中结果蓝点: 宿主把通知切到该码
     (event: 'pick', index: number): void;
@@ -106,10 +106,13 @@ const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
 // 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中浮窗
 const floatingMode = ref(false);
-// 冻结后不再响应框选: 截图留在浮层上, 扫描结果的蓝框直接叠在同一画面上
+// 冻结: 扫描结果的蓝框叠在截图浮层上; 截图仍可继续框选, 拖一下就开始扫下一块
 const frozen = ref(false);
 // 扫描结果: 按截图时的视口坐标给出, 由本层换算到浮层当前显示区域
 const resultMarks = ref<ScanRect[]>([]);
+// 在结果画面上重新框选时暂存上一轮蓝框与选区, 用户放弃这次框选就恢复
+let archivedMarks: ScanRect[] | null = null;
+let archivedSelection: Rect | null = null;
 const sourceViewport = ref<{ width: number; height: number } | null>(null);
 // 仅在浮窗模式且未要求减少动态效果时才播放入场动画
 const canAnimateIntro = computed(() => floatingMode.value && !prefersReducedMotion);
@@ -283,16 +286,19 @@ const draw = () => {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
-    // 冻结后只保留截图本身: 遮罩与选区高亮退场, 让扫描结果的蓝框成为唯一焦点
-    if (frozen.value) return;
 
-    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩, 选区处挖空
+    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩, 选区处挖空;
+    // 冻结后遮罩照旧保留 (选区只负责挖空), 让"截的是哪一块"一直看得见
     const rect = selection.value;
     context.beginPath();
     context.rect(0, 0, width, height);
     if (rect) context.rect(rect.x, rect.y, rect.width, rect.height);
     context.fillStyle = MASK_COLOR;
     context.fill('evenodd');
+
+    // 冻结后选区只负责在遮罩上挖空: 蓝色选框与手柄都退场, 让结果蓝框成为唯一焦点;
+    // 识别结束时选区本身也会被清空, 高亮块随之一起消失
+    if (frozen.value) return;
 
     if (rect) {
         context.strokeStyle = ACCENT_COLOR;
@@ -515,8 +521,25 @@ function startIntro() {
     }, INTRO_FLASH_DURATION);
 }
 
+// 关闭浮层: 无论当前是框选还是看结果都直接退出, 不恢复上一轮蓝框
+const close = () => {
+    if (busy.value) return;
+    archivedMarks = null;
+    archivedSelection = null;
+    emit('cancel');
+};
+
+// 取消: 在结果画面上重新框选时只撤回这次框选, 其余情况收起浮层
 const cancel = () => {
     if (busy.value) return;
+    if (archivedMarks !== null) {
+        resultMarks.value = archivedMarks;
+        selection.value = archivedSelection;
+        archivedMarks = null;
+        archivedSelection = null;
+        frozen.value = true;
+        return;
+    }
     emit('cancel');
 };
 
@@ -525,22 +548,20 @@ const confirm = () => {
     const selectionRect = selection.value;
     const result = cropSelection(selectionRect);
     if (!result) return;
-    // 选区是画布坐标, 浮窗模式下画布是缩小显示的, 按比例换算回视口坐标,
-    // 扫描后才能把码标在画面上对应的位置
     const viewportWidth = viewport.value.width;
     const viewportHeight = viewport.value.height;
-    const scaleX = viewportWidth / layout.value.width;
-    const scaleY = viewportHeight / layout.value.height;
     // 确认后冻结框选: 扫描期间截图继续留在浮层上, 后续的蓝框也标在这张截图上
     frozen.value = true;
+    archivedMarks = null;
+    archivedSelection = null;
+    // 修复改过窗口大小后再框选、蓝框略微错位的问题:
+    // 截图是改尺寸之前拍的, 浮窗按截图比例收缩, 宽高比和改后的视口不同;
+    // 先把选区换算到视口坐标、蓝框层再按宽度统一缩放回来, 纵向就会差一截。
+    // 改为都按浮层显示区域记录与缩放, 两个方向始终等比例
+    sourceViewport.value = { width: layout.value.width, height: layout.value.height };
     emit('confirm', {
         dataUrl: result,
-        rect: {
-            x: selectionRect.x * scaleX,
-            y: selectionRect.y * scaleY,
-            width: selectionRect.width * scaleX,
-            height: selectionRect.height * scaleY,
-        },
+        rect: { ...selectionRect },
         viewport: { width: viewportWidth, height: viewportHeight },
     });
 };
@@ -585,7 +606,15 @@ const handleWheel = (event: WheelEvent) => {
 };
 
 const handlePointerDown = (event: PointerEvent) => {
-    if (busy.value || frozen.value || event.button !== 0) return;
+    if (busy.value || event.button !== 0) return;
+    // 结果画面上继续框选: 先收起上一轮蓝框, 拖出选区后照常确认、扫描新区域
+    if (frozen.value) {
+        archivedMarks = resultMarks.value;
+        archivedSelection = selection.value;
+        resultMarks.value = [];
+        selection.value = null;
+        frozen.value = false;
+    }
     event.preventDefault();
     // 捕获指针, 保证在窗口外松开鼠标时也能收到 pointerup
     canvasRef.value?.setPointerCapture(event.pointerId);
@@ -659,13 +688,6 @@ const handleOutsidePointerDown = (event: PointerEvent) => {
     const target = event.target;
     if (!loaded.value || busy.value) return;
     if (target instanceof Node && rootRef.value?.contains(target)) return;
-    cancel();
-};
-
-// 冻结后点截图空白处收起浮层: 蓝点上的点选由按钮自己处理, 冒泡到这里时忽略
-const handleRootClick = (event: MouseEvent) => {
-    if (!frozen.value) return;
-    if (event.target instanceof Element && event.target.closest('.qr-marks-dot, button')) return;
     cancel();
 };
 
@@ -773,12 +795,23 @@ onBeforeUnmount(() => {
 });
 
 defineExpose({
-    // 扫描命中: 冻结后的截图上标出码的蓝框。viewport 是截图时的视口尺寸,
-    // 浮窗模式下据此把蓝框换算到当前显示区域
-    showResults(marks: ScanRect[], viewport: { width: number; height: number }) {
+    // 扫描命中: 在冻结的截图上标出码的蓝框, 之后仍可继续框选其他区域
+    showResults(marks: ScanRect[]) {
         frozen.value = true;
-        sourceViewport.value = viewport;
+        archivedMarks = null;
+        archivedSelection = null;
+        // 识别完成即收起这次选区: 遮罩恢复整片压暗, 只留结果蓝框;
+        // 否则高亮块会一直挂在画面上, 看着像还在扫这一块
+        selection.value = null;
         resultMarks.value = marks;
+    },
+    // 没扫到码: 清掉蓝框与选区高亮, 但留住截图, 用户直接拖下一块重扫
+    clearResults() {
+        frozen.value = true;
+        archivedMarks = null;
+        archivedSelection = null;
+        selection.value = null;
+        resultMarks.value = [];
     },
 });
 </script>
@@ -793,9 +826,8 @@ defineExpose({
             'qr-shot--animating': busy,
             'qr-shot--frozen': frozen,
         }"
-        :style="[rootStyle, { cursor: busy || frozen ? 'default' : cursor }]"
-        @wheel="handleWheel"
-        @click="handleRootClick">
+        :style="[rootStyle, { cursor: busy ? 'default' : cursor }]"
+        @wheel="handleWheel">
         <!-- 截图框选画布 -->
         <canvas
             ref="canvasRef"
@@ -937,16 +969,16 @@ defineExpose({
                 class="qr-shot-close"
                 type="button"
                 :aria-label="t('closeBtn', 'Close')"
-                @click="cancel"
+                @click="close"
             >×</button>
         </div>
-        <!-- 冻结后只留关闭: 结果已经标在截图上, 点空白或按 Esc 也能收起 -->
+        <!-- 结果态只留关闭: 截图仍可继续框选, Esc 也能收起 -->
         <div v-else-if="loaded && frozen" class="qr-shot-actions">
             <button
                 class="qr-shot-close"
                 type="button"
                 :aria-label="t('closeBtn', 'Close')"
-                @click="cancel"
+                @click="close"
             >×</button>
         </div>
         <!-- 截图工具栏: 取消 / 确认 -->
@@ -990,12 +1022,14 @@ defineExpose({
     z-index: 2147483646;
 }
 
-/* 结果蓝框层: 按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域 */
+/* 结果蓝框层: 按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域;
+   空白处不拦事件, 指针要能落回画布继续框选 (只有蓝点自己接管点击) */
 .qr-shot-marks {
     position: absolute;
     top: 0;
     left: 0;
     transform-origin: 0 0;
+    pointer-events: none;
 }
 
 /* 页面全局样式会泄漏进注入的 UI（如 example.com 的 svg 外边距规则），把图标拉回原位 */

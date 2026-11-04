@@ -13,7 +13,7 @@ import { measureImageRect } from '@/services/imageRect';
 import NotifyHost from '@/components/NotifyHost.vue';
 import ScanMarks from '@/components/ScanMarks.vue';
 
-import { useScreenshot, type ScreenshotResult, type ScreenshotSession } from '@/composables/useScreenshot';
+import { useScreenshot, type ScreenshotCapture, type ScreenshotResult, type ScreenshotSession } from '@/composables/useScreenshot';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useImagePasteOverlay } from '@/composables/useImagePasteOverlay';
@@ -21,7 +21,10 @@ import { toMarkRects, useCodePicker, type PickAnchor } from '@/composables/useCo
 import type { ScanRect } from '@/components/ScanOverlay.vue';
 
 const { startScreenshot } = useScreenshot();
-const { notify, notifyFetching, notifyResults, host } = useNoticeFallback();
+let clearActiveMarks = () => {};
+const { notify, notifyFetching, notifyResults, host } = useNoticeFallback({
+    onLocalNoticeDone: () => clearActiveMarks(),
+});
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
 
@@ -55,6 +58,10 @@ const mainProcess = (
     _sender: Browser.runtime.MessageSender,
     sendResponse: (response?: { success: boolean }) => void,
 ) => {
+    if (message.action === 'notificationResolved') {
+        clearActiveMarks();
+        return;
+    }
     // 新一轮扫描开始: 先收起上一张冻结的截图, 否则旧结果会挡住新的提示与蓝点
     if (message.action !== undefined) {
         activeShot?.close();
@@ -192,6 +199,10 @@ async function handleImageUrl(imageUrl: string) {
 let screenshotEpoch = 0;
 // 当前留在页面上的截图浮层: 新一轮截图先收起它, 避免多张截图叠在一起
 let activeShot: ScreenshotSession | null = null;
+clearActiveMarks = () => {
+    clearMarks();
+    activeShot?.clearResults();
+};
 
 // 截图流程的失败提示: 用户取消是静默的, 其余情况提示失败原因
 function notifyScreenshotError(error: unknown) {
@@ -218,37 +229,51 @@ async function handleScreenshot() {
     clearMarks();
     void scanAnimation.stop();
     const epoch = screenshotEpoch;
-    // 点蓝点时用的结果: 扫描完成后才填充
+    // 点蓝点时用的结果: 每扫完一次就替换
     let results: DecodeResult[] = [];
+    // 框选轮次: 用户在结果画面上再框一块时, 前一轮的结果作废
+    let captureSeq = 0;
+    let shot: ScreenshotSession | null = null;
+
+    // 每框选一次扫一次: 命中后蓝框留在截图上, 用户可接着框下一块
+    async function scanCapture(capture: ScreenshotCapture) {
+        if (!shot) return;
+        const seq = ++captureSeq;
+        results = [];
+        const outcome = await decodeAndNotify(
+            () => getImageDataFromDataUrl(capture.dataUrl),
+            { isStale: () => epoch !== screenshotEpoch, deferResults: true },
+        );
+        // 整轮扫描已结束, 或这次框选被下一次框选取代: 不覆盖画面
+        if (epoch !== screenshotEpoch || seq !== captureSeq) return;
+        if (outcome.status !== 'ok') {
+            shot.clearResults();
+            return;
+        }
+        results = outcome.results;
+        // 识别结束后只收起这次的选区高亮, 结果蓝框蓝点要继续留在冻结的截图上供点选;
+        // 早先这里清掉整层结果, 多码点选就跟着消失了
+        shot.showResults(toMarkRects(outcome.results, {
+            rect: capture.rect,
+            imageSize: outcome.imageSize,
+            scroll: { x: 0, y: 0 },
+            viewportWidth: capture.viewport.width,
+            followScroll: false,
+            clip: capture.rect,
+        }));
+        await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
+    }
+
     try {
-        const shot = await startScreenshot({
+        shot = await startScreenshot({
             onPick: (index) => {
                 const result = results[index];
                 if (result) void notifyResults([result]);
             },
+            onCapture: (capture) => void scanCapture(capture),
+            onError: () => void notifyScreenshotError({ type: 'failed' }),
         });
         activeShot = shot;
-        const outcome = await decodeAndNotify(() => getImageDataFromDataUrl(shot.dataUrl), {
-            isStale: () => epoch !== screenshotEpoch,
-            deferResults: true,
-        });
-        // 结果过期或没扫到码: 收起冻结的截图, 回到页面 (提示已在 popup 里)
-        if (epoch !== screenshotEpoch || outcome.status !== 'ok') {
-            shot.close();
-            return;
-        }
-        results = outcome.results;
-        // 修复框选扫描后蓝框离开截图浮层、标到页面上会随滚动/页面变化错位的问题:
-        // 改为在冻结的截图上标框, 坐标按选区换算, 超出选区的部分裁掉
-        shot.showResults(toMarkRects(outcome.results, {
-            rect: shot.rect,
-            imageSize: outcome.imageSize,
-            scroll: { x: 0, y: 0 },
-            viewportWidth: shot.viewport.width,
-            followScroll: false,
-            clip: shot.rect,
-        }));
-        await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
     } catch (error) {
         notifyScreenshotError(error);
     }
