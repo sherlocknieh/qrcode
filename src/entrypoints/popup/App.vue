@@ -27,15 +27,19 @@ usePopupNoticeHost();
 // 手机浏览器把 popup 页面当普通标签页打开, 标题会直接照搬源码里的占位符
 // 改为运行时设置标题, 由浏览器按 _locales 本地化标题
 document.title = t('appShortName');
-// 修复手机上二维码不居中的问题:
-// 手机浏览器把 popup 页面当普通标签页打开, 铺满整屏, 内容仍按弹窗高度顶对齐
-// 此时让内容铺满视口并居中, 真弹窗仍保持内容高度
-void browser.tabs
-  .getCurrent()
-  .then((tab) => {
-    if (tab) document.documentElement.classList.add('popup-page');
-  })
-  .catch(() => {});
+// 修复手机上二维码竖直不居中的问题:
+// 手机浏览器把 popup 页面当普通标签页打开, 铺满整屏, 内容却按弹窗高度顶对齐
+// 原先靠 tabs.getCurrent() 识别整页打开, 但 Firefox Android 取不到当前页, 类加不上
+// 改为比较视口与内容高度: 桌面弹窗高度贴合内容, 差值约 0; 整页打开时视口比内容高出一大截.
+// 必须量 #app 的实际高度, body.scrollHeight 在内容不足一屏时会被抬到视口高度, 差值永远是 0
+onMounted(() => {
+  requestAnimationFrame(() => {
+    const contentHeight = document.querySelector('#app')?.getBoundingClientRect().height ?? 0;
+    if (window.innerHeight - contentHeight > 120) {
+      document.documentElement.classList.add('popup-page');
+    }
+  });
+});
 
 
 let scanning = false;
@@ -300,5 +304,7 @@ body {
    所以只在标签页场景生效 */
 html.popup-page #app {
   min-height: 100vh;
+  /* 手机地址栏会收起/展开, 用 dvh 按当前可见高度居中, 免得被算进的工具栏顶偏 */
+  min-height: 100dvh;
 }
 </style>

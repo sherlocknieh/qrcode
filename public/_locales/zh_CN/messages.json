@@ -5,10 +5,10 @@
   },
   "appShortName": {
     "message": "极简二维码",
-    "description": "工具栏图标提示与短名称"
+    "description": "简称"
   },
   "appDescription": {
-    "message": "界面极简，功能全能——生成、扫描、截图、摄像头扫码一个扩展全包",
+    "message": "极简却全能 - 解决涉及二维码的所有问题",
     "description": "应用描述"
   },
   "selectionToQR": {

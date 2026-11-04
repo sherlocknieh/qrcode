@@ -1,14 +1,14 @@
 {
   "appName": {
-    "message": "Pure QR Code - Generate, Scan & Capture",
+    "message": "Simple QR Code - Generate & Scan",
     "description": "Application name"
   },
   "appShortName": {
-    "message": "Pure QR Code",
+    "message": "Simple QR Code",
     "description": "Short name used for the toolbar tooltip"
   },
   "appDescription": {
-    "message": "Minimal UI: generate QR codes from text, and scan QR codes or barcodes from images, screenshots or the camera.",
+    "message": "Minimal UI, All powerful: generate QR codes from text, and scan QR codes or barcodes from images, screenshots or the camera.",
     "description": "Application description"
   },
   "selectionToQR": {
@@ -156,11 +156,11 @@
     "description": "Loading message when decoding QR code"
   },
   "qrcodeScanSuccess": {
-    "message": "QR Code Found",
+    "message": "Found QR Code",
     "description": "Title shown when a QR code is detected"
   },
   "barcodeScanSuccess": {
-    "message": "Barcode Found",
+    "message": "Found Barcode",
     "description": "Title shown when a barcode is detected"
   },
   "openLink": {
@@ -176,15 +176,15 @@
     "description": "Button text after content is copied"
   },
   "multiScanSuccess": {
-    "message": "Multiple QR Codes and Barcodes Found",
+    "message": "Found Multiple QR Codes and Barcodes",
     "description": "Title shown when several codes are recognized at once and both QR codes and barcodes are present"
   },
   "multiQrcodeScanSuccess": {
-    "message": "Multiple QR Codes Found",
+    "message": "Found Multiple QR Codes",
     "description": "Title shown when several codes are recognized at once and all of them are QR codes"
   },
   "multiBarcodeScanSuccess": {
-    "message": "Multiple Barcodes Found",
+    "message": "Found Multiple Barcodes",
     "description": "Title shown when several codes are recognized at once and all of them are barcodes"
   },
   "pickCodeHint": {
@@ -280,11 +280,11 @@
     "description": "Copy button text"
   },
   "recognitionFailedMsg": {
-    "message": "No Valid Code Found",
+    "message": "Unsupported Code Perhaps.",
     "description": "Message shown when screenshot scan fails"
   },
   "recognitionFailed": {
-    "message": "Scan Failed",
+    "message": "No Valid Code Found",
     "description": "Error title after recognition fails"
   },
   "clearImage": {

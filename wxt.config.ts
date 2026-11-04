@@ -75,12 +75,23 @@ export default defineConfig({
       48: 'icon/48.png',   // Chrome 扩展管理页面
       128: 'icon/128.png', // 扩展商店页面
     },
-    // 修复手机上名称显示为 __MSG_appShortName__ 的问题:
-    // 页面标题改到运行时设置后, 工具栏提示不再跟着 <title> 走
-    // 在此保留本地化短名称
+    // 扩展栏按钮的悬停提示使用短名称, 不用全名称
     action: {
       default_title: '__MSG_appShortName__',
     },
+
+    // Firefox 地址栏按钮
+    page_action: {
+      default_icon: {
+        19: 'icon/19.png',
+        38: 'icon/38.png',
+      },
+      // 地址栏按钮悬停提示使用短名称, 不用全名称
+      default_title: '__MSG_appShortName__',
+      // 地址栏按钮点击后弹出 popup 窗口
+      default_popup: '/popup.html',
+    },
+
     // Firefox 上传要求填写的项目
     browser_specific_settings: {
       gecko: {
@@ -89,15 +100,7 @@ export default defineConfig({
           required: ['none']
         }
       },
-    },
-    // Firefox 地址栏按钮
-    page_action: {
-      default_icon: {
-        19: 'icon/19.png',
-        38: 'icon/38.png',
-      },
-      default_title: '__MSG_appShortName__',
-      default_popup: '/popup.html',
+      gecko_android: {}, // 支持 Firefox Android
     },
   },
 });

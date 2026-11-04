@@ -1267,7 +1267,13 @@ function loadImageElement(src: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('Image load failed.'));
+        img.onerror = () => {
+            // decode 成功说明图其实可解码, 交给调用方继续; 失败则透传浏览器原始错误
+            img.decode().then(
+                () => resolve(img),
+                (error: unknown) => reject(error),
+            );
+        };
         img.src = src;
     });
 }

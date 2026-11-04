@@ -62,7 +62,7 @@ function toggleExpanded() {
             ></button>
         </div>
 
-        <div v-if="expanded" class="qr-panel-form">
+        <div v-if="expanded" class="qr-panel-expanded">
             <input
                 id="qr-panel-input"
                 ref="inputRef"
@@ -129,8 +129,7 @@ function toggleExpanded() {
     color: #dc2626;
 }
 
-/* 顶部不留白, 靠二维码自带的静区白边分隔输入框 */
-.qr-panel-form {
+.qr-panel-expanded {
     box-sizing: border-box;
     padding: 0 8px 8px;
 }
@@ -167,24 +166,15 @@ function toggleExpanded() {
     justify-content: center;
     padding: 0;
     color: #ffffff;
-    background: rgb(15 23 42 / 10%);
     border: 0;
     cursor: pointer;
     opacity: 0;
     transition: opacity 120ms ease;
 }
 
-/* 键盘聚焦时给出可见框, 鼠标点击不画框 */
+/* 键盘聚焦时整块浮现, 但不画聚焦框 */
 .qr-panel-toggle:focus-visible {
-    outline: 2px solid rgb(59 130 246 / 45%);
     outline-offset: -1px;
-}
-
-/* 悬停提示只在能真正悬停的设备上出现, 触屏点完不会残留 */
-@media (hover: hover) {
-    .qr-panel-toggle:hover {
-        opacity: 1;
-    }
 }
 
 .qr-panel-toggle:focus-visible {
