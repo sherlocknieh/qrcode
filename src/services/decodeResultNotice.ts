@@ -65,6 +65,41 @@ export function errorNoticeWithScreenshot(
     };
 }
 
+// 取图 / 截图失败的提示文案:
+// 浏览器原文 ("Failed to fetch" 之类) 只说明了底层机制, 用户看不出该做什么,
+// 这里按常见错误类型换成可执行的建议; 认不出的错误保留原文, 便于反馈排查
+export function describeImageError(error: unknown): string {
+    const name = error instanceof DOMException ? error.name : '';
+    const message = error instanceof Error ? error.message : String(error);
+
+    // 浏览器拒绝扩展访问 file:// 页面 (截图或注入内容脚本都被拦),
+    // 不是图片本身的问题, 需要用户手动开启文件网址访问权限
+    if (/cannot access contents of|must request permission to access/i.test(message)) {
+        return t('errorHintFileAccess');
+    }
+    // 图片本身能显示, 但画布像素被浏览器禁止读取 (跨域图片、受保护资源)
+    if (name === 'SecurityError' || /tainted|insecure|SecurityError/i.test(message)) {
+        return t('errorHintCrossOrigin');
+    }
+    // 本地文件读取失败: 文件被移动/删除、无访问权限
+    if (name === 'NotFoundError' || name === 'NotReadableError' || /read failed/i.test(message)) {
+        return t('errorHintLocalFile');
+    }
+    // 数据解不成图片: 格式不支持、文件损坏, 或链接返回的其实不是图片
+    if (name === 'EncodingError' || /decode|invalid image|unsupported image/i.test(message)) {
+        return t('errorHintDecode');
+    }
+    // 取图请求失败: 断网、地址失效、被站点或 CORS 拦截
+    if (/failed to fetch|network|load failed|net::err|request failed|http \d{3}/i.test(message)) {
+        return t('errorHintNetwork');
+    }
+    if (/no usable dimensions/i.test(message)) return t('errorHintEmptyImage');
+    if (error instanceof RangeError || /out of memory|allocation/i.test(message)) {
+        return t('errorHintTooLarge');
+    }
+    return message;
+}
+
 // 扫描结果的通用通知构造: content / popup / capture 三个入口共用同一套分支
 // (无结果重试 → 多码列表 → 单码链接/复制), 避免各写一遍文案与动作
 

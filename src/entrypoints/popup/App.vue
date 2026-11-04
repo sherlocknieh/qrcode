@@ -7,7 +7,7 @@ import {
 } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { sendMessage, trySendMessage } from '@/services/messaging';
-import { copyHandlers, resultNotice, runNoticeAction } from '@/services/decodeResultNotice';
+import { copyHandlers, describeImageError, resultNotice, runNoticeAction } from '@/services/decodeResultNotice';
 import { storageArea, storageAreaName, takeStoredString, takeStoredValue } from '@/services/storage';
 import { useNotify, notifyState } from '@/composables/useNotify';
 import { usePopupNoticeHost } from '@/composables/usePopupNoticeHost';
@@ -137,7 +137,7 @@ async function decodeAndShow(
       toast: true,
       icon: 'error',
       title: errorTitle,
-      text: error instanceof Error ? error.message : String(error),
+      text: describeImageError(error),
       showCloseButton: true,
     });
     // 流程结束后保留窗口, 由用户自行关闭

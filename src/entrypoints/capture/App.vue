@@ -7,7 +7,7 @@ import { useCodePicker, type PickAnchor } from '@/composables/useCodePicker';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { t } from '@/services/i18n';
-import { errorNotice } from '@/services/decodeResultNotice';
+import { describeImageError, errorNotice } from '@/services/decodeResultNotice';
 import { sendMessage } from '@/services/messaging';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
 import { recognizeImage } from '@/services/recognize';
@@ -44,7 +44,7 @@ function closeTab() {
 
 // 截图读取失败: 没有可用图片或扫描失败, 提示一致
 async function notifyScreenshotError(error?: unknown) {
-    const message = error instanceof Error ? error.message : '';
+    const message = error instanceof Error ? describeImageError(error) : '';
     await notify(errorNotice(t('screenshotFailed'), message || t('screenshotFailedMsg')));
 }
 

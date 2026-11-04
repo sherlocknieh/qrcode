@@ -1,4 +1,5 @@
 import { createPopupHost } from '@/services/popupHost';
+import { describeImageError } from '@/services/decodeResultNotice';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { storageArea } from '@/services/storage';
 
@@ -172,7 +173,9 @@ export default defineBackground(() => {
         } catch (error) {
             await notifyError(
                 browser.i18n.getMessage('screenshotFailed'),
-                error instanceof Error ? error.message : browser.i18n.getMessage('screenshotFailedMsg'),
+                error instanceof Error
+                    ? describeImageError(error)
+                    : browser.i18n.getMessage('screenshotFailedMsg'),
             );
             return false;
         }

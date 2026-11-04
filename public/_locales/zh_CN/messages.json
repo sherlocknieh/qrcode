@@ -203,6 +203,34 @@
     "message": "图片加载失败",
     "description": "图片加载失败错误标题"
   },
+  "errorHintFileAccess": {
+    "message": "扩展还没有访问本地文件的权限。请在扩展详情页开启「允许访问文件网址」后重试，或改用“上传图片扫描”功能。",
+    "description": "浏览器拒绝扩展访问 file:// 页面时的错误提示"
+  },
+  "errorHintCrossOrigin": {
+    "message": "图片来自其他网站或受保护，浏览器不允许扩展读取它的像素，可改用扫描屏幕识别。",
+    "description": "跨域图片无法读取像素时的错误提示"
+  },
+  "errorHintNetwork": {
+    "message": "图片下载失败，请检查网络，或确认图片地址仍然有效。",
+    "description": "图片请求失败时的错误提示"
+  },
+  "errorHintDecode": {
+    "message": "图片无法解码，可能格式不受支持或文件已损坏，也可能是链接返回的不是图片。",
+    "description": "图片数据无法解码时的错误提示"
+  },
+  "errorHintLocalFile": {
+    "message": "读取本地文件失败，文件可能已被移动、删除或没有访问权限，请重新选择。",
+    "description": "读取本地图片文件失败时的错误提示"
+  },
+  "errorHintTooLarge": {
+    "message": "图片太大，内存不足，请换一张尺寸更小的图片。",
+    "description": "图片过大导致内存不足时的错误提示"
+  },
+  "errorHintEmptyImage": {
+    "message": "图片没有任何可显示的内容，请换一张图片。",
+    "description": "图片尺寸为 0 时的错误提示"
+  },
   "error": {
     "message": "错误",
     "description": "通用错误标题"

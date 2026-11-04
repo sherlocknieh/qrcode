@@ -5,7 +5,7 @@ import { onBeforeUnmount, onMounted } from 'vue';
 import { getImageDataFromDataUrl, loadImageDataFromUrl, type DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { sendMessage } from '@/services/messaging';
-import { errorNotice, warningNotice } from '@/services/decodeResultNotice';
+import { describeImageError, errorNotice, warningNotice } from '@/services/decodeResultNotice';
 import { recognizeImage, type DecodeOutcome } from '@/services/recognize';
 import { measureImageRect } from '@/services/imageRect';
 
@@ -197,7 +197,7 @@ clearActiveMarks = () => {
 // 截图流程的失败提示: 用户取消是静默的, 其余情况提示失败原因
 function notifyScreenshotError(error: unknown) {
     if (isScreenshotResult(error) && error.type === 'cancelled') return;
-    const message = error instanceof Error ? error.message : '';
+    const message = error instanceof Error ? describeImageError(error) : '';
     void notify(
         message
             ? errorNotice(t('screenshotFailed'), message)

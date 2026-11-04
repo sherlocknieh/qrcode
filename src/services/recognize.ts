@@ -1,4 +1,4 @@
-import { errorNotice, errorNoticeWithScreenshot } from '@/services/decodeResultNotice';
+import { describeImageError, errorNotice, errorNoticeWithScreenshot } from '@/services/decodeResultNotice';
 import type { PopupNoticePayload } from '@/services/popupNotice';
 import { decodeAllFromImageData, type DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
@@ -128,7 +128,7 @@ async function loadWithFetchNotice(
 async function notifyFailure(options: RecognizeOptions, error: unknown): Promise<void> {
     await options.afterDecode?.();
     const title = options.errorTitle ?? t('imageFetchFailed');
-    const text = error instanceof Error ? error.message : String(error);
+    const text = describeImageError(error);
     await options.host.notify(
         options.onRetry
             ? errorNoticeWithScreenshot(title, text)

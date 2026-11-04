@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { blobToDataUrl } from '@/services/clipboardImage';
-import { errorNotice } from '@/services/decodeResultNotice';
+import { describeImageError, errorNotice } from '@/services/decodeResultNotice';
 import type { PopupNoticePayload } from '@/services/popupNotice';
 import { t } from '@/services/i18n';
 
@@ -23,7 +23,7 @@ export function useImageSource(options: ImageSourceOptions) {
         } catch (error) {
             await options.notify(errorNotice(
                 options.errorTitle ?? t('imageFetchFailed'),
-                error instanceof Error ? error.message : String(error),
+                describeImageError(error),
             ));
             return false;
         }
