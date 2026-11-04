@@ -20,10 +20,10 @@ export function usePopupNoticeHost() {
 
     async function runAction(action?: PopupNoticeAction) {
         if (!action) return;
-        if (action.kind === 'screenshot') {
-            // popup 随后会被关闭, 由后台转告内容脚本开始区域截图
+        if (action.kind === 'screenScan') {
+            // popup 随后会被关闭, 由后台转告内容脚本重新截屏扫描
             try {
-                await browser.runtime.sendMessage({ action: 'requestScreenshot' });
+                await browser.runtime.sendMessage({ action: 'requestScreenScan' });
             } catch {
                 // 页面不支持截图时保持安静, 避免再叠一层通知
             }

@@ -11,8 +11,10 @@ const props = withDefaults(
         src: string;
         // 是否播放"全屏闪光 -> 收缩到居中窗口"的入场动画
         intro?: boolean;
+        // 整屏扫描已经出结果: 打开就把整张截图作为结果画面, 直接标出这些码 (解码图像的像素坐标)
+        initialResults?: ScanRect[];
     }>(),
-    { intro: false },
+    { intro: false, initialResults: () => [] },
 );
 
 const emit = defineEmits<{
@@ -566,6 +568,25 @@ const confirm = () => {
     });
 };
 
+// 整屏扫描的结果画面: 整张截图就是结果, 蓝框按解码图像的像素坐标换算到截图当前显示区域。
+// 页面之后的滚动、缩放都不再参与定位, 标记只跟着这张静止的截图
+function applyImageResults(bounds: ScanRect[]) {
+    frozen.value = true;
+    archivedMarks = null;
+    archivedSelection = null;
+    selection.value = null;
+    // 与框选流程一致: 蓝框层按浮层当前显示区域记录, 窗口尺寸变化时再整体缩放
+    sourceViewport.value = { width: layout.value.width, height: layout.value.height };
+    const scaleX = imageSize.value.width > 0 ? layout.value.width / imageSize.value.width : 1;
+    const scaleY = imageSize.value.height > 0 ? layout.value.height / imageSize.value.height : 1;
+    resultMarks.value = bounds.map((bound) => ({
+        x: bound.x * scaleX,
+        y: bound.y * scaleY,
+        width: bound.width * scaleX,
+        height: bound.height * scaleY,
+    }));
+}
+
 // 有选区时输出选区, 否则输出整张截图
 const getOutputDataUrl = (): string => {
     if (busy.value) return '';
@@ -775,7 +796,9 @@ onMounted(() => {
             height: element.naturalHeight || element.height,
         };
         loaded.value = true;
-        startIntro();
+        // 整屏扫描带着结果进来: 截图本身就是结果画面, 不播放入场动画也不等框选
+        if (props.initialResults.length) applyImageResults(props.initialResults);
+        else startIntro();
     };
     element.onerror = () => emit('error');
     element.src = props.src;

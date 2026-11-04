@@ -41,11 +41,7 @@
   },
   "scanFullScreen": {
     "message": "Scan Screen",
-    "description": "Context menu item for capturing the screen and scanning it directly without selecting an area"
-  },
-  "screenShot": {
-    "message": "Scan Area",
-    "description": "Context menu item for taking screenshot to recognize QR code"
+    "description": "Context menu item for capturing the visible page and scanning it directly without selecting an area"
   },
   "scanImage": {
     "message": "Scan Local Image",
@@ -203,9 +199,9 @@
     "message": "Error",
     "description": "Generic error title"
   },
-  "screenshotScan": {
-    "message": "Screenshot Scan",
-    "description": "Button that switches to screenshot scan when the image cannot be read"
+  "scanScreenRetry": {
+    "message": "Scan Screen",
+    "description": "Button that scans the screen when the image cannot be read"
   },
   "screenshotFailed": {
     "message": "Screenshot Failed",

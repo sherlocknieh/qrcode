@@ -40,12 +40,8 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanFullScreen": {
-    "message": "全屏扫描",
-    "description": "右键菜单项：直接截取当前屏幕并扫描，无需框选区域"
-  },
-  "screenShot": {
-    "message": "区域扫描",
-    "description": "右键菜单项：截图并框选区域扫描二维码/条形码"
+    "message": "扫描屏幕",
+    "description": "右键菜单项：直接截取当前视口并扫描，无需框选区域"
   },
   "cameraScanTitle": {
     "message": "摄像头扫描",
@@ -203,9 +199,9 @@
     "message": "错误",
     "description": "通用错误标题"
   },
-  "screenshotScan": {
-    "message": "尝试截图扫描",
-    "description": "图片读取失败时切换到截图扫描的按钮"
+  "scanScreenRetry": {
+    "message": "扫描屏幕",
+    "description": "图片读取失败时改用扫描屏幕的按钮"
   },
   "screenshotFailed": {
     "message": "截图失败",

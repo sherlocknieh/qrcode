@@ -46,7 +46,7 @@ export function errorNotice(title: string, text?: string): PopupNoticePayload {
 }
 
 // 图片读取失败 (典型是跨域图片污染 canvas 导致无法取像素):
-// 除确认外提供"改用截图扫描", 由 popup 或页面内兜底通知执行
+// 除确认外提供"改用扫描屏幕", 由 popup 或页面内兜底通知执行
 export function errorNoticeWithScreenshot(
     title: string,
     text?: string,
@@ -58,10 +58,10 @@ export function errorNoticeWithScreenshot(
             title,
             text,
             confirmButtonText: t('confirm'),
-            extraButtonText: t('screenshotScan'),
+            extraButtonText: t('scanScreenRetry'),
             showCloseButton: true,
         },
-        extraAction: { kind: 'screenshot' },
+        extraAction: { kind: 'screenScan' },
     };
 }
 
@@ -69,16 +69,16 @@ export function errorNoticeWithScreenshot(
 // (无结果重试 → 多码列表 → 单码链接/复制), 避免各写一遍文案与动作
 
 // 未扫描到任何码
-function noResultNotice(retryScreenshot: boolean): PopupNoticePayload {
+function noResultNotice(retryScreenScan: boolean): PopupNoticePayload {
     return {
         options: {
             toast: false,
-            icon: 'warning',
+            icon: 'info',
             title: t('recognitionFailed'),
             text: t('recognitionFailedMsg'),
             showCloseButton: true,
         },
-        extraAction: retryScreenshot ? { kind: 'screenshot' } : undefined,
+        extraAction: retryScreenScan ? { kind: 'screenScan' } : undefined,
     };
 }
 
@@ -118,13 +118,13 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 }
 
 // 按结果数量选择对应的通知。
-// retryScreenshot: 当前入口能否真的再截一次图 (独立扫描页里截图只会截到自己, 传 false)
+// retryScreenScan: 当前入口能否真的再截一次屏 (独立扫描页里截图只会截到自己, 传 false)
 // pickHint: 画面上同时给出可点选的蓝点时提示怎么选
 export function resultNotice(
     results: DecodeResult[],
-    options: { retryScreenshot?: boolean; pickHint?: boolean } = {},
+    options: { retryScreenScan?: boolean; pickHint?: boolean } = {},
 ): PopupNoticePayload {
-    if (!results.length) return noResultNotice(options.retryScreenshot ?? true);
+    if (!results.length) return noResultNotice(options.retryScreenScan ?? true);
     if (results.length > 1) return multiResultNotice(results, options.pickHint === true);
     return singleResultNotice(results[0]!);
 }

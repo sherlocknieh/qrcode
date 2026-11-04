@@ -244,10 +244,9 @@ export default defineBackground(() => {
             : browser.tabs.captureVisibleTab(windowId, { format: 'png' });
 
     // originTabId 用于关闭 capture 页时切回来源页面, 否则浏览器会切到相邻标签
-    const showCropScan = async (
+    const showScreenScan = async (
         originTabId?: number,
         windowId?: number,
-        direct = false,
     ): Promise<boolean> => {
         let dataUrl: string;
         try {
@@ -261,23 +260,17 @@ export default defineBackground(() => {
         }
         // 截图体积较大, 交给扩展页面读取后立即清除
         await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
-        // direct 表示整图直接扫描, capture 页不再展示框选界面
-        return openExtensionPage(direct ? '/capture.html?direct=1' : '/capture.html', originTabId);
+        // capture 页只做整图扫描, 不再提供框选
+        return openExtensionPage('/capture.html', originTabId);
     };
 
-    // 请求内容脚本开始区域截图; 内容脚本不可用 (如 Firefox 内置 PDF 阅读器) 时才回退到截取视口后框选。
-    // 内容脚本必须在收到消息时立即回执, 否则浏览器会以"消息端口关闭"拒绝, 被误判为不可用。
-    const requestAreaScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
-        if (await tryContentAction(tabId, "screenshotQR")) return true;
-        return showCropScan(tabId, windowId);
-    };
-
-    // 一键截屏扫描: 不做交互选区, 由内容脚本直接截取视口并扫描整图;
+    // 扫描屏幕: 不做框选, 由内容脚本直接截取视口并扫描整图;
     // 无法注入内容脚本的页面 (如 Firefox 内置 PDF 阅读器) 由后台截取视口后
-    // 在新标签页 (capture.html?direct=1) 直接扫描整图, 与 SVG 页面保持一致
-    const requestQuickScreenshot = async (tabId: number, windowId?: number): Promise<boolean> => {
+    // 在新标签页 (capture.html) 直接扫描整图, 与 SVG 页面保持一致。
+    // 内容脚本必须在收到消息时立即回执, 否则浏览器会以"消息端口关闭"拒绝, 被误判为不可用
+    const requestScreenScan = async (tabId: number, windowId?: number): Promise<boolean> => {
         if (await tryContentAction(tabId, "scanFullScreen")) return true;
-        return showCropScan(tabId, windowId, true);
+        return showScreenScan(tabId, windowId);
     };
 
     // 打开上传图片扫描页 (upload.html): 页面无法注入内容脚本 (PDF、SVG 等) 时才使用
@@ -290,7 +283,7 @@ export default defineBackground(() => {
         openExtensionPage('/upload.html?camera=1', await resolveActiveTabId(originTabId));
 
     // 上传/粘贴图片: 优先在当前页面弹出扫描浮层, 内容脚本不可用 (如 PDF、SVG) 时
-    // 退回独立扫描页, 与截图扫描的降级策略保持一致。
+    // 退回独立扫描页, 与扫描屏幕的降级策略保持一致。
     // 工具栏图标的右键菜单不一定会带上 tab 参数, 因此主动查询当前活动标签页。
     const requestInlineImageScan = async (tabId?: number): Promise<boolean> => {
         const targetTabId = await resolveActiveTabId(tabId);
@@ -306,7 +299,7 @@ export default defineBackground(() => {
 
     // Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
     type MenuMessageKey = 'decodeQR' | 'selectionToQR'
-        | 'screenShot' | 'scanFullScreen' | 'scanImage' | 'cameraScanTitle'
+        | 'scanFullScreen' | 'scanImage' | 'cameraScanTitle'
         | 'showPageAction' | 'hidePageAction';
     const menuTitle = (key: MenuMessageKey, emoji?: string) => {
         const title = browser.i18n.getMessage(key);
@@ -336,20 +329,12 @@ export default defineBackground(() => {
                 contexts: ["selection"],
                 ...menuIcons("text")
             });
-            // 添加菜单: 整屏扫描
+            // 添加菜单: 扫描屏幕
             browser.contextMenus.create({
                 id: "scanFullScreen",
                 title: menuTitle("scanFullScreen", "🖥️"),
                 contexts: ["page", "action", "page_action"],
                 ...menuIcons("scanFullScreen")
-            });
-            // 添加菜单: 框选区域扫描
-            browser.contextMenus.create({
-                id: "screenshotQR",
-                title: menuTitle("screenShot", "🔲"),
-                // 显示在: 网页右键, 扩展图标右键, 地址栏图标右键
-                contexts: ["action", "page_action"],
-                ...menuIcons("screenshot")
             });
             // 添加菜单: 摄像头扫码, 直接以摄像头模式打开扫描页
             browser.contextMenus.create({
@@ -412,23 +397,14 @@ export default defineBackground(() => {
                 // SVG 等无法注入内容脚本的页面: 交给 popup 就地扫描图片地址, 不必新开标签
                 showQrFromImagePage(info.srcUrl);
             });
-        } else if (info.menuItemId === "screenshotQR") {
-            // 截图扫描二维码: 优先使用内容脚本的区域截图 (Chrome 的 PDF 页面也能注入);
-            // 内容脚本不可用 (如 Firefox 内置 PDF 阅读器、SVG 文档) 时,
-            // 改为截取视口后在新标签页中框选扫描, 不在 popup 里就地处理
-            if (isSvgDocumentUrl(tab?.url)) {
-                void showCropScan(tabId, tab?.windowId);
-                return;
-            }
-            void requestAreaScreenshot(tabId, tab?.windowId);
         } else if (info.menuItemId === "scanFullScreen") {
-            // 一键截屏扫描: 直接扫描当前视口, 全程没有框选交互
+            // 扫描屏幕: 直接扫描当前视口, 全程没有框选交互
             // SVG 文档同样截取视口后在新标签页直接扫描整图, 避免 popup 窗口裁掉页面内容
             if (isSvgDocumentUrl(tab?.url)) {
-                void showCropScan(tabId, tab?.windowId, true);
+                void showScreenScan(tabId, tab?.windowId);
                 return;
             }
-            void requestQuickScreenshot(tabId, tab?.windowId);
+            void requestScreenScan(tabId, tab?.windowId);
         }
     };
 
@@ -534,13 +510,13 @@ export default defineBackground(() => {
                 .catch(error => sendResponse({ success: false, error: error?.message ?? String(error) }));
             return true;
         }
-        // popup 点击"改用截图扫描"后, 让当前页面的内容脚本开始区域截图;
-        // 纯 SVG 等无法注入内容脚本的页面改为截取视口后在新标签页框选扫描
-        if (request.action === "requestScreenshot") {
+        // popup 点击"改用扫描屏幕"后, 让当前页面重新截取视口扫描;
+        // 纯 SVG 等无法注入内容脚本的页面改为截取视口后在新标签页直接扫描
+        if (request.action === "requestScreenScan") {
             browser.tabs.query({ active: true, currentWindow: true })
                 .then(async ([tab]) => {
                     if (tab?.id == null) throw new Error('No active tab.');
-                    return requestAreaScreenshot(tab.id, tab.windowId);
+                    return requestScreenScan(tab.id, tab.windowId);
                 })
                 .then(success => sendResponse({ success }))
                 .catch(() => sendResponse({ success: false }));

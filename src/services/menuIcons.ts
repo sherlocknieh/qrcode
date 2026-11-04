@@ -24,13 +24,6 @@ const MENU_ICONS = {
         '<path d="M3 3h10"/>'
         + '<path d="M8 3v10"/>'
         + '<path d="M5.5 13h5"/>'),
-    // 扫描区域: 选框四角 + 中心十字
-    screenshot: icon('screenshot',
-        '<path d="M2 5.5V3.5A1.5 1.5 0 0 1 3.5 2h2"/>'
-        + '<path d="M10.5 2h2A1.5 1.5 0 0 1 14 3.5v2"/>'
-        + '<path d="M14 10.5v2a1.5 1.5 0 0 1-1.5 1.5h-2"/>'
-        + '<path d="M5.5 14h-2A1.5 1.5 0 0 1 2 12.5v-2"/>'
-        + '<path d="M8 6.5v3M6.5 8h3"/>'),
     // 扫描屏幕: 显示器 + 扫描线
     scanFullScreen: icon('scanFullScreen',
         '<rect x="1.5" y="2.5" width="13" height="9" rx="1.5"/>'

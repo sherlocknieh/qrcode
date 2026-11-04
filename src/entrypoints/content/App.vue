@@ -28,7 +28,7 @@ const { notify, notifyFetching, notifyResults, host } = useNoticeFallback({
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
 
-// 命中码后统一在画面上叠蓝点: 整屏截屏 / 框选截图 / 网页图片只是锚点不同
+// 命中码后统一在画面上叠蓝点: 网页图片按图片实时位置定位; 整屏扫描改用截图容器承载结果
 const picker = useCodePicker({ notifyResults });
 const marks = picker.marks;
 const marksAnchor = picker.anchorElement;
@@ -39,18 +39,6 @@ const clearMarks = picker.clear;
 function showResults(outcome: Extract<DecodeOutcome, { status: 'ok' }>, anchor: PickAnchor) {
     picker.show(outcome.results, anchor);
     return notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
-}
-
-// 整屏截图: 图像就是视口的拷贝, 锚点即整个视口
-function viewportAnchor(imageSize: { width: number; height: number }, scroll = { x: window.scrollX, y: window.scrollY }): PickAnchor {
-    const width = window.innerWidth;
-    return {
-        rect: { x: 0, y: 0, width, height: window.innerHeight },
-        imageSize,
-        scroll,
-        viewportWidth: width,
-        followScroll: true,
-    };
 }
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
@@ -71,11 +59,8 @@ const mainProcess = (
     if (message.action === 'decodeQR' && message.imageUrl) {
         handleImageUrl(message.imageUrl);
     }
-    if (message.action === 'screenshotQR') {
-        handleScreenshot();
-    }
     if (message.action === 'scanFullScreen') {
-        handleQuickScreenshot();
+        handleScreenScan();
     }
     if (message.action === 'scanImageInline') {
         imagePasteOverlay.open();
@@ -127,7 +112,7 @@ function measureVisibleImage(image: HTMLImageElement | undefined): ScanRect | un
 // 网页图片处理流程
 async function handleImageUrl(imageUrl: string) {
     const origin = window.location.origin;
-    // 记录当前扫描轮次: 用户改用截图扫描后, 本次图片扫描的后续通知全部丢弃
+    // 记录当前扫描轮次: 用户改用扫描屏幕后, 本次图片扫描的后续通知全部丢弃
     const epoch = screenshotEpoch;
     const isStale = () => epoch !== screenshotEpoch;
 
@@ -140,7 +125,8 @@ async function handleImageUrl(imageUrl: string) {
         {
             isStale,
             errorTitle: t('imageFetchFailed'),
-            onRetry: () => void handleScreenshot(),
+            // 图片读不出像素时直接改用扫描屏幕
+            onRetry: () => void handleScreenScan(),
             // 网页图片需要先下载/取像素: 取图期间提示"正在获取图片"
             notifyFetching,
             // 图片取到、扫描提示出现后, 再在网页上的图片区域播放扫描动画
@@ -189,7 +175,8 @@ async function handleImageUrl(imageUrl: string) {
                     deferResults: true,
                 });
                 if (isStale() || fallback.status !== 'ok') return;
-                await showResults(fallback, viewportAnchor(fallback.imageSize));
+                // 这张截图同样交给截图容器展示结果, 本地图片页上的标记也不会随滚动漂移
+                await showScanResult({ dataUrl, results: fallback.results });
                 return;
             } catch {
                 // 截图也失败时保留最初的错误提示
@@ -198,7 +185,7 @@ async function handleImageUrl(imageUrl: string) {
     }
 }
 
-// 截图扫描每轮开始都会递增, 用于判断图片扫描的结果是否已过期
+// 每轮扫描开始都会递增, 用于判断上一轮的结果是否已过期
 let screenshotEpoch = 0;
 // 当前留在页面上的截图浮层: 新一轮截图先收起它, 避免多张截图叠在一起
 let activeShot: ScreenshotSession | null = null;
@@ -227,18 +214,28 @@ function isScreenshotResult(error: unknown): error is ScreenshotResult {
     );
 }
 
-async function handleScreenshot() {
+// 扫描屏幕的结果画面: 已经解出结果, 把这次截图交给截图容器承载展示
+type ScreenScanResult = { dataUrl: string; results: DecodeResult[] };
+
+// 截图容器承载结果: 整屏扫描与本地图片兜底共用, 蓝框标在静止的截图上
+async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult) {
     screenshotEpoch++;
     clearMarks();
     void scanAnimation.stop();
     const epoch = screenshotEpoch;
-    // 点蓝点时用的结果: 每扫完一次就替换
-    let results: DecodeResult[] = [];
+    // 点蓝点时用的结果: 与容器里的蓝框一一对应, 只能放可定位的码
+    const seedResults = allResults.filter((result) => result.bounds);
+    // 一个码都定位不到时截图容器没有可点的蓝点, 直接给结果通知即可
+    if (!seedResults.length) {
+        await notifyResults(allResults, { pickHint: allResults.length > 1 });
+        return;
+    }
+    let results: DecodeResult[] = seedResults;
     // 框选轮次: 用户在结果画面上再框一块时, 前一轮的结果作废
     let captureSeq = 0;
     let shot: ScreenshotSession | null = null;
 
-    // 每框选一次扫一次: 命中后蓝框留在截图上, 用户可接着框下一块
+    // 在结果画面上再框一块: 命中后蓝框留在截图上, 用户可接着框下一块
     async function scanCapture(capture: ScreenshotCapture) {
         if (!shot) return;
         const seq = ++captureSeq;
@@ -253,7 +250,8 @@ async function handleScreenshot() {
             shot.clearResults();
             return;
         }
-        results = outcome.results;
+        // 蓝框只标可定位的码, 点选按下标取结果时两边要保持同一份列表
+        results = outcome.results.filter((result) => result.bounds);
         // 识别结束后只收起这次的选区高亮, 结果蓝框蓝点要继续留在冻结的截图上供点选;
         // 早先这里清掉整层结果, 多码点选就跟着消失了
         shot.showResults(toMarkRects(outcome.results, {
@@ -269,6 +267,10 @@ async function handleScreenshot() {
 
     try {
         shot = await startScreenshot({
+            // 复用扫描时截好的那张图, 不再重复截取
+            src: dataUrl,
+            // 截图就是结果画面, 打开即标出码, 不进入框选
+            initialResults: seedResults.flatMap((result) => (result.bounds ? [result.bounds] : [])),
             onPick: (index) => {
                 const result = results[index];
                 if (result) void notifyResults([result]);
@@ -277,20 +279,20 @@ async function handleScreenshot() {
             onError: () => void notifyScreenshotError({ type: 'failed' }),
         });
         activeShot = shot;
+        await notifyResults(allResults, { pickHint: allResults.length > 1 });
     } catch (error) {
         notifyScreenshotError(error);
     }
 }
 
-// 一键截屏扫描: 截取当前视口后直接扫描整张画面, 不进入框选交互
-async function handleQuickScreenshot() {
+// 扫描屏幕: 截取当前视口 → 在页面上播放扫描动画 → 结果交给截图容器承载展示。
+// 蓝框标在静止的截图副本上, 不再换算页面坐标, 页面滚动/缩放也不会让标记漂移
+async function handleScreenScan() {
     screenshotEpoch++;
     clearMarks();
     void scanAnimation.stop();
     const epoch = screenshotEpoch;
     try {
-        // 截图尺寸就是视口尺寸, 视口锚点直接按当前视口给出
-        const scroll = { x: window.scrollX, y: window.scrollY };
         const dataUrl = await captureVisibleTab();
         // 截图完成后才播放整屏动画, 动画不会被截进图片;
         // 动画在解码期间一直循环, 通知要等动画淡出后再弹出
@@ -298,12 +300,11 @@ async function handleQuickScreenshot() {
             isStale: () => epoch !== screenshotEpoch,
             beforeNotice: () => scanAnimation.play(),
             afterDecode: () => scanAnimation.stop(),
-            // 结果通知由这里自己发 (与蓝点同时给出)
+            // 结果通知由截图容器给出
             deferResults: true,
         });
         if (epoch !== screenshotEpoch || outcome.status !== 'ok') return;
-        // 单码多码同一条路径: 结果通知与蓝点同时给出, 点哪个码就把通知切到哪个码
-        await showResults(outcome, viewportAnchor(outcome.imageSize, scroll));
+        await showScanResult({ dataUrl, results: outcome.results });
     } catch (error) {
         void scanAnimation.stop();
         if (epoch !== screenshotEpoch) return;

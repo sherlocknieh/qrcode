@@ -81,7 +81,7 @@ export async function loadImageDataFromUrl(imageUrl: string, options: LoadImageO
                 const dataUrl = await options.fetchViaProxy(imageUrl);
                 return await getImageDataFromDataUrl(dataUrl);
             } catch {
-                // 代理也拿不到图: 保留原始的污染错误, 通知里据此引导改用截图扫描
+                // 代理也拿不到图: 保留原始的污染错误, 通知里据此引导改用扫描屏幕
                 throw error;
             }
         }
@@ -621,7 +621,7 @@ const padBounds = (bounds: Bounds | null, pad: number, width: number, height: nu
         maxY: clamp(bounds.maxY + pad, 0, Math.max(0, height - 1)),
     };
 
-// 一维码的定位点只落在扫描行上, 竖直范围未知; 按条码常见的高宽比补出可见高度。
+// 一维码的定位点只落在扫描行上, 竖直范围未知; 实测失败时按条码常见的高宽比估算高度。
 const expandBarcodeBounds = (bounds: Bounds, height: number): Bounds => {
     const padY = Math.max(4, (bounds.maxX - bounds.minX) * 0.08);
     return {
@@ -631,6 +631,123 @@ const expandBarcodeBounds = (bounds: Bounds, height: number): Bounds => {
         maxY: clamp(bounds.maxY + padY, 0, Math.max(0, height - 1)),
     };
 };
+
+// 修复条形码标记框塌成一条横带的问题:
+// 一维结果的定位点只有扫描行两端, 竖直范围只能靠宽度比例估算, 条码一高就框不住条面
+// (UPC 条码高约等于宽度的一半, 估算只有宽度的 8%)。改为在候选图里实测条面高度。
+const BARCODE_PROFILE_MIN_IOU = 0.7;
+const BARCODE_PROFILE_MIN_INK = 0.05;
+// 允许连续几行条空对不上, 避免条面上一道水印、反光提前截断高度。
+const BARCODE_PROFILE_MISS_ALLOWANCE = 1;
+const BARCODE_EDGE_REFINE_PROBES = 24;
+
+type RowProfile = { bits: Uint8Array; ink: number };
+
+// 用行内对比度取阈值, 整图阈值在浅色条码或暗背景上会失效。
+function readRowProfile(gray: GrayImage, y: number, left: number, right: number): RowProfile | null {
+    const rowStart = y * gray.width;
+    let min = 255;
+    let max = 0;
+    for (let x = left; x <= right; x++) {
+        const value = gray.data[rowStart + x] ?? 0;
+        if (value < min) min = value;
+        if (value > max) max = value;
+    }
+    if (max - min < 24) return null;
+
+    const threshold = (min + max) / 2;
+    const bits = new Uint8Array(right - left + 1);
+    let ink = 0;
+    for (let x = left; x <= right; x++) {
+        if ((gray.data[rowStart + x] ?? 0) < threshold) {
+            bits[x - left] = 1;
+            ink++;
+        }
+    }
+    return { bits, ink: ink / bits.length };
+}
+
+// 条面内每一行的条空位置几乎相同, 用交并比判断是否属于同一个条码;
+// 白边、下方的数字行与条空对不上, 交并比会明显下降。
+function isSameCodeRow(row: RowProfile, base: RowProfile): boolean {
+    if (row.ink < BARCODE_PROFILE_MIN_INK) return false;
+    let intersection = 0;
+    let union = 0;
+    for (let index = 0; index < base.bits.length; index++) {
+        const a = base.bits[index];
+        const b = row.bits[index];
+        if (a || b) union++;
+        if (a && b) intersection++;
+    }
+    return union > 0 && intersection / union >= BARCODE_PROFILE_MIN_IOU;
+}
+
+// 从命中行向两侧走, 连续若干行条空对不上即认为离开条面。
+function profileCodeRows(
+    gray: GrayImage,
+    base: RowProfile,
+    left: number,
+    right: number,
+    centerY: number,
+): { top: number; bottom: number } {
+    const walk = (step: -1 | 1): number => {
+        let edge = centerY;
+        let misses = 0;
+        for (let y = centerY + step; y >= 0 && y < gray.height; y += step) {
+            const row = readRowProfile(gray, y, left, right);
+            if (row && isSameCodeRow(row, base)) {
+                edge = y;
+                misses = 0;
+                continue;
+            }
+            if (++misses > BARCODE_PROFILE_MISS_ALLOWANCE) break;
+        }
+        return edge;
+    };
+
+    return { top: walk(-1), bottom: walk(1) };
+}
+
+// 剖面边界附近再逐行解码: 仍能解出同一文本就继续向外, 解不出说明已到条面边缘,
+// 让框贴着真正可读的条面而不是整块标签。
+function refineBarcodeEdge(
+    bitmap: BinaryBitmap,
+    width: number,
+    height: number,
+    text: string,
+    from: number,
+    step: -1 | 1,
+): number {
+    let edge = from;
+    for (let probe = 0; probe < BARCODE_EDGE_REFINE_PROBES; probe++) {
+        const y = edge + step;
+        if (y < 0 || y >= height) break;
+        if (decodeRowText(bitmap, width, y) !== text) break;
+        edge = y;
+    }
+    return edge;
+}
+
+// 在候选图坐标系里实测条面高度; 剖面或解码都失败时退回比例估算。
+function measureBarcodeBounds(gray: GrayImage, bounds: Bounds, text: string): Bounds {
+    const left = clamp(Math.floor(bounds.minX), 0, gray.width - 1);
+    const right = clamp(Math.ceil(bounds.maxX), 0, gray.width - 1);
+    if (right <= left) return expandBarcodeBounds(bounds, gray.height);
+
+    const centerY = clamp(Math.round((bounds.minY + bounds.maxY) / 2), 0, gray.height - 1);
+    const base = readRowProfile(gray, centerY, left, right);
+    if (!base) return expandBarcodeBounds(bounds, gray.height);
+
+    const { top, bottom } = profileCodeRows(gray, base, left, right, centerY);
+    // 剖面一行都没扩出来(竖直条码走不到水平扫描行), 用比例估算兜底, 避免框塌成一条线
+    if (top === bottom) return expandBarcodeBounds(bounds, gray.height);
+
+    const bitmap = createZXingBitmap(gray);
+    const minY = refineBarcodeEdge(bitmap, gray.width, gray.height, text, top, -1);
+    const maxY = refineBarcodeEdge(bitmap, gray.width, gray.height, text, bottom, 1);
+
+    return { minX: bounds.minX, maxX: bounds.maxX, minY, maxY };
+}
 
 // 候选图里的坐标换算回原图: 裁剪候选图靠偏移平移, 缩放候选图还要先乘回缩放比例,
 // 越界部分由 toRect 统一夹紧。
@@ -945,7 +1062,9 @@ function scanBarcodesWithMasking(
         // 否则一处正文误判会把同图里真正的条形码一起挡掉。
         if (isOneDResultConfirmed(result, gray) && !seen.has(text)) {
             seen.add(text);
-            hits.push({ text, bounds: expandBarcodeBounds(mapper(bounds), gray.height) });
+            // 修复高 DPR 截图里条形码标记跑到与码无关位置的问题:
+            // 高度改在候选图坐标系里实测, 再整体经 mapper 换算回原图, 越界由 toRect 夹紧
+            hits.push({ text, bounds: mapper(measureBarcodeBounds(gray, bounds, text)) });
         }
 
         const padX = Math.max(6, Math.round(gray.width * 0.01));

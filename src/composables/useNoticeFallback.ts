@@ -68,7 +68,7 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         return false;
     }
 
-    // 只提示, 不需要用户选择的通知; onRetry 对应通知里的"改用截图扫描"按钮
+    // 只提示, 不需要用户选择的通知; onRetry 对应通知里的"改用扫描屏幕"按钮
     function notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<boolean> {
         return deliver(payload, onRetry);
     }
@@ -104,9 +104,9 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         });
     }
 
-    // 未扫描到码: 只有调用方真的能再截一次图时才提供"改用截图扫描"
+    // 未扫描到码: 只有调用方真的能再截一次屏时才提供"改用扫描屏幕"
     function notifyNoResult(onRetry?: () => void): Promise<boolean> {
-        return deliver(resultNotice([], { retryScreenshot: Boolean(onRetry) }), onRetry);
+        return deliver(resultNotice([], { retryScreenScan: Boolean(onRetry) }), onRetry);
     }
 
     // 供 recognizeImage 使用的宿主: 与上面的函数同一套实现

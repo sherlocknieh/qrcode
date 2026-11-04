@@ -31,13 +31,13 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | 路径 | 职责 |
 | --- | --- |
 | [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台：右键菜单、打开 popup、通知中转、跨域取图、截图、关标签页、图标开关 |
-| [src/entrypoints/content/](./src/entrypoints/content/) | 全站注入 UI；消息 `decodeQR` / `screenshotQR` / `scanFullScreen` / `scanImageInline`；页面内通知兜底 |
+| [src/entrypoints/content/](./src/entrypoints/content/) | 全站注入 UI；消息 `decodeQR` / `scanFullScreen` / `scanImageInline`；页面内通知兜底 |
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、扫描图片 |
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | `upload.html`：`?camera=1` 以摄像头模式开 `ScanPanel`；内容脚本注入不了时的兜底页 |
-| [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：视口图框选 / 直出扫描（PDF、SVG 兜底） |
-| [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 自研框选截图（拖拽、复制、保存）；确认后冻结为结果底图，识别结束时本次选区与高亮一起消失、蓝色选框与手柄退场，蓝框标在截图上且仍可继续框选下一块 |
+| [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：截视口后直出扫描（PDF、SVG 等注入不了内容脚本的页面兜底） |
+| [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 截图容器：承载整屏扫描结果（冻结截图 + 蓝框蓝点），结果画面上仍可拖框另选一块重扫，选区可复制/保存 |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域，不拦截交互）；图片区域按 [overlayHost.ts](./src/services/overlayHost.ts) 挂进图片所在容器并排在图片之后，只压住图片而不越过后加入的页面浮层 |
-| [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 扫描命中后在码上标蓝框与可点蓝点；传 `anchor` 时跟随图片所在层（同 [overlayHost.ts](./src/services/overlayHost.ts)），不传则覆盖视口最高层 |
+| [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 命中后在码上标蓝框与可点蓝点；网页图片传 `anchor` 跟随图片所在层（同 [overlayHost.ts](./src/services/overlayHost.ts)），截图容器里则铺在其结果层内 |
 | [src/services/overlayHost.ts](./src/services/overlayHost.ts) | 扫码叠加层（扫描动画、命中蓝框）的挂载策略：优先挂进图片容器只压住图片；祖先改掉 `fixed` 参照时退回 `body` 保持最高层 |
 | [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板（预览 + 单输入框） |
 | [src/components/ScanPanel.vue](./src/components/ScanPanel.vue) | 唯一扫描面板：图片 / 摄像头两种 `mode` |
@@ -59,7 +59,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | [src/components/NotifyHost.vue](./src/components/NotifyHost.vue) | 通知 UI（替代 SweetAlert2），只消费 `useNotify` |
 | [src/composables/useNotify.ts](./src/composables/useNotify.ts) | 全局单例通知状态与 `fire/close/showLoading` |
 | [src/composables/usePopupNoticeHost.ts](./src/composables/usePopupNoticeHost.ts) | popup 侧执行打开、复制、截图 |
-| [src/composables/useScreenshot.ts](./src/composables/useScreenshot.ts) | 内容脚本侧截图流程 |
+| [src/composables/useScreenshot.ts](./src/composables/useScreenshot.ts) | 内容脚本侧截图流程；`src` 复用已截好的图，`initialResults` 直接以整张截图作为结果画面 |
 | [src/services/qrCode.ts](./src/services/qrCode.ts) | 编码与 PNG 生成 |
 | [src/services/qrScanner.ts](./src/services/qrScanner.ts) | 扫描核心（ZXing） |
 | [src/services/popupNotice.ts](./src/services/popupNotice.ts) | 跨进程通知协议 |
@@ -91,10 +91,10 @@ flowchart LR
   Content -->|captureVisibleTab| BG
 ```
 
-1. **特殊页面就地处理**：网页 / 本地 / 剪贴板图片走 `decodeQR`、`scanImageInline`；直接打开的 SVG 注入不了内容脚本，图片交 popup；截图与一键截屏截视口后开 `capture.html`（`?direct=1` 直识整图），Firefox 内置 PDF 阅读器同此。扫描要在需要 DOM 的地方完成，降级分发统一走 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage`。
+1. **特殊页面就地处理**：网页 / 本地 / 剪贴板图片走 `decodeQR`、`scanImageInline`；直接打开的 SVG 注入不了内容脚本，图片交 popup；扫描屏幕在内容脚本不可用时由后台截视口后开 `capture.html` 直识整图（Firefox 内置 PDF 阅读器同此）。扫描要在需要 DOM 的地方完成，降级分发统一走 `tryContentAction` / `resolveActiveTabId` / `sendImageToPopup` / `openExtensionPage`。
 2. **通知统一走 popup**：`showPopupNotice()` → 后台写 `qrNotification` 经 `popup` 长连接推送；popup 未开则优先 `pageAction.openPopup()`，不可用或被拒绝时回退 `action.openPopup()`，失败返回 `false` 时调用方回退页面内 `NotifyHost`。`capture.html` 的 payload 带 `closeOriginTab`，通知结束（`notificationResolved` 或 popup 关闭）时后台按 `originTabId` 关掉来源页。
 3. **通知参数必须可序列化**：`PopupNoticeOptions` 只有 `loading`，动作由 `PopupNoticeAction`（`open` / `copy` / `screenshot`）描述。不要为“收起通知”加消息：通知已结束而 popup 被保留会留空白窗口，用下一条通知（如 `decodingQR`）替换；`notifyState.open` 转 false 且无内容时 popup 自行关闭。
-4. **popup 易失焦**：选本地文件会关 popup，故 `upload.html` 与 `capture.html` 各自取图，结果走 `useNoticeFallback`；扫描结束**不自动关闭**（例外：popup 的“尝试截图扫描”要让出焦点）。`capture.html` 通知结束即关自身：popup 里由后台按 `closeTabId` 关，页面内由 `onLocalNoticeDone` 关（被替换不算结束）。临时页由 `openExtensionPage` 打开（`tabs.create` 带来源页 `windowId` 与 `index + 1` 紧邻原页，并在 `qrExtensionOriginTabs` 登记）：关闭走 `closeTabAndReturn`（先 `tabs.update(来源页, { active: true })` 再 `tabs.remove`），用户点 X 由 `tabs.onRemoved` 同样切回。
+4. **popup 易失焦**：选本地文件会关 popup，故 `upload.html` 与 `capture.html` 各自取图，结果走 `useNoticeFallback`；扫描结束**不自动关闭**（例外：popup 的“改用扫描屏幕”要让出焦点）。`capture.html` 通知结束即关自身：popup 里由后台按 `closeTabId` 关，页面内由 `onLocalNoticeDone` 关（被替换不算结束）。临时页由 `openExtensionPage` 打开（`tabs.create` 带来源页 `windowId` 与 `index + 1` 紧邻原页，并在 `qrExtensionOriginTabs` 登记）：关闭走 `closeTabAndReturn`（先 `tabs.update(来源页, { active: true })` 再 `tabs.remove`），用户点 X 由 `tabs.onRemoved` 同样切回。
 5. **后台负责高权限操作**：`tabs.captureVisibleTab`、跨域 `fetch`（返回 DataURL）、`tabs.remove`。
 
 ## 存储键（改动时需全局搜索）
@@ -114,13 +114,13 @@ flowchart LR
 
 - **右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加进两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
 - **二维码生成**：编码与 PNG 在 [qrCode.ts](./src/services/qrCode.ts)，输入/预览在 [QrCodePanel.vue](./src/components/QrCodePanel.vue)；条形码生成未接入。
-- **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。调用方用 `DecodeOutcome.imageSize` 与目标矩形换算成 CSS 像素再画框，别在解码层输出页面坐标。命中码时先由 `toMarkRects(results, anchor)` 换算蓝框，`anchor` 只描述"图像画在视口哪块矩形上"（整屏=视口、框选=选区并带 `clip`、网页图片/面板预览=`measureImageRect(img)` 的实际绘制区域、摄像头预览加 `mirrorX`）；网页图片的锚点要带 `measureRect`，蓝框每次重算都取图片实时位置——只按滚动差量平移的话，固定不随页面滚动的图片（图片查看器、`position: fixed` 浮层）上蓝框会随滚动漂移，`recognizeImage` 传 `deferResults` 暂缓结果通知，再由宿主 `notifyResults(results, { pickHint: 多码 })` 与蓝点同时给出。页面上的蓝点交 `useCodePicker.show(results, anchor)` 渲染；框选截图改用 `ScreenshotSession.showResults(marks)`，浮层确认时已冻结，蓝框按浮层自身显示区域（不是视口）记录并整体缩放——截图是改窗口大小之前拍的，浮窗按截图比例收缩，与改后的视口宽高比不同，按视口换算再统一缩放会让蓝框纵向差一截；`startScreenshot` 每次确认都回调 `onCapture`，所以同一个浮层能连续框选，没扫到用 `clearResults` 只清蓝框、留住截图。点哪个码就把通知切到哪个码，可连续挑选；空白点击由 composable 在 `document` 捕获阶段判断（不铺全屏透明层，面板按钮照常可用），通知窗口刚被这次点击关掉时保留蓝点，只有窗口**宽度**变化会让页面重排时才收起（带 `measureRect` 的锚点不收起，重测一次即可跟住新排版）。
+- **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。**换算回原图之后的补高与夹紧一律按原图尺寸算，不能按候选图尺寸**（超过 `BARCODE_SCAN_DIMENSION` 的截图会先被缩小，按候选图高度夹会把原图的 y 压到候选图高度上，条形码标记就塌成一条线并跑到别处）。调用方用 `DecodeOutcome.imageSize` 与目标矩形换算成 CSS 像素再画框，别在解码层输出页面坐标。命中码时先由 `toMarkRects(results, anchor)` 换算蓝框，`anchor` 只描述"图像画在视口哪块矩形上"（在结果画面里另框一块=选区并带 `clip`、网页图片/面板预览=`measureImageRect(img)` 的实际绘制区域、摄像头预览加 `mirrorX`）；网页图片的锚点要带 `measureRect`，蓝框每次重算都取图片实时位置——只按滚动差量平移的话，固定不随页面滚动的图片（图片查看器、`position: fixed` 浮层）上蓝框会随滚动漂移，`recognizeImage` 传 `deferResults` 暂缓结果通知，再由宿主 `notifyResults(results, { pickHint: 多码 })` 与蓝点同时给出。**扫描屏幕不在页面上叠蓝框**：解码完把这张视口截图交给 `startScreenshot({ src, initialResults })`，由截图容器铺满视口展示结果（`applyImageResults` 按解码图坐标换算到显示区域），标记跟着静止的截图走，页面滚动、内层容器滚动、缩放一概不影响位置；在结果画面上另框一块重扫则改用 `ScreenshotSession.showResults(marks)`，浮层确认时已冻结，蓝框按浮层自身显示区域（不是视口）记录并整体缩放——截图是改窗口大小之前拍的，浮窗按截图比例收缩，与改后的视口宽高比不同，按视口换算再统一缩放会让蓝框纵向差一截；`startScreenshot` 每次确认都回调 `onCapture`，所以同一个浮层能连续框选，没扫到用 `clearResults` 只清蓝框、留住截图。点哪个码就把通知切到哪个码，可连续挑选；空白点击由 composable 在 `document` 捕获阶段判断（不铺全屏透明层，面板按钮照常可用），通知窗口刚被这次点击关掉时保留蓝点，只有窗口**宽度**变化会让页面重排时才收起（带 `measureRect` 的锚点不收起，重测一次即可跟住新排版）。
 - **扫描效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。ZXing 用深路径导入（`@zxing/library/esm/core/...`），别改成包根导入；摄像头逐帧只走 `decodeCameraFrame`，换 `decodeAllFromImageData` 会卡预览；一维码命中后必须过 `isOneDResultConfirmed` 核对相邻行（文字行也能凑出校验位合法的条码，少了这层会把正文认成条形码），批量扫描里未通过的结果只遮罩不中断，否则一处误判会挡住同图真正的条码。二维码整图/码面矩形都没扫出时会把整图缩到 `QR_DOWNSCALE_DIMENSION` 再扫一遍（模块过大时 ZXing 的定位点会漏检），命中坐标靠 `Candidate.scale` 换回原图，这层别删。
 - **摄像头扫码**：右键菜单的“摄像头扫码”（`scanCamera`）直接开 `upload.html?camera=1`；面板本体仍只在 `ScanPanel.vue`，不要塞进 popup（失焦即关）。内容脚本也能 `getUserMedia`，但受页面安全上下文与 `Permissions-Policy` 约束、权限归页面源，故浮层失败时降级 `upload.html?camera=1`；媒体流与取帧在 `useCameraScan.ts`，命中即停，用户点“继续扫描”恢复。新增输入方式只实现一个“产出图像”的源，别拆第二套面板/扫描流程。
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。
 - **新增 UI 文案**：`public/_locales/en/messages.json` 与 `zh_CN/messages.json` 同时添加，代码里统一 `browser.i18n.getMessage(key)`（各入口有本地 `t()` 包装）。
 - **权限 / manifest / 图标**：只改 [wxt.config.ts](./wxt.config.ts)。不要声明 `clipboardRead` / `clipboardWrite`：图片只从 paste/拖放事件读，文本复制在点击手势里，失败用 `execCommand('copy')` 兜底。
-- **截图**：视图层 `ScreenshotOverlay.vue`；普通页面由 `useScreenshot.ts` 就地挂载（确认后浮层冻结成结果底图，`showResults` 叠蓝框，`close` 收起），SVG / PDF 等页面由 [capture/App.vue](./src/entrypoints/capture/App.vue) 接管（后台截视口 → 存储 → 框选/直出）。
+- **截图**：视图层 `ScreenshotOverlay.vue`；普通页面由 `useScreenshot.ts` 就地挂载承载扫描结果（`startScreenshot({ src, initialResults })`，`close` 收起），SVG / PDF 等页面由 [capture/App.vue](./src/entrypoints/capture/App.vue) 接管（后台截视口 → 存储 → 直出扫描）。扫描屏幕（`scanFullScreen`）先播整屏扫描动画，解码结束再把截图交给这个浮层，不要再改回在页面上叠蓝框；没有独立的框选扫描入口了。
 
 ## 编码约定
 
@@ -137,7 +137,7 @@ flowchart LR
 
 - **大图扫描阻塞 UI**：先渲染 loading 通知，再 `await new Promise(r => setTimeout(r, 50))` 后解码。
 - **提示分两段，动画在取图之后**：网络取图慢于 150ms 才提示“正在获取图片...”（`notifyFetching`），图就绪后才提示“正在扫描...”并播动画（`beforeNotice`）；本地图 / 截图不需要 `notifyFetching`。
-- **跨域 / 防盗链图片**：直接 fetch 常失败，失败提示里保留“改用截图扫描”出口；不要再加“跨域可能稍慢”通知，与“正在获取图片...”重复。
+- **跨域 / 防盗链图片**：直接 fetch 常失败，失败提示里保留“改用扫描屏幕”出口；不要再加“跨域可能稍慢”通知，与“正在获取图片...”重复。
 - **同源重定向到 CDN**：如 GitHub 的 `/owner/repo/raw/...` 302 到 `raw.githubusercontent.com`，`isSameOrigin` 只看跳转前地址，Chrome 因此判 canvas 被污染。`loadImageDataFromUrl` 捕获污染错误后自动改走后台代理，这层兜底不能删；`fetchViaProxy` 也别改回只在跨域时传。
 - **`file://` 页面**：Firefox 扩展页/后台无法 fetch，但内容脚本能读已渲染图片画到 canvas，失败再回退截取视口。
 - **通知竞态与清理**：后台 `openPopup` 期间用 `popupOpening` / `POPUP_OPEN_GRACE` 防丢通知，靠自增 `id` 做 `clearNoticeIfCurrent`；popup 断开连接时后台删 `qrNotification`，避免下次重复弹出。都不要简化。

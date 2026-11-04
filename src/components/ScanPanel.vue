@@ -165,8 +165,14 @@ function scanImage() {
         () => getImageDataFromDataUrl(previewUrl.value),
         {
             errorTitle: t('imageFetchFailed'),
-            // 浮层可以真的去截当前页; 独立扫描页截图只会截到自己, 不给这个出口
-            onRetry: overlay ? () => void trySendMessage('requestScreenshot') : undefined,
+            // 浮层可以真的去截当前页: 先收起浮层再截屏, 否则扫到的是浮层自己;
+            // 独立扫描页截图只会截到自己, 不给这个出口
+            onRetry: overlay
+                ? () => {
+                    emit('close');
+                    void trySendMessage('requestScreenScan');
+                }
+                : undefined,
         },
     );
 }

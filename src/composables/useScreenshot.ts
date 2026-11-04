@@ -33,6 +33,10 @@ type StartOptions = {
     onPick?(index: number): void;
     // 截图读不出来, 由调用方提示失败
     onError?(): void;
+    // 已经有截好的视口图时直接复用 (整屏扫描在解码前就截过一次), 不再重复截取
+    src?: string;
+    // 整屏扫描已命中: 打开就冻结整张截图并标出这些码 (解码图像的像素坐标), 跳过框选
+    initialResults?: ScanRect[];
 };
 
 type CaptureResponse = { success: true; dataUrl: string } | { success: false; error?: string };
@@ -53,9 +57,12 @@ async function captureVisibleTab(): Promise<string> {
 
 export function useScreenshot() {
     const startScreenshot = async (options: StartOptions): Promise<ScreenshotSession> => {
+        const initialResults = options.initialResults ?? [];
+        // 带着结果打开时不需要框选, 也不该再播放入场动画 (截图是整屏扫出来的)
+        const preview = initialResults.length > 0;
         const [src, intro] = await Promise.all([
-            captureVisibleTab(),
-            getScreenshotIntroEnabled().catch(() => false),
+            options.src ? Promise.resolve(options.src) : captureVisibleTab(),
+            preview ? Promise.resolve(false) : getScreenshotIntroEnabled().catch(() => false),
         ]);
 
         return new Promise<ScreenshotSession>((resolve) => {
@@ -80,6 +87,7 @@ export function useScreenshot() {
             app = createApp(ScreenshotOverlay, {
                 src,
                 intro,
+                initialResults,
                 onConfirm: (payload: ScreenshotCapture) => options.onCapture(payload),
                 onPick: (index: number) => options.onPick?.(index),
                 onCancel: dispose,

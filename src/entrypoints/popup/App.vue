@@ -148,9 +148,9 @@ async function decodeAndShow(
   if (response.dismiss === 'replaced') return;
 
   if (response.dismiss === 'extra') {
-    // 未扫描到码时提供"重新截图": popup 不是页面浮层, 交给内容脚本在页面内框选;
-    // 内容脚本不可用 (如 PDF 阅读器) 时, 由后台截取视口后在新标签页中框选
-    const result = await trySendMessage('requestScreenshot');
+    // 未扫描到码时提供"改用扫描屏幕": popup 不是页面浮层, 交给内容脚本重新截屏;
+    // 内容脚本不可用 (如 PDF 阅读器) 时, 由后台截取视口后在新标签页中扫描
+    const result = await trySendMessage('requestScreenScan');
     if (result?.success) window.close();
     return;
   }

@@ -5,7 +5,7 @@ import { intersectRect } from '@/services/imageRect';
 import { sendMessage } from '@/services/messaging';
 
 // 点选锚点: 说明解码用的图像画在屏幕的哪块矩形上。
-// 各入口(整屏截图/框选截图/网页图片/扫描面板)只需要给出这个矩形,
+// 各入口(扫描屏幕的结果截图/网页图片/扫描面板)只需要给出这个矩形,
 // 蓝点定位、点选切结果、空白收起都由 useCodePicker 统一处理。
 export type PickAnchor = {
     // 图像在视口中的显示矩形 (CSS 像素, 锚定时)
