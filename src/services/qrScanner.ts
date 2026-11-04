@@ -190,6 +190,63 @@ function decodeOneDResultWithZXing(gray: GrayImage): Result | null {
     }
 }
 
+// 修复文字被识别成条形码的问题: 一维行扫描命中一行就返回，而 PDF 正文、网页段落里
+// 一行的笔画与字距偶尔能凑出校验位也合法的条码图案，于是弹出了莫名其妙的条码结果。
+// 真实条形码在条高范围内每一行都是同一组条空，越界的窄条码至少也会覆盖上下相邻行，
+// 因此命中后再核对命中行上下各两行，只有同一结果重复出现才认作条形码。
+const BARCODE_CONFIRM_ROW_OFFSETS = [-1, 1, -2, 2];
+const BARCODE_CONFIRM_MIN_HITS = 2;
+
+// 读取指定行并尝试解码，返回识别出的文本；原本左右翻转的条码要反转整行再读一次。
+function decodeRowText(bitmap: BinaryBitmap, width: number, rowNumber: number): string {
+    let row: BitArray | null = null;
+    try {
+        row = bitmap.getBlackRow(rowNumber, new BitArray(width));
+    } catch {
+        // 全黑或全白行取不到黑点阈值
+        return '';
+    }
+    if (!row) return '';
+
+    try {
+        return oneDReader.decodeRow(rowNumber, row, oneDHints).getText();
+    } catch {
+        // 正向读不出，再试左右翻转
+    }
+
+    const reversed = row.clone();
+    reversed.reverse();
+    try {
+        return oneDReader.decodeRow(rowNumber, reversed, oneDHints).getText();
+    } catch {
+        return '';
+    }
+}
+
+// 核对命中行附近的若干行: 同一文本出现次数够多才认为确实存在条形码。
+// 一维结果的定位点落在扫描行两端，竖直条码经过 ZXing 的旋转扫描后两个点的 x 相同。
+function isOneDResultConfirmed(result: Result, gray: GrayImage): boolean {
+    const [start, end] = result.getResultPoints() ?? [];
+    if (!start || !end) return false;
+
+    const horizontal = Math.abs(start.getY() - end.getY()) <= Math.abs(start.getX() - end.getX());
+    // 竖直条码: 顺时针转 90° 后原图的列变成旋转图的行，行号 = 宽度 - 1 - x
+    const scanGray = horizontal ? gray : rotateGray90(gray);
+    const line = horizontal ? Math.round(start.getY()) : scanGray.height - 1 - Math.round(start.getX());
+    const text = result.getText();
+    const bitmap = createZXingBitmap(scanGray);
+
+    let hits = 0;
+    for (const offset of BARCODE_CONFIRM_ROW_OFFSETS) {
+        const rowNumber = line + offset;
+        if (rowNumber < 0 || rowNumber >= scanGray.height) continue;
+        if (decodeRowText(bitmap, scanGray.width, rowNumber) !== text) continue;
+        if (++hits >= BARCODE_CONFIRM_MIN_HITS) return true;
+    }
+
+    return false;
+}
+
 // 按整数倍缩小灰度图，对每个块取平均，避免条形码的细线在缩放中丢失。
 function downscaleGrayToMaxDimension(gray: GrayImage, maxDimension: number): GrayImage {
     const { width, height, data } = gray;
@@ -525,8 +582,13 @@ const MULTI_MAX_BARCODE_PASS = 8;
 const BARCODE_THRESHOLDS = [48, 64];
 const MULTI_MAX_FINDER_CENTERS = 30;
 const MULTI_MAX_DECODE_ATTEMPTS = 1200;
-// 4 种整图候选 + 最多 3 个码面矩形 × 3 个内缩量; 裁剪图很小, 多试几次仍然很快。
-const MULTI_MAX_CANDIDATES = 13;
+// 4 种整图候选 + 最多 3 个码面矩形 × 3 个内缩量 + 缩小整图的 4 种候选; 裁剪图很小, 多试几次仍然很快。
+const MULTI_MAX_CANDIDATES = 17;
+
+// 修复整页截图扫不出码的问题: ZXing 的定位点查找对单个模块的像素尺寸很敏感,
+// 高 DPR 截屏里二维码模块动辄二三十像素, 定位点反而漏检(同一张图缩小一档就能扫出)。
+// 整图和码面矩形都失败时, 把整图缩到这个长边再试一次。
+const QR_DOWNSCALE_DIMENSION = 1200;
 
 // 让出主线程, 使批量扫描的长计算不会冻结 popup 或页面。
 const yieldToMainThread = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -534,8 +596,9 @@ const yieldToMainThread = () => new Promise<void>((resolve) => setTimeout(resolv
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 type LocatedResult = DecodeResult & { x: number; y: number };
 
-// 候选灰度图及其左上角在原图中的位置: 裁剪出的候选图需要用它把命中位置平移回原图。
-type Candidate = { image: GrayImage; offsetX: number; offsetY: number };
+// 候选灰度图及其左上角在原图中的位置: 裁剪出的候选图需要用它把命中位置平移回原图,
+// 缩放过的候选图还要乘上缩放比例。
+type Candidate = { image: GrayImage; offsetX: number; offsetY: number; scale?: number };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -569,14 +632,18 @@ const expandBarcodeBounds = (bounds: Bounds, height: number): Bounds => {
     };
 };
 
-// 裁剪候选图里的坐标平移回原图 (越界部分由 toRect 统一夹紧)。
-const shiftBounds = (bounds: Bounds | null, candidate: Candidate): Bounds | null =>
-    bounds && {
-        minX: bounds.minX + candidate.offsetX,
-        minY: bounds.minY + candidate.offsetY,
-        maxX: bounds.maxX + candidate.offsetX,
-        maxY: bounds.maxY + candidate.offsetY,
+// 候选图里的坐标换算回原图: 裁剪候选图靠偏移平移, 缩放候选图还要先乘回缩放比例,
+// 越界部分由 toRect 统一夹紧。
+const shiftBounds = (bounds: Bounds | null, candidate: Candidate): Bounds | null => {
+    if (!bounds) return null;
+    const scale = candidate.scale ?? 1;
+    return {
+        minX: bounds.minX * scale + candidate.offsetX,
+        minY: bounds.minY * scale + candidate.offsetY,
+        maxX: bounds.maxX * scale + candidate.offsetX,
+        maxY: bounds.maxY * scale + candidate.offsetY,
     };
+};
 
 // 扫描一张图片中的所有二维码和条形码。
 // 二维码一次扫描整张图收集全部定位点, 再对定位点三角组合逐个解码,
@@ -654,23 +721,35 @@ export function decodeCameraFrame(imageData: ImageData, attempt = 0): DecodeResu
     if (qrText) return [{ text: qrText, kind: 'qr' }];
 
     // 条形码靠行扫描, 阈值/反色会破坏条空比例, 只在原图上尝试。
-    const barcodeText = decodeOneDResultWithZXing(
-        downscaleGrayToMaxDimension(gray, BARCODE_SCAN_DIMENSION),
-    )?.getText() ?? '';
-    return barcodeText ? [{ text: barcodeText, kind: 'barcode' }] : [];
+    const barcodeScaled = downscaleGrayToMaxDimension(gray, BARCODE_SCAN_DIMENSION);
+    const barcodeResult = decodeOneDResultWithZXing(barcodeScaled);
+    return barcodeResult && isOneDResultConfirmed(barcodeResult, barcodeScaled)
+        ? [{ text: barcodeResult.getText(), kind: 'barcode' }]
+        : [];
 }
 
 // 批量模式的整图候选, 按命中概率排序; 候选过多时优先处理最常见的几种。
 function* createMultiQrCandidates(gray: GrayImage): Generator<Candidate> {
-    // 整图候选与原图同尺寸, 偏移为 0
-    yield { image: gray, offsetX: 0, offsetY: 0 };
-    yield { image: thresholdGray(gray, 160), offsetX: 0, offsetY: 0 };
-    yield { image: invertGray(gray), offsetX: 0, offsetY: 0 };
-    yield { image: dilateBlackPixels(thresholdGray(gray, 160), 1), offsetX: 0, offsetY: 0 };
+    yield* createWholeImageCandidates(gray, 1);
 
     // 背景与码面同色、或截图里码面只占一小块时, 整图永远找不到静区,
     // 最后按码面矩形裁剪并补白边兜底。
     yield* createCodeAreaCandidates(gray);
+
+    // 整页截图里的码在原始尺寸下可能因为模块过大而漏掉定位点, 整图缩一档再扫一遍;
+    // 命中的坐标由候选图的缩放比例换回原图。
+    const smaller = downscaleGrayToMaxDimension(gray, QR_DOWNSCALE_DIMENSION);
+    if (smaller !== gray) {
+        yield* createWholeImageCandidates(smaller, gray.width / smaller.width);
+    }
+}
+
+// 整图候选: 原图, 以及能覆盖低对比度、反色、圆点码的几种变体。
+function* createWholeImageCandidates(gray: GrayImage, scale: number): Generator<Candidate> {
+    yield { image: gray, offsetX: 0, offsetY: 0, scale };
+    yield { image: thresholdGray(gray, 160), offsetX: 0, offsetY: 0, scale };
+    yield { image: invertGray(gray), offsetX: 0, offsetY: 0, scale };
+    yield { image: dilateBlackPixels(thresholdGray(gray, 160), 1), offsetX: 0, offsetY: 0, scale };
 }
 
 // ZXing 的 QRCodeReader 只支持单码: 图片中出现多个码时, 它可能把不同码的定位点
@@ -857,11 +936,14 @@ function scanBarcodesWithMasking(
 ): GrayImage {
     for (let pass = 0; pass < MULTI_MAX_BARCODE_PASS; pass++) {
         const result = decodeOneDResultWithZXing(gray);
-        const text = result?.getText() ?? '';
-        const bounds = result ? getResultBounds(result, gray.width, gray.height) : null;
+        if (!result) break;
+        const text = result.getText();
+        const bounds = getResultBounds(result, gray.width, gray.height);
         if (!text || !bounds) break;
 
-        if (!seen.has(text)) {
+        // 未通过相邻行核对的是文字误判: 不采纳, 但仍遮掉这段继续找,
+        // 否则一处正文误判会把同图里真正的条形码一起挡掉。
+        if (isOneDResultConfirmed(result, gray) && !seen.has(text)) {
             seen.add(text);
             hits.push({ text, bounds: expandBarcodeBounds(mapper(bounds), gray.height) });
         }

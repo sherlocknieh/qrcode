@@ -1,25 +1,23 @@
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted } from 'vue';
 
 // 非UI组件
-import {
-    getImageDataFromDataUrl,
-    loadImageDataFromUrl,
-    type DecodeResult,
-} from '@/services/qrScanner';
+import { getImageDataFromDataUrl, loadImageDataFromUrl, type DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { sendMessage } from '@/services/messaging';
 import { errorNotice, warningNotice } from '@/services/decodeResultNotice';
-import { recognizeImage } from '@/services/recognize';
+import { recognizeImage, type DecodeOutcome } from '@/services/recognize';
+import { measureImageRect } from '@/services/imageRect';
 
 // UI组件
 import NotifyHost from '@/components/NotifyHost.vue';
 import ScanMarks from '@/components/ScanMarks.vue';
 
-import { useScreenshot, type ScreenshotResult } from '@/composables/useScreenshot';
+import { useScreenshot, type ScreenshotResult, type ScreenshotSession } from '@/composables/useScreenshot';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useImagePasteOverlay } from '@/composables/useImagePasteOverlay';
+import { toMarkRects, useCodePicker, type PickAnchor } from '@/composables/useCodePicker';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
 
 const { startScreenshot } = useScreenshot();
@@ -27,82 +25,28 @@ const { notify, notifyFetching, notifyResults, host } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
 
-// 框来自截图, 记录截图时的滚动位置, 页面滚动后按差量把框挪回去 (见 marks)
-type MarksSource = {
-    results: DecodeResult[];
-    // bounds 是截图图像的像素坐标, 这里存换算成 CSS 像素的比例
-    scale: { x: number; y: number };
-    scroll: { x: number; y: number };
-    // 截图时的视口宽度: 只有宽度变化才会让页面重新排版, 才需要收起标记
-    viewportWidth: number;
-};
-const marksSource = ref<MarksSource | null>(null);
-// 页面滚动后框要跟着码走, 滚动位置用响应式保存下来触发重算
-const scrollPos = ref({ x: window.scrollX, y: window.scrollY });
-const marks = computed<ScanRect[]>(() => {
-    const source = marksSource.value;
-    if (!source) return [];
-    // 框是固定定位的, 页面滚动多少就把框反向挪多少, 才跟得住码
-    const shiftX = scrollPos.value.x - source.scroll.x;
-    const shiftY = scrollPos.value.y - source.scroll.y;
-    return source.results.map((result) => {
-        const bounds = result.bounds!;
-        return {
-            x: bounds.x * source.scale.x - shiftX,
-            y: bounds.y * source.scale.y - shiftY,
-            width: bounds.width * source.scale.x,
-            height: bounds.height * source.scale.y,
-        };
-    });
-});
+// 命中码后统一在画面上叠蓝点: 整屏截屏 / 框选截图 / 网页图片只是锚点不同
+const picker = useCodePicker({ notifyResults });
+const marks = picker.marks;
+const pickMark = picker.pick;
+const clearMarks = picker.clear;
 
-function syncScroll() {
-    scrollPos.value = { x: window.scrollX, y: window.scrollY };
+// 码都在图标实际显示的区域里定位: 只有可定位的码才叠蓝点, 其余仍由结果列表列出
+function showResults(outcome: Extract<DecodeOutcome, { status: 'ok' }>, anchor: PickAnchor) {
+    picker.show(outcome.results, anchor);
+    return notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
 }
 
-// 宽度变了页面会重新排版, 码的位置跟着变, 框没法再对准, 直接收起;
-// 只改高度时横向排版没动, 框的位置仍然有效, 不必关闭
-function onResize() {
-    const source = marksSource.value;
-    if (!source || window.innerWidth === source.viewportWidth) return;
-    clearMarks();
-}
-const marksInteractive = computed(() => marksSource.value !== null);
-
-function clearMarks() {
-    marksSource.value = null;
-}
-
-// 码在画面上定位到就叠蓝点, 单码多码同一条路径: 由用户点蓝点决定看哪一个。
-// 不设超时, 由用户点空白处收起 (ScanMarks 的 dismiss)
-function showMarks(source: MarksSource) {
-    clearMarks();
-    if (!source.results.length) return;
-    marksSource.value = source;
-}
-
-// 点中蓝点: 通知切到这个码的结果, 蓝点保留以便继续挑选
-function pickMark(index: number) {
-    const result = marksSource.value?.results[index];
-    if (!result) return;
-    void notifyResults([result]);
-}
-
-// 通知窗口是否还开着 (含刚被这次点击点掉的情况): 内容脚本发起的通知都落在 popup 里
-async function isNoticeWindowOpen(): Promise<boolean> {
-    try {
-        const response = await sendMessage<{ open?: boolean }>('popupNoticeOpen');
-        return response.open === true;
-    } catch {
-        return false;
-    }
-}
-
-// 点击空白处收起蓝点。但通知窗口开着时, 这一下往往是去关 popup 的,
-// 若此时收起, 用户就没法接着点码了, 所以留到下一次点击再收
-async function dismissMarks() {
-    if (await isNoticeWindowOpen()) return;
-    clearMarks();
+// 整屏截图: 图像就是视口的拷贝, 锚点即整个视口
+function viewportAnchor(imageSize: { width: number; height: number }, scroll = { x: window.scrollX, y: window.scrollY }): PickAnchor {
+    const width = window.innerWidth;
+    return {
+        rect: { x: 0, y: 0, width, height: window.innerHeight },
+        imageSize,
+        scroll,
+        viewportWidth: width,
+        followScroll: true,
+    };
 }
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
@@ -111,6 +55,11 @@ const mainProcess = (
     _sender: Browser.runtime.MessageSender,
     sendResponse: (response?: { success: boolean }) => void,
 ) => {
+    // 新一轮扫描开始: 先收起上一张冻结的截图, 否则旧结果会挡住新的提示与蓝点
+    if (message.action !== undefined) {
+        activeShot?.close();
+        activeShot = null;
+    }
     if (message.action === 'decodeQR' && message.imageUrl) {
         handleImageUrl(message.imageUrl);
     }
@@ -131,43 +80,40 @@ const mainProcess = (
 // 当组件挂载时，注册消息监听器，等待来自背景脚本的指令
 onMounted(() => {
     browser.runtime.onMessage.addListener(mainProcess);
-    // 页面滚动后框要跟着码走; scroll 不冒泡, 用捕获阶段接收内部滚动。
-    // 窗口宽度变化会让页面重新排版, 由 onResize 决定收起
-    window.addEventListener('scroll', syncScroll, { capture: true, passive: true });
-    window.addEventListener('resize', onResize);
 });
 
 // 当组件卸载时，移除消息监听器，避免内存泄漏
 onBeforeUnmount(() => {
     browser.runtime.onMessage.removeListener(mainProcess);
-    window.removeEventListener('scroll', syncScroll, { capture: true });
-    window.removeEventListener('resize', onResize);
     void scanAnimation.stop();
     clearMarks();
+    activeShot?.close();
+    activeShot = null;
     imagePasteOverlay.close();
 });
 
-// 找到右键扫描的图片元素并返回其视口矩形; 背景图等找不到元素时返回 undefined
-function findImageRect(imageUrl: string): ScanRect | undefined {
+// 找到右键扫描的图片元素; 背景图等找不到元素时返回 undefined
+function findImageElement(imageUrl: string): HTMLImageElement | undefined {
     const images = Array.from(document.images);
-    const match = images.find((img) => img.currentSrc === imageUrl || img.src === imageUrl)
+    return images.find((img) => img.currentSrc === imageUrl || img.src === imageUrl)
         ?? images.find((img) => {
             const src = img.currentSrc || img.src;
             if (!src || !imageUrl) return false;
             return src.startsWith(imageUrl) || imageUrl.startsWith(src);
         });
-    if (!match) return undefined;
+}
 
-    const rect = match.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) return undefined;
-    // 图片完全移出视口时没必要播放动画
+// 图片的显示区域: 完全移出视口时返回 undefined, 既不用播放动画也不必叠蓝点
+function measureVisibleImage(image: HTMLImageElement | undefined): ScanRect | undefined {
+    if (!image) return undefined;
+    const box = image.getBoundingClientRect();
     const outside =
-        rect.bottom < 0 ||
-        rect.top > window.innerHeight ||
-        rect.right < 0 ||
-        rect.left > window.innerWidth;
+        box.bottom < 0 ||
+        box.top > window.innerHeight ||
+        box.right < 0 ||
+        box.left > window.innerWidth;
     if (outside) return undefined;
-    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+    return measureImageRect(image);
 }
 
 // 网页图片处理流程
@@ -191,13 +137,32 @@ async function handleImageUrl(imageUrl: string) {
             notifyFetching,
             // 图片取到、扫描提示出现后, 再在网页上的图片区域播放扫描动画
             beforeNotice: async () => {
-                const rect = findImageRect(imageUrl);
+                const rect = measureVisibleImage(findImageElement(imageUrl));
                 if (rect) await scanAnimation.play({ rect });
             },
             afterDecode: () => scanAnimation.stop(),
+            // 结果通知与蓝点同时给出, 由这里统一处理
+            deferResults: true,
         },
     );
     if (isStale()) return;
+
+    if (outcome.status === 'ok') {
+        // 码坐标按图片实际显示区域换算, 点蓝点即可切换到该码的结果
+        const rect = measureVisibleImage(findImageElement(imageUrl));
+        if (rect) {
+            await showResults(outcome, {
+                rect,
+                imageSize: outcome.imageSize,
+                scroll: { x: window.scrollX, y: window.scrollY },
+                viewportWidth: window.innerWidth,
+                followScroll: true,
+            });
+        } else {
+            await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
+        }
+        return;
+    }
 
     if (outcome.status === 'failed') {
         // 本地文件在部分浏览器中会因 canvas 安全限制无法读取像素,
@@ -205,7 +170,12 @@ async function handleImageUrl(imageUrl: string) {
         if (imageUrl.startsWith('file:') && window.location.protocol === 'file:') {
             try {
                 const dataUrl = await captureVisibleTab();
-                await decodeAndNotify(() => getImageDataFromDataUrl(dataUrl), { isStale });
+                const fallback = await decodeAndNotify(() => getImageDataFromDataUrl(dataUrl), {
+                    isStale,
+                    deferResults: true,
+                });
+                if (isStale() || fallback.status !== 'ok') return;
+                await showResults(fallback, viewportAnchor(fallback.imageSize));
                 return;
             } catch {
                 // 截图也失败时保留最初的错误提示
@@ -216,6 +186,8 @@ async function handleImageUrl(imageUrl: string) {
 
 // 截图扫描每轮开始都会递增, 用于判断图片扫描的结果是否已过期
 let screenshotEpoch = 0;
+// 当前留在页面上的截图浮层: 新一轮截图先收起它, 避免多张截图叠在一起
+let activeShot: ScreenshotSession | null = null;
 
 // 截图流程的失败提示: 用户取消是静默的, 其余情况提示失败原因
 function notifyScreenshotError(error: unknown) {
@@ -241,9 +213,38 @@ async function handleScreenshot() {
     screenshotEpoch++;
     clearMarks();
     void scanAnimation.stop();
+    const epoch = screenshotEpoch;
+    // 点蓝点时用的结果: 扫描完成后才填充
+    let results: DecodeResult[] = [];
     try {
-        const dataUrl = await startScreenshot();
-        await decodeAndNotify(() => getImageDataFromDataUrl(dataUrl));
+        const shot = await startScreenshot({
+            onPick: (index) => {
+                const result = results[index];
+                if (result) void notifyResults([result]);
+            },
+        });
+        activeShot = shot;
+        const outcome = await decodeAndNotify(() => getImageDataFromDataUrl(shot.dataUrl), {
+            isStale: () => epoch !== screenshotEpoch,
+            deferResults: true,
+        });
+        // 结果过期或没扫到码: 收起冻结的截图, 回到页面 (提示已在 popup 里)
+        if (epoch !== screenshotEpoch || outcome.status !== 'ok') {
+            shot.close();
+            return;
+        }
+        results = outcome.results;
+        // 修复框选扫描后蓝框离开截图浮层、标到页面上会随滚动/页面变化错位的问题:
+        // 改为在冻结的截图上标框, 坐标按选区换算, 超出选区的部分裁掉
+        shot.showResults(toMarkRects(outcome.results, {
+            rect: shot.rect,
+            imageSize: outcome.imageSize,
+            scroll: { x: 0, y: 0 },
+            viewportWidth: shot.viewport.width,
+            followScroll: false,
+            clip: shot.rect,
+        }));
+        await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
     } catch (error) {
         notifyScreenshotError(error);
     }
@@ -256,10 +257,7 @@ async function handleQuickScreenshot() {
     void scanAnimation.stop();
     const epoch = screenshotEpoch;
     try {
-        // 记下截图那一刻的视口与滚动位置: 之后用户滚动页面时按差量跟随内容,
-        // 宽度变化则说明页面重新排版了, 由 onResize 收起标记
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+        // 截图尺寸就是视口尺寸, 视口锚点直接按当前视口给出
         const scroll = { x: window.scrollX, y: window.scrollY };
         const dataUrl = await captureVisibleTab();
         // 截图完成后才播放整屏动画, 动画不会被截进图片;
@@ -272,28 +270,8 @@ async function handleQuickScreenshot() {
             deferResults: true,
         });
         if (epoch !== screenshotEpoch || outcome.status !== 'ok') return;
-
-        const located = outcome.results.filter((result) => result.bounds);
-        const source: MarksSource = {
-            results: located,
-            // 截图按设备像素比放大, 用图像尺寸与截图时的视口尺寸换算回 CSS 像素
-            scale: {
-                x: outcome.imageSize.width > 0 ? viewportWidth / outcome.imageSize.width : 1,
-                y: outcome.imageSize.height > 0 ? viewportHeight / outcome.imageSize.height : 1,
-            },
-            scroll,
-            viewportWidth,
-        };
-        // 码都能在画面上定位时统一走蓝点, 单码也不特殊处理:
-        // 结果通知与蓝点同时给出, 点哪个码就把通知切到哪个码, 可连续挑选
-        if (located.length && located.length === outcome.results.length) {
-            showMarks(source);
-            if (epoch !== screenshotEpoch) return;
-            await notifyResults(outcome.results, { pickHint: located.length > 1 });
-            return;
-        }
-        // 有码但定位不全时没法叠蓝点, 直接给结果列表
-        await notifyResults(outcome.results);
+        // 单码多码同一条路径: 结果通知与蓝点同时给出, 点哪个码就把通知切到哪个码
+        await showResults(outcome, viewportAnchor(outcome.imageSize, scroll));
     } catch (error) {
         void scanAnimation.stop();
         if (epoch !== screenshotEpoch) return;
@@ -343,11 +321,6 @@ async function fetchImageViaProxy(url: string): Promise<string> {
 <template>
     <div class="qr-content-root">
         <NotifyHost />
-        <ScanMarks
-            :rects="marks"
-            :interactive="marksInteractive"
-            @pick="pickMark"
-            @dismiss="dismissMarks"
-        />
+        <ScanMarks :rects="marks" @pick="pickMark" />
     </div>
 </template>

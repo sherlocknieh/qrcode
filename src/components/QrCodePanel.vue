@@ -184,14 +184,14 @@ function toggleExpanded() {
     outline-offset: -1px;
 }
 
-/* 编辑提示图标: 深色圆底保证在二维码黑块上也看得见, 平时隐藏 */
+/* 编辑提示图标: 全透明圆底 */
 .qr-panel-edit-icon {
     box-sizing: content-box;
     width: 18px;
     height: 18px;
     padding: 8px;
     color: #ffffff;
-    background: rgb(15 23 42 / 40%);
+    background: rgb(15 23 42 / 0%);
     border-radius: 50%;
     opacity: 0;
     fill: none;

@@ -35,7 +35,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、扫描图片 |
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | `upload.html`：`?camera=1` 以摄像头模式开 `ScanPanel`；内容脚本注入不了时的兜底页 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：视口图框选 / 直出扫描（PDF、SVG 兜底） |
-| [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 自研框选截图（拖拽、复制、保存） |
+| [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 自研框选截图（拖拽、复制、保存）；确认后冻结为结果底图，蓝框直接标在截图上 |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域，不拦截交互） |
 | [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 全屏扫描命中后标出码的位置（方框，纯展示） |
 | [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板（预览 + 单输入框） |
@@ -43,6 +43,8 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴 / 拖放 / 选文件） |
 | [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ScanPanel, { variant: 'overlay', mode: 'image' })` |
 | [src/composables/useScanAnimation.ts](./src/composables/useScanAnimation.ts) | 扫描动画挂载与淡出：`play()` 只等首帧，`stop()` 淡出后 resolve（用于延后弹窗） |
+| [src/composables/useCodePicker.ts](./src/composables/useCodePicker.ts) | **各入口共用的多码点选**：`show(results, anchor)` 叠蓝点、`pick` 切结果、空白点击/宽度变化收起 |
+| [src/services/imageRect.ts](./src/services/imageRect.ts) | `measureImageRect(img)`：按 `object-fit` 算图片实际绘制区域，点选锚点与扫描动画都靠它 |
 | [src/services/decodeResultNotice.ts](./src/services/decodeResultNotice.ts) | 扫描提示与结果通知 |
 | [src/composables/useNoticeFallback.ts](./src/composables/useNoticeFallback.ts) | 通知策略：popup 优先、页面内兜底 |
 | [src/services/recognize.ts](./src/services/recognize.ts) | **唯一扫描入口** `recognizeImage(loader, options)`，`afterDecode` 会 await 等动画淡出 |
@@ -111,13 +113,13 @@ flowchart LR
 
 - **右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加进两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
 - **二维码生成**：编码与 PNG 在 [qrCode.ts](./src/services/qrCode.ts)，输入/预览在 [QrCodePanel.vue](./src/components/QrCodePanel.vue)；条形码生成未接入。
-- **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。调用方用 `DecodeOutcome.imageSize` 与视口尺寸的比例换算成 CSS 像素再画框，别在解码层输出页面坐标。一键截屏扫描命中码时不分单码多码：`recognizeImage` 传 `deferResults` 暂缓结果通知，`ScanMarks` 用 `interactive` + `pick` 在码上叠可点击蓝点，结果通知与蓝点同时给出（多码时加 `pickHint` 说明怎么点），点哪个码就把通知切到哪个码，点完蓝点仍在、可连续挑选，直到用户点空白处（`dismiss`）或开始新一轮扫描才收起，不设超时。收起前内容脚本会问后台 `popupNoticeOpen`：通知窗口还开着或刚被这次点击关掉时保留蓝点，因为那一下多半是在关 popup，下一次点击才真正收起。框是固定定位的：`MarksSource` 记住截图时的视口宽高、滚动位置与像素比例，`marks` 按滚动差量重算，滚动页面时框跟着码走，不要在滚动时把框收掉；只有窗口**宽度**变化会让页面重新排版、需要收起标记，只改高度时排版没动，框仍然对准码，别一起关。
-- **扫描效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。ZXing 用深路径导入（`@zxing/library/esm/core/...`），别改成包根导入；摄像头逐帧只走 `decodeCameraFrame`，换 `decodeAllFromImageData` 会卡预览。
+- **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。调用方用 `DecodeOutcome.imageSize` 与目标矩形换算成 CSS 像素再画框，别在解码层输出页面坐标。命中码时先由 `toMarkRects(results, anchor)` 换算蓝框，`anchor` 只描述"图像画在视口哪块矩形上"（整屏=视口、框选=选区并带 `clip`、网页图片/面板预览=`measureImageRect(img)` 的实际绘制区域、摄像头预览加 `mirrorX`），`recognizeImage` 传 `deferResults` 暂缓结果通知，再由宿主 `notifyResults(results, { pickHint: 多码 })` 与蓝点同时给出。页面上的蓝点交 `useCodePicker.show(results, anchor)` 渲染；框选截图改用 `ScreenshotSession.showResults(marks)`，浮层确认时已冻结，只按截图时的视口尺寸缩放，不再随页面滚动。点哪个码就把通知切到哪个码，可连续挑选；空白点击由 composable 在 `document` 捕获阶段判断（不铺全屏透明层，面板按钮照常可用），通知窗口刚被这次点击关掉时保留蓝点，只有窗口**宽度**变化会让页面重排时才收起。
+- **扫描效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。ZXing 用深路径导入（`@zxing/library/esm/core/...`），别改成包根导入；摄像头逐帧只走 `decodeCameraFrame`，换 `decodeAllFromImageData` 会卡预览；一维码命中后必须过 `isOneDResultConfirmed` 核对相邻行（文字行也能凑出校验位合法的条码，少了这层会把正文认成条形码），批量扫描里未通过的结果只遮罩不中断，否则一处误判会挡住同图真正的条码。二维码整图/码面矩形都没扫出时会把整图缩到 `QR_DOWNSCALE_DIMENSION` 再扫一遍（模块过大时 ZXing 的定位点会漏检），命中坐标靠 `Candidate.scale` 换回原图，这层别删。
 - **摄像头扫码**：右键菜单的“摄像头扫码”（`scanCamera`）直接开 `upload.html?camera=1`；面板本体仍只在 `ScanPanel.vue`，不要塞进 popup（失焦即关）。内容脚本也能 `getUserMedia`，但受页面安全上下文与 `Permissions-Policy` 约束、权限归页面源，故浮层失败时降级 `upload.html?camera=1`；媒体流与取帧在 `useCameraScan.ts`，命中即停，用户点“继续扫描”恢复。新增输入方式只实现一个“产出图像”的源，别拆第二套面板/扫描流程。
 - **通知外观/交互**：`NotifyHost.vue` + `useNotify.ts`；跨进程字段同步改 `popupNotice.ts` 与 `usePopupNoticeHost.ts`。
 - **新增 UI 文案**：`public/_locales/en/messages.json` 与 `zh_CN/messages.json` 同时添加，代码里统一 `browser.i18n.getMessage(key)`（各入口有本地 `t()` 包装）。
 - **权限 / manifest / 图标**：只改 [wxt.config.ts](./wxt.config.ts)。不要声明 `clipboardRead` / `clipboardWrite`：图片只从 paste/拖放事件读，文本复制在点击手势里，失败用 `execCommand('copy')` 兜底。
-- **截图**：视图层 `ScreenshotOverlay.vue`；普通页面由 `useScreenshot.ts` 就地挂载，SVG / PDF 等页面由 [capture/App.vue](./src/entrypoints/capture/App.vue) 接管（后台截视口 → 存储 → 框选/直出）。
+- **截图**：视图层 `ScreenshotOverlay.vue`；普通页面由 `useScreenshot.ts` 就地挂载（确认后浮层冻结成结果底图，`showResults` 叠蓝框，`close` 收起），SVG / PDF 等页面由 [capture/App.vue](./src/entrypoints/capture/App.vue) 接管（后台截视口 → 存储 → 框选/直出）。
 
 ## 编码约定
 
@@ -147,3 +149,5 @@ flowchart LR
 1. `pnpm compile` 通过。
 2. 新增文案在 `en` / `zh_CN` 两个 locale 中都存在。
 3. 不夹带无关修改；提交信息简洁说明用户可见变化。
+
+每次对话完成后提示用户是否提交更改，若用户确认则执行 `pnpm compile` 检查通过后提交。

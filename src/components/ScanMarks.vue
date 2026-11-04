@@ -2,9 +2,9 @@
 import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { t } from '@/services/i18n';
 
-// 全屏扫描成功后标出码的位置: 命中多个码时在码上叠可点击蓝点, 由用户选用哪一个
-const props = defineProps<{ rects: ScanRect[]; interactive?: boolean }>();
-const emit = defineEmits<{ pick: [index: number]; dismiss: [] }>();
+// 扫描命中后标出码的位置: 每个码上叠可点击蓝点, 由用户选用哪一个
+const props = defineProps<{ rects: ScanRect[] }>();
+const emit = defineEmits<{ pick: [index: number] }>();
 
 const pickHint = t('pickCodeHint');
 
@@ -20,23 +20,11 @@ function dotStyle(rect: ScanRect) {
     const size = Math.round(Math.min(56, Math.max(26, Math.min(rect.width, rect.height) * 0.42)));
     return { width: `${size}px`, height: `${size}px` };
 }
-
-// 点选状态下整层接管点击: 点蓝点出结果, 点空白处收起, 由用户决定看多久
-function onRootClick(event: MouseEvent) {
-    if (event.target instanceof Element && event.target.closest('.qr-marks-dot')) return;
-    emit('dismiss');
-}
 </script>
 
 <template>
     <Transition name="qr-marks-fade">
-        <div
-            v-if="props.rects.length"
-            class="qr-marks-root"
-            :class="{ 'qr-marks-root--interactive': props.interactive }"
-            :aria-hidden="props.interactive ? undefined : 'true'"
-            @click="props.interactive && onRootClick($event)"
-        >
+        <div v-if="props.rects.length" class="qr-marks-root">
             <div
                 v-for="(rect, index) in props.rects"
                 :key="index"
@@ -45,7 +33,6 @@ function onRootClick(event: MouseEvent) {
             >
                 <span class="qr-marks-box" />
                 <button
-                    v-if="props.interactive"
                     type="button"
                     class="qr-marks-dot"
                     :style="dotStyle(rect)"
@@ -69,12 +56,6 @@ function onRootClick(event: MouseEvent) {
     z-index: 2147483646;
     overflow: hidden;
     pointer-events: none;
-}
-
-/* 点选状态要能接到空白处点击, 纯展示时仍不拦截页面交互 */
-.qr-marks-root--interactive {
-    pointer-events: auto;
-    cursor: default;
 }
 
 /* 页面全局样式会泄漏进注入的 UI, 这里显式兜底边距、透明度与盒模型 */
@@ -101,7 +82,7 @@ function onRootClick(event: MouseEvent) {
         0 0 18px rgba(44, 171, 255, 0.55);
 }
 
-/* 蓝点只在自己身上接管点击, 其余区域仍不拦截页面交互 */
+/* 只有蓝点接管点击: 空白点击由 useCodePicker 在 document 上判断, 不挡住页面与面板按钮 */
 .qr-marks-dot {
     position: absolute;
     inset: 0;

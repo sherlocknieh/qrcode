@@ -1,12 +1,15 @@
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ImagePicker from '@/components/ImagePicker.vue';
+import ScanMarks from '@/components/ScanMarks.vue';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { useCameraScan } from '@/composables/useCameraScan';
+import { useCodePicker } from '@/composables/useCodePicker';
 import { useImageSource } from '@/composables/useImageSource';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { errorNotice } from '@/services/decodeResultNotice';
+import { measureImageRect } from '@/services/imageRect';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
 import { recognizeImage } from '@/services/recognize';
 import { t } from '@/services/i18n';
@@ -40,9 +43,13 @@ watch(() => props.mode, (value) => {
 });
 const isCamera = computed(() => mode.value === 'camera');
 
-const { host, notify } = useNoticeFallback();
+const { host, notify, notifyResults } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
 const recognizing = ref(false);
+// 与其它入口一致: 命中码后在预览图上叠蓝点, 点哪个就把通知切到哪个码
+const codePicker = useCodePicker({ notifyResults });
+const marks = codePicker.marks;
+const pickMark = codePicker.pick;
 
 // ---------------------------- 共用扫描流水线 ----------------------------
 
@@ -52,17 +59,46 @@ async function runScan(
 ) {
     if (recognizing.value) return;
     recognizing.value = true;
+    codePicker.clear();
     try {
-        await recognizeImage(loader, {
+        const outcome = await recognizeImage(loader, {
             host,
             errorTitle: options.errorTitle,
             beforeNotice: playScanAnimation,
             afterDecode: () => scanAnimation.stop(),
             onRetry: options.onRetry,
+            // 结果通知与蓝点同时给出, 由这里统一处理
+            deferResults: true,
         });
+        if (outcome.status !== 'ok') return;
+        // 摄像头命中后才会切到暂停帧, 等它渲染出来再量区域
+        await nextTick();
+        const rect = measurePreview();
+        if (rect) {
+            codePicker.show(outcome.results, {
+                rect,
+                imageSize: outcome.imageSize,
+                scroll: { x: window.scrollX, y: window.scrollY },
+                viewportWidth: window.innerWidth,
+                // 浮层固定不动, 独立页里的卡片会随页面滚动
+                followScroll: !overlay,
+                // 摄像头预览是镜像显示的, 横向坐标要翻过来才能压住码
+                mirrorX: isCamera.value,
+            });
+        }
+        await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
     } finally {
         recognizing.value = false;
     }
+}
+
+// 当前源在画面上的区域: 图片用预览图, 摄像头用暂停帧
+function measurePreview(): ScanRect | undefined {
+    const element = isCamera.value
+        ? stageRef.value?.querySelector('img.qr-scan-media')
+        : picker.value?.$el.querySelector('.qr-picker-preview');
+    if (element instanceof HTMLImageElement) return measureImageRect(element);
+    return measureBlock(stageRef.value);
 }
 
 const stageRef = ref<HTMLElement | null>(null);
@@ -201,7 +237,12 @@ const actions = computed<PanelAction[]>(() => {
     }
     if (previewUrl.value) {
         return [
-            { label: t('clearImage'), disabled: recognizing.value, run: clear },
+            {
+                label: t('clearImage'),
+                disabled: recognizing.value,
+                // 图片清掉后蓝点没有可标的区域
+                run: () => { clear(); codePicker.clear(); },
+            },
             { label: t('scanNow'), primary: true, disabled: recognizing.value, run: () => void scanImage() },
         ];
     }
@@ -217,7 +258,14 @@ function switchSource() {
     const next: ScanMode = isCamera.value ? 'image' : 'camera';
     mode.value = next;
     emit('update:mode', next);
+    // 预览换成另一个源, 原来的蓝点已经没有对应关系
+    codePicker.clear();
 }
+
+// 恢复摄像头后画面在动, 原来的蓝点已经没有意义
+watch(cameraActive, (active) => {
+    if (active) codePicker.clear();
+});
 
 // 切换源时同步摄像头: 离开立即释放, 进入时等 video 渲染出来再请求
 watch(isCamera, (camera) => {
@@ -360,6 +408,7 @@ onBeforeUnmount(() => {
                 </div>
             </section>
         </div>
+        <ScanMarks :rects="marks" @pick="pickMark" />
     </Teleport>
 </template>
 

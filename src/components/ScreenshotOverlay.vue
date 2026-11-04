@@ -2,6 +2,8 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import ScanMarks from '@/components/ScanMarks.vue';
+import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { setScreenshotIntroEnabled } from '@/services/screenshotSettings';
 
 const props = withDefaults(
@@ -14,7 +16,10 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-    (event: 'confirm', dataUrl: string): void;
+    // rect 是选区换算到视口后的位置, viewport 是截图时的视口尺寸
+    (event: 'confirm', payload: { dataUrl: string; rect: Rect; viewport: { width: number; height: number } }): void;
+    // 点中结果蓝点: 宿主把通知切到该码
+    (event: 'pick', index: number): void;
     (event: 'cancel'): void;
     (event: 'error'): void;
 }>();
@@ -101,6 +106,11 @@ const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
 // 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中浮窗
 const floatingMode = ref(false);
+// 冻结后不再响应框选: 截图留在浮层上, 扫描结果的蓝框直接叠在同一画面上
+const frozen = ref(false);
+// 扫描结果: 按截图时的视口坐标给出, 由本层换算到浮层当前显示区域
+const resultMarks = ref<ScanRect[]>([]);
+const sourceViewport = ref<{ width: number; height: number } | null>(null);
 // 仅在浮窗模式且未要求减少动态效果时才播放入场动画
 const canAnimateIntro = computed(() => floatingMode.value && !prefersReducedMotion);
 const phase = ref<Phase>(canAnimateIntro.value ? 'cover' : 'select');
@@ -197,13 +207,28 @@ const hasSelection = computed(() => {
     return rect !== null && rect.width >= MIN_SELECTION && rect.height >= MIN_SELECTION;
 });
 
-const showToolbar = computed(() => loaded.value && !busy.value && hasSelection.value);
+const showToolbar = computed(() => loaded.value && !busy.value && !frozen.value && hasSelection.value);
 
 // 全选/复制/保存与关闭按钮固定在右上角, 未框选时也可直接作用于整张截图
-const showActions = computed(() => loaded.value && !busy.value);
+const showActions = computed(() => loaded.value && !busy.value && !frozen.value);
 
 // 入场动画结束后、尚未框选时提示用户拖动框选
-const showHint = computed(() => loaded.value && !busy.value && !hasSelection.value);
+const showHint = computed(
+    () => loaded.value && !busy.value && !frozen.value && !hasSelection.value,
+);
+
+// 结果蓝框层按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域;
+// 浮窗模式下截图是缩小显示的, 不换算就会标到窗口外面
+const marksLayerStyle = computed(() => {
+    const source = sourceViewport.value;
+    const width = source?.width ?? layout.value.width;
+    const height = source?.height ?? layout.value.height;
+    return {
+        width: `${width}px`,
+        height: `${height}px`,
+        transform: `scale(${width > 0 ? layout.value.width / width : 1})`,
+    };
+});
 
 const toolbarStyle = computed(() => ({
     left: `${toolbarPosition.value.left}px`,
@@ -257,9 +282,11 @@ const draw = () => {
     const height = layout.value.height;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
-    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩, 选区处挖空
     context.drawImage(image, 0, 0, width, height);
+    // 冻结后只保留截图本身: 遮罩与选区高亮退场, 让扫描结果的蓝框成为唯一焦点
+    if (frozen.value) return;
 
+    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩, 选区处挖空
     const rect = selection.value;
     context.beginPath();
     context.rect(0, 0, width, height);
@@ -494,10 +521,28 @@ const cancel = () => {
 };
 
 const confirm = () => {
-    if (busy.value || !selection.value || !hasSelection.value) return;
-    const result = cropSelection(selection.value);
+    if (busy.value || frozen.value || !selection.value || !hasSelection.value) return;
+    const selectionRect = selection.value;
+    const result = cropSelection(selectionRect);
     if (!result) return;
-    emit('confirm', result);
+    // 选区是画布坐标, 浮窗模式下画布是缩小显示的, 按比例换算回视口坐标,
+    // 扫描后才能把码标在画面上对应的位置
+    const viewportWidth = viewport.value.width;
+    const viewportHeight = viewport.value.height;
+    const scaleX = viewportWidth / layout.value.width;
+    const scaleY = viewportHeight / layout.value.height;
+    // 确认后冻结框选: 扫描期间截图继续留在浮层上, 后续的蓝框也标在这张截图上
+    frozen.value = true;
+    emit('confirm', {
+        dataUrl: result,
+        rect: {
+            x: selectionRect.x * scaleX,
+            y: selectionRect.y * scaleY,
+            width: selectionRect.width * scaleX,
+            height: selectionRect.height * scaleY,
+        },
+        viewport: { width: viewportWidth, height: viewportHeight },
+    });
 };
 
 // 有选区时输出选区, 否则输出整张截图
@@ -540,7 +585,7 @@ const handleWheel = (event: WheelEvent) => {
 };
 
 const handlePointerDown = (event: PointerEvent) => {
-    if (busy.value || event.button !== 0) return;
+    if (busy.value || frozen.value || event.button !== 0) return;
     event.preventDefault();
     // 捕获指针, 保证在窗口外松开鼠标时也能收到 pointerup
     canvasRef.value?.setPointerCapture(event.pointerId);
@@ -617,6 +662,13 @@ const handleOutsidePointerDown = (event: PointerEvent) => {
     cancel();
 };
 
+// 冻结后点截图空白处收起浮层: 蓝点上的点选由按钮自己处理, 冒泡到这里时忽略
+const handleRootClick = (event: MouseEvent) => {
+    if (!frozen.value) return;
+    if (event.target instanceof Element && event.target.closest('.qr-marks-dot, button')) return;
+    cancel();
+};
+
 const handleKeyDown = (event: KeyboardEvent) => {
     if (!loaded.value || busy.value) return;
     if (event.key === 'Escape') {
@@ -678,7 +730,7 @@ watch(
 );
 
 watch(
-    [layout, selection, loaded],
+    [layout, selection, loaded, frozen],
     () => {
         draw();
         nextTick(updateToolbarPosition);
@@ -719,6 +771,16 @@ onBeforeUnmount(() => {
         resizeFrame = undefined;
     }
 });
+
+defineExpose({
+    // 扫描命中: 冻结后的截图上标出码的蓝框。viewport 是截图时的视口尺寸,
+    // 浮窗模式下据此把蓝框换算到当前显示区域
+    showResults(marks: ScanRect[], viewport: { width: number; height: number }) {
+        frozen.value = true;
+        sourceViewport.value = viewport;
+        resultMarks.value = marks;
+    },
+});
 </script>
 
 <template>
@@ -729,9 +791,11 @@ onBeforeUnmount(() => {
         :class="{
             'qr-shot--floating': floatingMode,
             'qr-shot--animating': busy,
+            'qr-shot--frozen': frozen,
         }"
-        :style="[rootStyle, { cursor: busy ? 'default' : cursor }]"
-        @wheel="handleWheel">
+        :style="[rootStyle, { cursor: busy || frozen ? 'default' : cursor }]"
+        @wheel="handleWheel"
+        @click="handleRootClick">
         <!-- 截图框选画布 -->
         <canvas
             ref="canvasRef"
@@ -740,6 +804,13 @@ onBeforeUnmount(() => {
             :height="pixelHeight"
             :style="canvasStyle"
             @pointerdown="handlePointerDown" />
+        <!-- 扫描结果直接标在冻结的截图上: 蓝框按截图时的视口坐标换算到浮层当前显示区域 -->
+        <div
+            v-if="frozen && resultMarks.length"
+            class="qr-shot-marks"
+            :style="marksLayerStyle">
+            <ScanMarks :rects="resultMarks" @pick="emit('pick', $event)" />
+        </div>
         <!-- 截图闪光效果容器 -->
         <div v-if="flashing" class="qr-shot-flash" aria-hidden="true">
             <span class="qr-shot-flash-edge edge-top" />
@@ -869,6 +940,15 @@ onBeforeUnmount(() => {
                 @click="cancel"
             >×</button>
         </div>
+        <!-- 冻结后只留关闭: 结果已经标在截图上, 点空白或按 Esc 也能收起 -->
+        <div v-else-if="loaded && frozen" class="qr-shot-actions">
+            <button
+                class="qr-shot-close"
+                type="button"
+                :aria-label="t('closeBtn', 'Close')"
+                @click="cancel"
+            >×</button>
+        </div>
         <!-- 截图工具栏: 取消 / 确认 -->
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
             <!-- 取消按钮 -->
@@ -903,6 +983,19 @@ onBeforeUnmount(() => {
 .qr-shot-canvas {
     display: block;
     touch-action: none;
+}
+
+/* 冻结后让出一层: 页面内的兜底通知与扫描动画要能盖在截图之上, 否则会被挡住 */
+.qr-shot--frozen {
+    z-index: 2147483646;
+}
+
+/* 结果蓝框层: 按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域 */
+.qr-shot-marks {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
 }
 
 /* 页面全局样式会泄漏进注入的 UI（如 example.com 的 svg 外边距规则），把图标拉回原位 */
