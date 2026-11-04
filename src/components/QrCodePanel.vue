@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
 import { copyImageDataUrl } from '@/services/clipboardImage';
+import { svgToPngDataUrl } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
 // 二维码生成面板: 默认只显示二维码, 点二维码展开输入框
@@ -24,7 +25,7 @@ const text = computed({
     set: (value: string) => emit('update:modelValue', value),
 });
 
-const { dataUrl, error } = useQrCode(text);
+const { svg, svgDataUrl, error } = useQrCode(text);
 
 const inputRef = ref<HTMLInputElement>();
 const expanded = ref(!props.collapsible);
@@ -39,7 +40,7 @@ function toggleExpanded() {
     if (props.collapsible) expanded.value = !expanded.value;
 }
 
-// 悬停工具的复制按钮就地反馈结果: 成功换成对勾, 失败换回图标并短暂给出失败提示
+// 抽屉里复制按钮就地反馈结果: 成功换成对勾, 失败换回图标并短暂给出失败提示
 const copyState = ref<'idle' | 'done' | 'failed'>('idle');
 let copyTimer: number | undefined;
 
@@ -59,16 +60,29 @@ const copyLabel = computed(() => {
 });
 
 async function copyQrCode() {
-    if (!dataUrl.value) return;
-    setCopyState((await copyImageDataUrl(dataUrl.value)) ? 'done' : 'failed');
+    if (!svg.value) return;
+    // 剪贴板只接受位图: 复制前把预览用的 SVG 光栅化成带白底的 PNG
+    try {
+        const png = await svgToPngDataUrl(svg.value);
+        setCopyState((await copyImageDataUrl(png)) ? 'done' : 'failed');
+    } catch {
+        setCopyState('failed');
+    }
 }
 
-function downloadQrCode() {
-    if (!dataUrl.value) return;
-    const link = document.createElement('a');
-    link.href = dataUrl.value;
-    link.download = `${t('qrFileName')}.png`;
-    link.click();
+// 预览本身就是 SVG, 需要矢量图直接在图上右键另存; 下载按钮只导出 PNG,
+// 以免二维码被当成图片贴到聊天/文档里时因为透明背景看不清
+async function downloadQrCode() {
+    if (!svg.value) return;
+    try {
+        const href = await svgToPngDataUrl(svg.value);
+        const link = document.createElement('a');
+        link.href = href;
+        link.download = `${t('qrFileName')}.png`;
+        link.click();
+    } catch {
+        // 光栅化失败时宁可不下载, 也不要落一个坏文件
+    }
 }
 
 onBeforeUnmount(() => {
@@ -79,10 +93,11 @@ onBeforeUnmount(() => {
 <template>
     <section class="qr-panel" :class="{ 'qr-panel--compact': !expanded }">
         <div class="qr-panel-preview">
+            <!-- 渲染成 <img> 而不是内联 SVG: 只有图片内容才有右键「图片另存为」 -->
             <img
-                v-if="dataUrl"
+                v-if="svgDataUrl"
                 class="qr-panel-image"
-                :src="dataUrl"
+                :src="svgDataUrl"
                 :alt="text"
                 :title="text"
             />
@@ -99,35 +114,6 @@ onBeforeUnmount(() => {
                 :title="expanded ? t('collapseEditor') : t('moreOptions')"
                 @click="toggleExpanded"
             ></button>
-
-            <!-- 悬停二维码时右下角浮出复制 / 下载 / 展开 -->
-            <div v-if="dataUrl" class="qr-panel-tools">
-                <button
-                    class="qr-panel-tool qr-panel-tool--copy"
-                    :class="{ 'qr-panel-tool--copied': copyState === 'done' }"
-                    type="button"
-                    :aria-label="copyLabel"
-                    :title="copyLabel"
-                    @click="copyQrCode"
-                ></button>
-                <button
-                    class="qr-panel-tool qr-panel-tool--download"
-                    type="button"
-                    :aria-label="t('qrDownload')"
-                    :title="t('qrDownload')"
-                    @click="downloadQrCode"
-                ></button>
-                <button
-                    v-if="collapsible"
-                    class="qr-panel-tool"
-                    :class="expanded ? 'qr-panel-tool--collapse' : 'qr-panel-tool--expand'"
-                    type="button"
-                    :aria-expanded="expanded"
-                    :aria-label="expanded ? t('collapseEditor') : t('moreOptions')"
-                    :title="expanded ? t('collapseEditor') : t('moreOptions')"
-                    @click="toggleExpanded"
-                ></button>
-            </div>
         </div>
 
         <Transition name="qr-drawer">
@@ -144,6 +130,29 @@ onBeforeUnmount(() => {
                             :placeholder="t('qrInputPlaceholder')"
                             @focus="selectOnFocus"
                         />
+
+                        <!-- 复制 / 下载收进抽屉: 悬停浮层会挡住二维码热区, 也不便在触屏上触发 -->
+                        <div v-if="svgDataUrl" class="qr-panel-actions">
+                            <button
+                                class="qr-panel-action"
+                                :class="
+                                    copyState === 'done'
+                                        ? 'qr-panel-action--copied'
+                                        : 'qr-panel-action--copy'
+                                "
+                                type="button"
+                                :aria-label="copyLabel"
+                                :title="copyLabel"
+                                @click="copyQrCode"
+                            ></button>
+                            <button
+                                class="qr-panel-action qr-panel-action--download"
+                                type="button"
+                                :aria-label="t('qrDownloadPng')"
+                                :title="t('qrDownloadPng')"
+                                @click="downloadQrCode"
+                            ></button>
+                        </div>
 
                         <div class="qr-panel-actions">
                             <button
@@ -177,12 +186,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .qr-panel {
-    /* 悬停工具的图标: 复制 / 下载 / 展开收起 / 复制成功 */
-    --qr-copy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5.5' y='5.5' width='8' height='8' rx='1.5'/%3E%3Cpath d='M10.5 3.5h-6A1.5 1.5 0 0 0 3 5v6'/%3E%3C/svg%3E");
-    --qr-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2.5v7'/%3E%3Cpath d='m5 6.5 3 3 3-3'/%3E%3Cpath d='M3 12.5h10'/%3E%3C/svg%3E");
-    --qr-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
-    --qr-chevron-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 10 4-4 4 4'/%3E%3C/svg%3E");
-    --qr-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-7'/%3E%3C/svg%3E");
+    /* 二维码结果动作图标: 复制 / 下载 / 复制成功 */
+    --qr-copy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5.5' y='5.5' width='8' height='8' rx='1.5'/%3E%3Cpath d='M10.5 3.5h-6A1.5 1.5 0 0 0 3 5v6'/%3E%3C/svg%3E");
+    --qr-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2.5v7'/%3E%3Cpath d='m5 6.5 3 3 3-3'/%3E%3Cpath d='M3 12.5h10'/%3E%3C/svg%3E");
+    --qr-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-7'/%3E%3C/svg%3E");
     /* 扫码入口图标: 图片 / 屏幕 / 摄像头, 画成单色由 currentColor 上色 */
     --qr-scan-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='2.5' width='12' height='11' rx='1.5'/%3E%3Ccircle cx='5.5' cy='6' r='1'/%3E%3Cpath d='m2.5 11.5 3.2-3.2 2.4 2.4 2-2 3.4 3.4'/%3E%3C/svg%3E");
     --qr-scan-screen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1.5' y='2.5' width='13' height='9' rx='1.5'/%3E%3Cpath d='M8 11.5v2'/%3E%3Cpath d='M5.5 14h5'/%3E%3Cpath d='M4.5 7h7'/%3E%3C/svg%3E");
@@ -214,7 +221,6 @@ onBeforeUnmount(() => {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    image-rendering: pixelated;
 }
 
 .qr-panel-hint,
@@ -312,6 +318,18 @@ onBeforeUnmount(() => {
     --qr-action-icon: var(--qr-scan-camera);
 }
 
+.qr-panel-action--copy {
+    --qr-action-icon: var(--qr-copy);
+}
+
+.qr-panel-action--copied {
+    --qr-action-icon: var(--qr-check);
+}
+
+.qr-panel-action--download {
+    --qr-action-icon: var(--qr-download);
+}
+
 .qr-panel-input {
     box-sizing: border-box;
     width: 100%;
@@ -347,82 +365,5 @@ onBeforeUnmount(() => {
 .qr-panel-toggle:focus-visible {
     outline: 2px solid #93c5fd;
     outline-offset: -1px;
-}
-
-/* 悬停或键盘进入时右下角浮出工具条; 工具条本身不挡热区, 只有按钮可点 */
-.qr-panel-tools {
-    position: absolute;
-    right: 6px;
-    bottom: 6px;
-    display: flex;
-    gap: 4px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 120ms ease;
-}
-
-.qr-panel-preview:hover .qr-panel-tools,
-.qr-panel-preview:focus-within .qr-panel-tools {
-    opacity: 1;
-}
-
-/* 只在工具条可见时接收点击, 避免不可见按钮挡住二维码热区 */
-.qr-panel-preview:hover .qr-panel-tool,
-.qr-panel-preview:focus-within .qr-panel-tool {
-    pointer-events: auto;
-}
-
-.qr-panel-tool {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    color: #ffffff;
-    pointer-events: none;
-    background: rgba(15, 23, 42, 0.72);
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 120ms ease;
-}
-
-.qr-panel-tool:hover {
-    background: rgba(15, 23, 42, 0.9);
-}
-
-.qr-panel-tool:focus-visible {
-    outline: 2px solid #93c5fd;
-    outline-offset: 1px;
-}
-
-.qr-panel-tool::before {
-    content: '';
-    width: 14px;
-    height: 14px;
-    background: currentColor;
-    -webkit-mask: var(--qr-tool-icon) center / 14px 14px no-repeat;
-    mask: var(--qr-tool-icon) center / 14px 14px no-repeat;
-}
-
-.qr-panel-tool--copy {
-    --qr-tool-icon: var(--qr-copy);
-}
-
-.qr-panel-tool--copied {
-    --qr-tool-icon: var(--qr-check);
-}
-
-.qr-panel-tool--download {
-    --qr-tool-icon: var(--qr-download);
-}
-
-.qr-panel-tool--expand {
-    --qr-tool-icon: var(--qr-chevron-down);
-}
-
-.qr-panel-tool--collapse {
-    --qr-tool-icon: var(--qr-chevron-up);
 }
 </style>

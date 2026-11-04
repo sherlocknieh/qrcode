@@ -335,9 +335,9 @@
     "message": "Copy QR Code",
     "description": "Tooltip of the button that copies the QR code image"
   },
-  "qrDownload": {
-    "message": "Download QR Code",
-    "description": "Tooltip of the button that downloads the QR code image"
+  "qrDownloadPng": {
+    "message": "Download PNG",
+    "description": "Tooltip of the button that downloads the QR code as PNG"
   },
   "qrFileName": {
     "message": "QR Code",

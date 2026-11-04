@@ -335,9 +335,9 @@
     "message": "复制二维码",
     "description": "复制二维码图片的按钮提示"
   },
-  "qrDownload": {
-    "message": "下载二维码",
-    "description": "下载二维码图片的按钮提示"
+  "qrDownloadPng": {
+    "message": "下载 PNG 图片",
+    "description": "下载二维码 PNG 图片的按钮提示"
   },
   "qrFileName": {
     "message": "二维码",
