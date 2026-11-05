@@ -48,7 +48,7 @@
     "description": "摄像头扫描页面的标题"
   },
   "scanLocalImage": {
-    "message": "扫描本地图片",
+    "message": "粘贴本地图片",
     "description": "工具栏图标右键菜单项：在当前页面打开扫描面板，上传或粘贴图片"
   },
   "cameraHint": {

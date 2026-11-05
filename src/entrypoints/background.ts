@@ -259,7 +259,7 @@ export default defineBackground(() => {
             // 添加菜单: 扫描本地图片
             browser.contextMenus.create({
                 id: "scanLocalImage",
-                title: menuTitle("scanLocalImage", "🏞️"),
+                title: menuTitle("scanLocalImage", "📋"),
                 contexts: ["action", "page_action"],
                 ...menuIcons("image")
             });
