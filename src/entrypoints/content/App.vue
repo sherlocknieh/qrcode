@@ -23,17 +23,37 @@ import type { ScanRect } from '@/components/ScanOverlay.vue';
 const { startScreenshot } = useScreenshot();
 let clearActiveMarks = () => {};
 const { notify, notifyFetching, notifyPickedResults, notifyResults, host } = useNoticeFallback({
-    onLocalNoticeDone: () => clearActiveMarks(),
+    onLocalNoticeDone: () => onNoticeDone(),
 });
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
 
 // 命中码后统一在画面上叠蓝点: 网页图片按图片实时位置定位; 整屏扫描改用截图容器承载结果
-const picker = useCodePicker({ notifyResults });
+// 点选产生的通知要单独标记: 关掉它只是看完其中一个码, 画面上还有码没点就继续留着
+let pickedNotice = false;
+const picker = useCodePicker({
+    notifyResults: (results) => {
+        pickedNotice = true;
+        return notifyResults(results);
+    },
+});
 const marks = picker.marks;
 const marksAnchor = picker.anchorElement;
 const pickMark = picker.pick;
 const clearMarks = picker.clear;
+
+// 结果通知结束: 多码点选还有蓝点就留着继续点, 都看过之后清掉标记并收起该收的截图浮层
+function onNoticeDone() {
+    const keepOpen = pickedNotice
+        && (marks.value.length > 0 || (activeShot !== null && !closeShotOnNotice));
+    pickedNotice = false;
+    if (keepOpen) return;
+    clearActiveMarks();
+    if (!closeShotOnNotice) return;
+    closeShotOnNotice = false;
+    activeShot?.close();
+    activeShot = null;
+}
 
 // 码都在图标实际显示的区域里定位: 可定位的码叠蓝点, 多条结果只留蓝点, 点哪条出哪条的通知
 function showResults(outcome: Extract<DecodeOutcome, { status: 'ok' }>, anchor: PickAnchor) {
@@ -48,11 +68,14 @@ const mainProcess = (
     sendResponse: (response?: { success: boolean }) => void,
 ) => {
     if (message.action === 'notificationResolved') {
-        clearActiveMarks();
-        return;
+        onNoticeDone();
+        sendResponse({ success: true });
+        return false;
     }
     // 新一轮扫描开始: 先收起上一张冻结的截图, 否则旧结果会挡住新的提示与蓝点
     if (message.action !== undefined) {
+        pickedNotice = false;
+        closeShotOnNotice = false;
         activeShot?.close();
         activeShot = null;
     }
@@ -192,6 +215,9 @@ async function handleImageUrl(imageUrl: string) {
 let screenshotEpoch = 0;
 // 当前留在页面上的截图浮层: 新一轮截图先收起它, 避免多张截图叠在一起
 let activeShot: ScreenshotSession | null = null;
+// 全屏扫描的截图是否随结果通知一起收起:
+// 单码的通知就是结果展示; 多码要等最后一个蓝点被点掉, 关闭那条通知后才收起
+let closeShotOnNotice = false;
 clearActiveMarks = () => {
     clearMarks();
     activeShot?.clearResults();
@@ -232,6 +258,8 @@ async function openShotSession(
     // 点蓝点时用的结果: 与容器里的蓝框一一对应, 只能放可定位的码
     const seedResults = (found ?? []).filter((result) => result.bounds);
     let results: DecodeResult[] = seedResults;
+    // 单码结果的通知就是这次展示, 关掉通知即可收起截图; 多码等最后一个蓝点被点掉
+    closeShotOnNotice = seedResults.length === 1;
     // 框选轮次: 用户在结果画面上再框一块时, 前一轮的结果作废
     let captureSeq = 0;
     let shot: ScreenshotSession | null = null;
@@ -248,11 +276,14 @@ async function openShotSession(
         // 整轮扫描已结束, 或这次框选被下一次框选取代: 不覆盖画面
         if (epoch !== screenshotEpoch || seq !== captureSeq) return;
         if (outcome.status !== 'ok') {
+            // 没扫到: 留住截图让用户接着框选, 通知结束也不收起
+            closeShotOnNotice = false;
             shot.clearResults();
             return;
         }
         // 蓝框只标可定位的码, 点选按下标取结果时两边要保持同一份列表
         results = outcome.results.filter((result) => result.bounds);
+        closeShotOnNotice = outcome.results.length <= 1;
         // 识别结束后只收起这次的选区高亮, 结果蓝框蓝点要继续留在冻结的截图上供点选;
         // 早先这里清掉整层结果, 多码点选就跟着消失了
         shot.showResults(toMarkRects(results, {
@@ -279,6 +310,8 @@ async function openShotSession(
                 // 点一个撤一个: 已看过的码不必再把蓝框留在结果画面上
                 results = results.filter((_, resultIndex) => resultIndex !== index);
                 shot?.removeResult(index);
+                // 点掉最后一个可点的码: 这条通知关掉后收起截图, 回到页面
+                closeShotOnNotice = results.length === 0;
             },
             onCapture: (capture) => void scanCapture(capture),
             onError: () => void notifyScreenshotError({ type: 'failed' }),

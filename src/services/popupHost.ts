@@ -2,6 +2,7 @@
 // popup 是否打开只能由后台感知 (长连接 + openPopup 的返回时机), 所以这一整块状态收在这里,
 // 入口文件只负责把拿到的消息转进来
 import { closeTabAndReturn } from '@/services/background/extensionTabs';
+import { sendTabAction } from '@/services/messaging';
 import {
     POPUP_NOTICE_KEY,
     type PopupNoticePayload,
@@ -59,6 +60,8 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         if (!current) return;
         if (id != null && current.id !== id) return;
         await storageArea().remove(POPUP_NOTICE_KEY);
+        // 通知结束也告诉发起它的页面: 内容脚本据此清掉扫描标记, 全屏扫描的截图浮层随结果通知收起
+        void sendTabAction(current.sourceTabId, 'notificationResolved', { id: current.id });
         if (current.closeTabId != null) await closeTab(current.closeTabId);
     };
 
@@ -74,6 +77,7 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
             ...payload,
             id: ++noticeSeq,
             closeTabId: payload.closeOriginTab ? sourceTabId : undefined,
+            sourceTabId,
         };
         await storageArea().set({ [POPUP_NOTICE_KEY]: record });
 

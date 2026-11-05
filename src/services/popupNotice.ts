@@ -41,6 +41,8 @@ export interface PopupNoticeRecord extends PopupNoticePayload {
     id: number;
     // 通知结束后要关闭的标签页, 仅在 closeOriginTab 为 true 时记录
     closeTabId?: number;
+    // 发起通知的标签页: 通知结束时通知它收尾 (清扫描标记、收起全屏扫描的截图浮层)
+    sourceTabId?: number;
 }
 
 // 交给 popup 显示; 返回 false 表示 popup 不可用, 调用方应回退到页面内通知
