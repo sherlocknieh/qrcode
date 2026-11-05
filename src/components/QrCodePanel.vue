@@ -207,11 +207,11 @@ onBeforeUnmount(() => {
 
                         <div class="qr-panel-actions">
                             <button
-                                class="qr-panel-action qr-panel-action--image"
+                                class="qr-panel-action qr-panel-action--camera"
                                 type="button"
-                                :aria-label="t('scanLocalImage')"
-                                :title="t('scanLocalImage')"
-                                @click="emit('scan', 'image')"
+                                :aria-label="t('scanCamera')"
+                                :title="t('scanCamera')"
+                                @click="emit('scan', 'camera')"
                             ></button>
                             <button
                                 class="qr-panel-action qr-panel-action--screen"
@@ -221,11 +221,11 @@ onBeforeUnmount(() => {
                                 @click="emit('scan', 'screen')"
                             ></button>
                             <button
-                                class="qr-panel-action qr-panel-action--camera"
+                                class="qr-panel-action qr-panel-action--image"
                                 type="button"
-                                :aria-label="t('scanCamera')"
-                                :title="t('scanCamera')"
-                                @click="emit('scan', 'camera')"
+                                :aria-label="t('scanLocalImage')"
+                                :title="t('scanLocalImage')"
+                                @click="emit('scan', 'image')"
                             ></button>
                         </div>
                     </div>
