@@ -84,7 +84,7 @@ Agent 调试时用户大概率已经打开 pnpm dev ， Agent 直接复用该 de
 
 `@/` 指向 `src/`（WXT 自动生成，见 `.wxt/tsconfig.json`）。`.wxt/`、`.output/`、`node_modules/` 是产物目录，不要手改。
 
-面板交互约束（别丢）：`QrCodePanel` 在 popup 里 `collapsible` 默认收起，入口是整块二维码热区（点击切换、键盘聚焦可切换且带描边，不再有箭头图标），两态尺寸与留白一致，输入框未聚焦时只显示占位提示、聚焦才露出当前文字（值不随失焦清空，二维码照旧），聚焦即全选（复制走键盘，不再内嵌复制按钮），编辑区用 `grid-template-rows: 0fr → 1fr` 撑高、内容留在顶部原地显形（别再让内容跟着外框平移或叠 `transform`：内容不动就不必逐帧重排重绘，火狐弹窗才不卡；也别写死高度、别改成绝对/固定定位——那样会撑出可滚动区域，弹窗窗口缩不回来），弹窗里禁掉 `html` 滚动条（动画期间文档比窗口高，不裁会闪滚动条），二维码展开时带底部投影表示压在上面，展开态在输入框下方依次提供复制 / 下载（PNG 带白底、SVG 透明背景，下载图标 + 格式缩写区分两者）与图片 / 屏幕 / 摄像头扫码入口（复制 / 下载收进抽屉，不再做悬停浮层）；`ScanPanel` 两源共用固定深色 4:3 取景框 + 一行提示 + 一行按钮（换源尺寸不变），标题右侧切源，`variant` 决定自带遮罩（浮层）或原地渲染（独立页）。
+面板交互约束（别丢）：`QrCodePanel` 在 popup 里 `collapsible` 默认收起，入口是整块二维码热区（点击切换、键盘聚焦可切换且带描边，不再有箭头图标），两态尺寸与留白一致，抽屉内容与二维码同宽（它是纵向 flex 的子项，不写满宽度就会按输入框固有宽度收缩、两侧多出一圈空白），输入框未聚焦时只显示占位提示、聚焦才露出当前文字（值不随失焦清空，二维码照旧），手动改过之后失焦也保持显示（否则刚输入的文字像没生效），聚焦不做全选，占位提示用文本框（textarea）显示整句、不缩字号，文本框高度随内容行数长高（下限一行、超过 `25vh` 转框内滚动；空值时 `scrollHeight` 已含换行后的提示高度，别再加两行下限），编辑区用 `grid-template-rows: 0fr → 1fr` 撑高、内容留在顶部原地显形（别再让内容跟着外框平移或叠 `transform`：内容不动就不必逐帧重排重绘，火狐弹窗才不卡；也别写死高度、别改成绝对/固定定位——那样会撑出可滚动区域，弹窗窗口缩不回来），弹窗里禁掉 `html` 滚动条（动画期间文档比窗口高，不裁会闪滚动条），二维码展开时带底部投影表示压在上面，展开态在输入框下方依次提供复制 / 下载（PNG 带白底、SVG 透明背景，下载图标 + 格式缩写区分两者）与图片 / 屏幕 / 摄像头扫码入口（复制 / 下载收进抽屉，不再做悬停浮层）；`ScanPanel` 两源共用固定深色 4:3 取景框 + 一行提示 + 一行按钮（换源尺寸不变），标题右侧切源，`variant` 决定自带遮罩（浮层）或原地渲染（独立页）。
 
 ## 运行时架构
 
@@ -154,6 +154,7 @@ flowchart LR
 - **页面全局 CSS 会泄漏进注入 UI**：如 `example.com` 的 `svg { margin: -2.75em auto 0; opacity: .55 }` 会把图标顶到按钮外；新增图标时在 `.qr-shot` / `.qr-notify-root` / `.qr-picker-icon` 上声明完整 `margin` 与 `opacity`。
 - **独立 SVG/XML 文档不要挂 integrated UI**：直接打开的 `.svg`（如 `https://app.trakt.tv/favicon.svg`）里 `document.createElement('div')` 没有 `.style`，`createIntegratedUi` 会在 `applyPosition` 设 `overflow` 时抛 `Cannot set properties of undefined`。`content/index.ts` 已在 `main()` 开头做能力检查跳过这类文档，扫描交 popup / `capture.html`，不要删。
 - **开发时固定图标**：未打包扩展的 pin 只在内存里，写 `.wxt/dev-profile/.../Preferences` 的 `extensions.pinned_extensions` 无效；只能由 `.dev/pin-dev-extension.mjs` 运行时调 `chrome.developerPrivate.updateExtensionConfiguration`。改这段前先用 CDP 实测。
+- **Chrome/Edge 的 popup 在 Linux 上打不了中文**：Chromium 的扩展弹窗是独立原生窗口，Linux 下 ibus/fcitx 挂不上去，输入框里只能输英文（Firefox 正常，同一份 `popup.html` 用标签页打开也正常）。这是浏览器层面的限制，改焦点处理、composition 事件或 `value` 绑定都不会有效果，别为此加平台探测；需要中文输入时把扩展页当标签页打开，或先把文字复制好再粘贴。
 - **开发端口号变化**：开发时使用的端口号变化时，浏览器可能会无法加载最新版本的扩展。需要卸载旧扩展再重新加载。
 
 ## 完成标准

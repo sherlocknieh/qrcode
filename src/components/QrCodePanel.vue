@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
 import { copyImageDataUrl } from '@/services/clipboardImage';
 import { toSvgDataUrl } from '@/services/qrCode';
@@ -27,26 +27,49 @@ const text = computed({
 
 const { svg, dataUrl, error } = useQrCode(text);
 
-const inputRef = ref<HTMLInputElement>();
+const inputRef = ref<HTMLTextAreaElement>();
 const expanded = ref(!props.collapsible);
 
-// 输入框平时只显示占位提示, 聚焦后才露出当前文字: 二维码下方不被长链接撑成一大段文字,
-// 值本身始终留在 text 里, 失焦不清空, 二维码不受影响
+// 输入框平时只显示占位提示, 聚焦后才露出当前文字 (预填的长链接不占着位置);
+// 用户亲手改过之后就一直显示内容, 失焦不再退回提示语, 否则刚输入的文字像是没生效
 const inputFocused = ref(false);
+const inputEdited = ref(false);
 
 function onInputInput(event: Event) {
-    text.value = (event.target as HTMLInputElement).value;
+    inputEdited.value = true;
+    text.value = (event.target as HTMLTextAreaElement).value;
 }
 
 function onInputFocus() {
     inputFocused.value = true;
-    // 浏览器在 focus 的默认动作里会重设光标位置, 等一帧再全选
-    requestAnimationFrame(() => inputRef.value?.select());
 }
 
 function onInputBlur() {
     inputFocused.value = false;
 }
+
+// 文本框按内容行数长高: 多行文本整段看得见, 不用在框里滚动.
+// 空值时 scrollHeight 已含换行后的占位提示高度 (Chrome / Firefox 实测), 所以下限写一行即可.
+// 先归零才能让 scrollHeight 反映真实内容高度, 再加上边框, 否则 border-box 会矮 2px
+function fitInputHeight() {
+    const input = inputRef.value;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
+}
+
+// 显示出来的内容变了 (含聚焦态切换与外部换文本) 与抽屉展开时都要重算
+watch(
+    [() => (inputFocused.value || inputEdited.value ? text.value : ''), expanded],
+    async () => {
+        if (!expanded.value) return;
+        await nextTick();
+        fitInputHeight();
+    },
+    { flush: 'post' },
+);
+
+onMounted(fitInputHeight);
 
 // 二维码整块就是展开/收起入口, 没有再叠一个可见按钮
 function toggleExpanded() {
@@ -121,18 +144,19 @@ onBeforeUnmount(() => {
             <div v-if="expanded" class="qr-panel-drawer">
                 <div class="qr-panel-drawer-clip">
                     <div class="qr-panel-expanded">
-                        <input
+                        <!-- 文本框: 高度随内容行数长高, 占位提示换行也整句可见 -->
+                        <textarea
                             id="qr-panel-input"
                             ref="inputRef"
-                            :value="inputFocused ? text : ''"
+                            :value="inputFocused || inputEdited ? text : ''"
                             class="qr-panel-input"
-                            type="text"
+                            rows="1"
                             spellcheck="false"
                             :placeholder="t('qrInputPlaceholder')"
                             @input="onInputInput"
                             @focus="onInputFocus"
                             @blur="onInputBlur"
-                        />
+                        ></textarea>
 
                         <!-- 复制 / 下载收进抽屉: 悬停浮层会挡住二维码热区, 也不便在触屏上触发 -->
                         <div v-if="dataUrl" class="qr-panel-actions">
@@ -276,10 +300,13 @@ onBeforeUnmount(() => {
 
 /* 展开区按 grid 行高 0fr → 1fr 撑开: 内容始终在顶部, 窗口拉多高就露出多少,
    不会随外框平移 —— 内容每帧不用重排重绘, 也省掉火狐上那层逐帧重画的开销.
-   想再叠 transform 平移做抽屉的话, 位移曲线跟 grid 实际撑高对不上, 底边会被切掉. */
+   想再叠 transform 平移做抽屉的话, 位移曲线跟 grid 实际撑高对不上, 底边会被切掉.
+   宽度必须写满: .qr-panel 是 align-items: center 的纵向 flex, 子项默认按内容收缩,
+   抽屉会被输入框的固有宽度缩成一条窄带, 两边留出比 padding 厚得多的空白 */
 .qr-panel-drawer {
     display: grid;
     grid-template-rows: 1fr;
+    width: 100%;
     transition: grid-template-rows 220ms ease;
 }
 
@@ -373,9 +400,15 @@ onBeforeUnmount(() => {
     letter-spacing: 0.04em;
 }
 
+/* 高度下限一行 (1.5em 行高 + padding 与边框), 上限 25vh 后转为框内滚动,
+   抽屉不会跟着无限长; 实际高度由脚本按内容贴上去 */
 .qr-panel-input {
     box-sizing: border-box;
+    display: block;
     width: 100%;
+    min-height: calc(1.5em + 10px);
+    max-height: 25vh;
+    overflow-y: auto;
     padding: 4px 6px;
     font: inherit;
     font-size: 13px;
@@ -385,11 +418,12 @@ onBeforeUnmount(() => {
     border: 1px solid #cbd5e1;
     border-radius: 4px;
     outline: none;
+    resize: none;
 }
 
-/* 占位提示居中, 真正输入的文字仍靠左: 提示只在没有值时出现,
-   条目式对齐更好看, 也不影响编辑长文本时从左边开始读 */
-.qr-panel-input:placeholder-shown {
+/* 居中的只有未聚焦时的占位提示: 聚焦时若也让输入框居中, 清空内容后光标会停在正中间,
+   接着输入的字也从中间往外长; 聚焦态一律靠左, 提示语回到中间只在失焦后发生 */
+.qr-panel-input:placeholder-shown:not(:focus) {
     text-align: center;
 }
 
