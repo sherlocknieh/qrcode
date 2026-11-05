@@ -7,11 +7,6 @@ export type ExtensionPage = `/capture.html${string}` | `/upload.html${string}`;
 // tabs.remove 只会切到相邻标签, 需要记录来源页并手动切回去
 const ORIGIN_TABS_KEY = 'qrExtensionOriginTabs';
 
-export interface ExtensionTabsOptions {
-    // 打开失败时的提示 (toast 形态)
-    notifyError: (title: string, text?: string) => Promise<unknown>;
-}
-
 export interface ExtensionTabs {
     // 新标签紧挨着来源页打开, 以便关闭后回到原处 (而不是相邻标签页)
     open: (path: ExtensionPage, originTabId?: number) => Promise<boolean>;
@@ -22,7 +17,7 @@ export interface ExtensionTabs {
 }
 
 // 临时扩展页的开合与来源页记录: 允许同时存在多个临时标签页, 因此按标签 id 存一张映射表
-export const createExtensionTabs = ({ notifyError }: ExtensionTabsOptions): ExtensionTabs => {
+export const createExtensionTabs = (): ExtensionTabs => {
     // 取来源页的窗口与位置: 传了 index 才会紧挨源页, 否则 tabs.create 会追加到标签栏末尾
     const resolvePlacement = async (
         originTabId?: number,
@@ -67,10 +62,8 @@ export const createExtensionTabs = ({ notifyError }: ExtensionTabsOptions): Exte
             if (tab?.id != null) await rememberOrigin(tab.id, originTabId);
             return true;
         } catch (error) {
-            await notifyError(
-                browser.i18n.getMessage('error'),
-                error instanceof Error ? error.message : String(error),
-            );
+            // 打开失败不再弹通知: 调用方只关心成败, 原因留在控制台供排查
+            console.warn('[qrcode] 打开临时扩展页失败:', error);
             return false;
         }
     };

@@ -1,13 +1,10 @@
 import type { ExtensionPage } from '@/services/background/extensionTabs';
-import { describeImageError } from '@/services/decodeResultNotice';
 import { storageArea } from '@/services/storage';
 
 // 后台截取的视口图, 由 capture.html 读取后立即删除
 const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 
 export interface ScreenScanOptions {
-    // 失败时的提示 (toast 形态)
-    notifyError: (title: string, text?: string) => Promise<unknown>;
     openExtensionPage: (path: ExtensionPage, originTabId?: number) => Promise<boolean>;
     // 内容脚本可能未注入 (PDF、SVG 等), 统一处理发送异常与回执
     tryContentAction: (tabId: number | undefined, action: string) => Promise<boolean>;
@@ -34,7 +31,7 @@ export const isSvgDocumentUrl = (url?: string) => {
 };
 
 export const createScreenScan = (
-    { notifyError, openExtensionPage, tryContentAction }: ScreenScanOptions,
+    { openExtensionPage, tryContentAction }: ScreenScanOptions,
 ): ScreenScan => {
     const capture = (windowId?: number): Promise<string> => windowId == null
         ? browser.tabs.captureVisibleTab({ format: 'png' })
@@ -46,12 +43,9 @@ export const createScreenScan = (
         try {
             dataUrl = await capture(windowId);
         } catch (error) {
-            await notifyError(
-                browser.i18n.getMessage('screenshotFailed'),
-                error instanceof Error
-                    ? describeImageError(error)
-                    : browser.i18n.getMessage('screenshotFailedMsg'),
-            );
+            // 截图失败不再弹通知: 最常见的原因是标签页没有 activeTab 授权,
+            // 调用方只拿到 false, 原因留在控制台供排查
+            console.warn('[qrcode] 截取视口失败:', error);
             return false;
         }
         // 截图体积较大, 交给扩展页面读取后立即清除

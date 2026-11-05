@@ -30,7 +30,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 - 手机调试只支持 Firefox for Android（Chromium 系手机浏览器基本不支持扩展）：手机开 USB 调试并授权后跑 `pnpm dev:android`，脚本自动找 adb（`ADB_BIN` 可覆盖，默认按 `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `~/Android/Sdk` 探测），`ANDROID_DEVICE` 指定多设备里的哪台，`FIREFOX_APK` 换 Nightly 等包名。桌面 Firefox 不会被拉起，装包与设备连接由 [.dev/android.mjs](./.dev/android.mjs) 负责（重装重跑命令，外壳脚本不再接管 `o` 键）；热更新复用 WXT dev server（端口 3000 经 `adb reverse` 打通），所以 web-ext 那边关了自带的 reload。
 - 无线调试同一套流程：Android 11+ 在开发者选项里开「无线调试」→ `adb pair <ip>:<配对端口>` 输配对码 → `adb connect <ip>:<调试端口>`，`adb devices` 出现 `ip:port` 后脚本下一轮轮询就会自动安装（换设备时 `ANDROID_DEVICE=<ip>:port`）。`adb reverse` 走 adb 隧道，无线下热更新同样有效。
 
-Agent 调试时用户大概率已经打开 pnpm dev ， Agent 直接用 `http://localhost:3001`（Chrome / Edge）或 `http://localhost:3000`（Firefox）访问 dev server，热更新生效。
+Agent 调试时用户大概率已经打开 pnpm dev ， Agent 直接复用该 dev server 在该浏览器上调试，无需自行打开 dev server。 有特殊的元素访问需求时可使用 vscode 内置浏览器调试。
 
 
 ## 目录导航
