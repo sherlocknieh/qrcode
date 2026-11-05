@@ -3,7 +3,7 @@
   "version": "1.9.3",
   "type": "module",
   "scripts": {
-    "dev": "node .dev/dev.mjs",
+    "dev": "node .dev/chrome.mjs",
     "dev:firefox": "wxt -b firefox --mv3",
     "dev:android": "node .dev/android.mjs",
     "build": "wxt zip",

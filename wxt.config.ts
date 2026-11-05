@@ -47,13 +47,14 @@ export default defineConfig({
     binaries: binary ? { [devBrowser]: binary } : undefined, // 由 CHROME_BINARY 等环境变量传入
     // 调试时自动打开哪些页面
     startUrls: androidDebug ? [] : [
-      // 'about:newtab',  // 新标签页
+      'about:newtab',  // 新标签页
       'https://inftab.com/',
       'https://en.wikipedia.org/wiki/QR_code',
       'https://en.wikipedia.org/wiki/Barcode',
-      pathToFileURL(resolve('.dev/codes.pdf')).href,
       'https://www.deepseek.com/images/app-qrcode.png',
       'https://app.trakt.tv/favicon.svg',
+      'https://pdfobject.com/pdf/sample.pdf',
+      pathToFileURL(resolve('.dev/codes.pdf')).href,
     ],
   },
   manifest: ({ browser }) => ({
