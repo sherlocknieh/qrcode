@@ -65,6 +65,25 @@ export function errorNoticeWithScreenshot(
     };
 }
 
+// 取图迟迟没有结果 (跨域/防盗链图片卡在下载上) 时换成这条提示:
+// 继续干等没有意义, 就地给出"扫描屏幕"这个总能成功的出口
+export const FETCH_TIMEOUT_MS = 5000;
+
+export function fetchTimeoutNotice(): PopupNoticePayload {
+    return {
+        options: {
+            toast: false,
+            icon: 'warning',
+            title: t('fetchTimeout'),
+            text: t('fetchTimeoutHint'),
+            confirmButtonText: t('confirm'),
+            extraButtonText: t('scanScreenRetry'),
+            showCloseButton: true,
+        },
+        extraAction: { kind: 'screenScan' },
+    };
+}
+
 // 取图 / 截图失败的提示文案:
 // 浏览器原文 ("Failed to fetch" 之类) 只说明了底层机制, 用户看不出该做什么,
 // 这里按常见错误类型换成可执行的建议; 认不出的错误保留原文, 便于反馈排查

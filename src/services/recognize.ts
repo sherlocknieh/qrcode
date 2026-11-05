@@ -1,4 +1,4 @@
-import { describeImageError, errorNotice, errorNoticeWithScreenshot } from '@/services/decodeResultNotice';
+import { FETCH_TIMEOUT_MS, describeImageError, errorNotice, errorNoticeWithScreenshot, fetchTimeoutNotice } from '@/services/decodeResultNotice';
 import type { PopupNoticePayload } from '@/services/popupNotice';
 import { decodeAllFromImageData, type DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
@@ -69,7 +69,7 @@ export async function recognizeImage(
         (imageData): LoadResult => ({ ok: true, imageData }),
         (error: unknown): LoadResult => ({ ok: false, error }),
     );
-    const settled = await loadWithFetchNotice(pending, options.notifyFetching);
+    const settled = await loadWithFetchNotice(pending, options);
 
     if (isStale()) {
         await options.afterDecode?.();
@@ -114,11 +114,13 @@ export async function recognizeImage(
     };
 }
 
-// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由扫描提示替换
+// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由扫描提示替换;
+// 远超阈值仍没结果时换成"改用扫描屏幕"的提示 (图片之后到达也照样继续扫描)
 async function loadWithFetchNotice(
     pending: Promise<LoadResult>,
-    notifyFetching?: () => Promise<unknown>,
+    options: RecognizeOptions,
 ): Promise<LoadResult> {
+    const { notifyFetching, host, onRetry } = options;
     if (!notifyFetching) return pending;
 
     const settled = await Promise.race([
@@ -128,7 +130,15 @@ async function loadWithFetchNotice(
     if (settled) return settled.value;
 
     await notifyFetching();
-    return pending;
+    // 取图卡住时干等下去只能让用户以为扫描挂了, 给出截屏扫描这个保底出口
+    const timer = setTimeout(() => {
+        void host.notify(fetchTimeoutNotice(), onRetry);
+    }, FETCH_TIMEOUT_MS);
+    try {
+        return await pending;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 // 取图或解码失败: 停止动画并提示; 有重试出口时顺带提供"改用扫描屏幕"

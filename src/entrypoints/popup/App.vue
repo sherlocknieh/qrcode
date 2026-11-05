@@ -1,7 +1,7 @@
 <!-- Popup 页面, 有两个职责: 展示二维码/展示通知 -->
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   decodeAllFromImageData,
   getImageDataFromDataUrl,
@@ -9,12 +9,25 @@ import {
 } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { sendMessage, trySendMessage } from '@/services/messaging';
-import { copyHandlers, describeImageError, resultNotice, runNoticeAction } from '@/services/decodeResultNotice';
+import {
+  copyHandlers,
+  describeImageError,
+  FETCH_TIMEOUT_MS,
+  fetchTimeoutNotice,
+  resultNotice,
+  runNoticeAction,
+} from '@/services/decodeResultNotice';
 import { storageArea, storageAreaName, takeStoredString, takeStoredValue } from '@/services/storage';
+import { measureImageRect } from '@/services/imageRect';
 import { useNotify, notifyState } from '@/composables/useNotify';
 import { usePopupNoticeHost } from '@/composables/usePopupNoticeHost';
+import { useScanAnimation } from '@/composables/useScanAnimation';
+import type { PopupNoticeRecord } from '@/services/popupNotice';
 import NotifyHost from '@/components/NotifyHost.vue';
 import QrCodePanel from '@/components/QrCodePanel.vue';
+
+// 入口在挂载前读完存储的待展示通知: 首帧就要渲染它, 窗口才能直接按通知高度成型
+const props = defineProps<{ pendingNotice?: PopupNoticeRecord }>();
 
 const QR_TEXT_KEY = 'qrCodeText';
 // SVG 等非 HTML 页面无法使用内容脚本弹窗, 由 background 把图片地址写入该键
@@ -27,8 +40,8 @@ let eggTimer: number | undefined;
 
 
 const { fire, close, showLoading } = useNotify();
-// 接收内容脚本转发的通知并代为处理结果操作
-usePopupNoticeHost();
+// 接收内容脚本转发的通知并代为处理结果操作; 预读到的通知在挂载前就渲染出来
+usePopupNoticeHost(props.pendingNotice);
 
 // 修复手机上标题显示为 __MSG_appShortName__ 的问题:
 // 手机浏览器把 popup 页面当普通标签页打开, 标题会直接照搬源码里的占位符
@@ -55,6 +68,17 @@ onMounted(() => {
 let scanning = false;
 // 扫描期间隐藏二维码面板
 const scanActive = ref(false);
+// 扫描期间显示待扫描的图片: 窗口按这张图成型, 用户能看清扫的是哪一张,
+// 扫描动画也播在它上面
+const previewUrl = ref('');
+const previewImg = ref<HTMLImageElement | null>(null);
+const scanAnimation = useScanAnimation();
+
+// 收起扫描动画与预览图: 动画先淡出再取走图片, 免得图片先消失、光带还在飞
+async function stopPreview() {
+  await scanAnimation.stop();
+  previewUrl.value = '';
+}
 // 输入框内容即二维码内容, 打开时预填当前页地址
 const qrText = ref('');
 const hasQrContent = computed(() => qrText.value.length > 0);
@@ -131,17 +155,43 @@ async function decodeAndShow(
     showCloseButton: true,
   });
 
-  // 取图与扫描分开提示: 网络取图（含后台代理/截屏兜底）不占用"正在扫描"的等待时间
-  if (needsFetch) showLoadingNotice(t('fetchingImage'), t('fetchingImageHint'));
+  // 取图与扫描分开提示: 网络取图（含后台代理/截屏兜底）不占用"正在扫描"的等待时间.
+  // 卡在下载上 (跨域/防盗链) 超过 FETCH_TIMEOUT_MS 就换成建议截屏的通知:
+  // 关掉通知即回到二维码面板继续等, 图片到手后照常扫描
+  let fetchTimer: number | undefined;
 
-  let imageData: ImageData;
+  async function showFetchTimeout() {
+    const response = await fire(fetchTimeoutNotice().options);
+    if (response.dismiss !== 'extra') return;
+    // 与扫描失败时的出口一致: 交给内容脚本重扫, 成功就把 popup 让出焦点
+    const result = await trySendMessage('requestScreenScan');
+    if (result?.success) window.close();
+  }
+
+  if (needsFetch) {
+    showLoadingNotice(t('fetchingImage'), t('fetchingImageHint'));
+    fetchTimer = window.setTimeout(() => { void showFetchTimeout(); }, FETCH_TIMEOUT_MS);
+  }
+
   let results: DecodeResult[];
   try {
-    imageData = await getImageDataFromDataUrl(await getDataUrl());
-    showLoadingNotice(t('decodingQR'));
+    // 图片一到就撤掉超时计时, 免得它把扫描预览顶成"改用扫描屏幕"
+    const dataUrl = await getDataUrl().finally(() => window.clearTimeout(fetchTimer));
+    const imageData = await getImageDataFromDataUrl(dataUrl);
+    // 图片就绪后先把它显示出来再播扫描动画: 扩展商店这类只能由 popup 扫描的页面里,
+    // 用户能看清扫的是哪张图, 窗口也从这一刻起按图片成型, 而不是只闪一个"正在扫描"的空通知
+    close();
+    previewUrl.value = dataUrl;
+    await nextTick();
+    // 等图片解码出尺寸后只扫图片本身 (遮罩压住图, 不会把整个弹窗都压暗)
+    const image = previewImg.value;
+    await image?.decode().catch(() => { });
+    await scanAnimation.play({ rect: image ? measureImageRect(image) : undefined });
+    // 大图解码会阻塞 UI: 先让动画画上屏, 再占用主线程解码
     await new Promise((resolve) => setTimeout(resolve, 50));
     results = await decodeAllFromImageData(imageData);
   } catch (error) {
+    await stopPreview();
     // 扫描已经结束, 画面交给通知: 提前退出扫描态, 通知被关掉时才能立刻判断出
     // "没有二维码可展示" 并关窗, 而不是等整个扫描流程 return 后才置回
     scanActive.value = false;
@@ -157,6 +207,8 @@ async function decodeAndShow(
     return;
   }
 
+  // 动画淡出、图片收起后再出结果通知, 两者不同时占位, 窗口只在这一步换一次高度
+  await stopPreview();
   scanActive.value = false;
   close();
   const payload = resultNotice(results);
@@ -314,12 +366,17 @@ onBeforeUnmount(() => {
 <template>
   <!-- 二维码面板 -->
   <QrCodePanel
-    v-show="!notifyState.open"
+    v-show="!notifyState.open && !previewUrl"
     v-model="qrText"
     collapsible
     :flash-text="eggText"
     @scan="startPanelScan"
   />
+
+  <!-- 待扫描的图片: 扫描在 popup 里进行时先把图片显示出来, 扫描动画也播在它上面 -->
+  <div v-if="previewUrl" class="qr-scan-preview">
+    <img ref="previewImg" :src="previewUrl" alt="" />
+  </div>
 
   <!-- 通知弹窗 -->
   <NotifyHost embedded />
@@ -337,6 +394,24 @@ body {
   align-items: center;     /* 垂直居中 */
   /* 通知退场时要叠在面板上定位 (见下方 leave-active 规则) */
   position: relative;
+}
+
+/* 扫描期间的待扫描图片: 高度和二维码面板同一量级,
+   窗口不会因为一张大图猛地撑开, 动画收起后切到结果通知也只有很小的落差 */
+.qr-scan-preview {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 360px;
+  padding: 16px;
+}
+
+.qr-scan-preview img {
+  display: block;
+  max-width: 320px;
+  max-height: 220px;
+  border-radius: 6px;
 }
 
 /* 通知退场时脱离文档流并铺满 #app: 被它顶掉的面板此时已经回到流里,

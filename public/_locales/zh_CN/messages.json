@@ -163,6 +163,14 @@
     "message": "由于浏览器限制, 跨域图片需从源头下载\n首次加载可能会稍慢, 请耐心等待",
     "description": "获取图片较慢时的说明文字"
   },
+  "fetchTimeout": {
+    "message": "图片获取超时",
+    "description": "图片迟迟没有下载完时的提示标题"
+  },
+  "fetchTimeoutHint": {
+    "message": "图片一直没能下载下来, 可以改用扫描屏幕: 直接截取当前画面识别其中的码。",
+    "description": "图片获取超时时建议改用扫描屏幕的说明"
+  },
   "decodingQR": {
     "message": "正在扫描...",
     "description": "解析二维码或条形码时的加载提示"

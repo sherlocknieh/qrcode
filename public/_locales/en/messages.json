@@ -163,6 +163,14 @@
     "message": "Cross-origin or CDN images are fetched via the extension; the first scan is slower.",
     "description": "Explanation shown when loading the image takes a while"
   },
+  "fetchTimeout": {
+    "message": "Image Is Taking Too Long",
+    "description": "Title shown when fetching the image does not finish in time"
+  },
+  "fetchTimeoutHint": {
+    "message": "The image hasn't been downloaded yet. You can scan the screen instead: it captures the current view and reads the code from it.",
+    "description": "Suggestion shown when fetching the image times out"
+  },
   "decodingQR": {
     "message": "Scanning…",
     "description": "Loading message when decoding QR code"

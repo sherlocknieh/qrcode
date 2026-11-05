@@ -10,12 +10,17 @@ import {
 } from '@/services/popupNotice';
 
 
-// 在 popup 中展示来自内容脚本的通知, 并代替内容脚本执行打开链接/复制操作
-export function usePopupNoticeHost() {
+// 在 popup 中展示来自内容脚本的通知, 并代替内容脚本执行打开链接/复制操作.
+// pending: popup 入口在挂载前读完存储的待展示通知, 首帧就要把它渲染出来,
+// 让窗口第一次成型就是通知高度 (见 entrypoints/popup/main.ts)
+export function usePopupNoticeHost(pending?: PopupNoticeRecord) {
     const { fire, showLoading } = useNotify();
 
     // 当前由 popup 展示的远程通知 ID, 用于忽略已被替换的通知
     let activeId: number | null = null;
+    // 已交给通知状态的记录: 挂载前预读的那条会被端口补推和存储重读再送一次,
+    // 同一条通知只该展示一次, 否则会重新触发 fire 把用户操作中的通知顶掉
+    let handledId: number | null = null;
     let port: Browser.runtime.Port | null = null;
 
     async function runAction(action?: PopupNoticeAction) {
@@ -68,7 +73,9 @@ export function usePopupNoticeHost() {
 
     async function present(record?: PopupNoticeRecord) {
         if (!record?.options) return;
+        if (handledId === record.id) return;
         if (activeId === record.id) return;
+        handledId = record.id;
         activeId = record.id;
 
         const { loading, ...options } = record.options;
@@ -99,6 +106,10 @@ export function usePopupNoticeHost() {
         window.close();
     }
 
+    // 挂载前预读到的通知在 setup 阶段就交给通知状态: fire() 同步置 open,
+    // 首帧渲染出来的是通知本身, 窗口才不会先按二维码面板高度成型再收缩
+    if (pending) void present(pending);
+
     onMounted(async () => {
         // popup 打开时建立长连接， 使 popup 窗口打开期间能与后台保持通信，接收内容脚本发来的通知
         port = browser.runtime.connect({ name: 'popup' });
@@ -107,7 +118,7 @@ export function usePopupNoticeHost() {
             if (message?.action === 'showNotification') void present(message.payload);
         });
 
-        // popup 打开前写入的通知在挂载后读取
+        // popup 打开前写入的通知在挂载后读取 (已预读过的那条由 handledId 挡住)
         try {
             const stored = await storageArea().get(POPUP_NOTICE_KEY);
             await present(stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined);
