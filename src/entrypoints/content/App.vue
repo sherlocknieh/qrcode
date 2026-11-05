@@ -275,6 +275,10 @@ function decodeScreenshotCapture(
         }),
         afterDecode: () => scanAnimation.stop(),
         deferResults: true,
+        // 全屏扫描没扫到码时给出"框选扫描"入口, 换到可框选的截图工具继续扫;
+        // 已经是框选层就不必再给
+        noResultRetry: context.selectable ? undefined : 'frameScan',
+        onRetry: context.selectable ? undefined : () => void openFrameScan(),
     });
 }
 

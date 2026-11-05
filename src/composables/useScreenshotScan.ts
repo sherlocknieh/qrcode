@@ -12,6 +12,8 @@ export type ScreenshotScanCapture = ScreenshotCapture;
 export type ScreenshotScanContext = {
     // 选区在视口中的位置: 浮层可能缩成浮窗, 扫描动画按视口定位
     rect: ScanRect;
+    // 这次是不是只读结果层 (全屏扫描): 没扫到码时要给出"框选扫描"入口
+    selectable: boolean;
     // 本次扫描是否已被新的框选/新一轮扫描取代
     isStale(): boolean;
 };
@@ -61,6 +63,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         const outcome = await options.decode(capture, {
             // 扫描动画在页面上按视口定位, 浮窗模式下要把选区换算出去
             rect: current.toViewportRect(capture.rect),
+            selectable,
             isStale: () => currentEpoch !== epoch || currentSeq !== seq,
         });
         if (currentEpoch !== epoch || currentSeq !== seq || session !== current) return;
