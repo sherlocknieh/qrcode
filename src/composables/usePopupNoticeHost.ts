@@ -100,8 +100,9 @@ export function usePopupNoticeHost() {
     }
 
     onMounted(async () => {
-        // 长连接用于接收内容脚本触发的新通知, 断开时后台会清理未处理的通知
+        // popup 打开时建立长连接， 使 popup 窗口打开期间能与后台保持通信，接收内容脚本发来的通知
         port = browser.runtime.connect({ name: 'popup' });
+        // 通过长连接接收内容脚本触发的新通知, 断开时后台会清理未处理的通知
         port.onMessage.addListener((message: { action?: string; payload?: PopupNoticeRecord }) => {
             if (message?.action === 'showNotification') void present(message.payload);
         });

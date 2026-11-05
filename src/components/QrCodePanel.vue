@@ -30,9 +30,22 @@ const { svg, dataUrl, error } = useQrCode(text);
 const inputRef = ref<HTMLInputElement>();
 const expanded = ref(!props.collapsible);
 
-// 浏览器在 focus 的默认动作里会重设光标位置, 等一帧再全选
-function selectOnFocus() {
+// 输入框平时只显示占位提示, 聚焦后才露出当前文字: 二维码下方不被长链接撑成一大段文字,
+// 值本身始终留在 text 里, 失焦不清空, 二维码不受影响
+const inputFocused = ref(false);
+
+function onInputInput(event: Event) {
+    text.value = (event.target as HTMLInputElement).value;
+}
+
+function onInputFocus() {
+    inputFocused.value = true;
+    // 浏览器在 focus 的默认动作里会重设光标位置, 等一帧再全选
     requestAnimationFrame(() => inputRef.value?.select());
+}
+
+function onInputBlur() {
+    inputFocused.value = false;
 }
 
 // 二维码整块就是展开/收起入口, 没有再叠一个可见按钮
@@ -111,12 +124,14 @@ onBeforeUnmount(() => {
                         <input
                             id="qr-panel-input"
                             ref="inputRef"
-                            v-model="text"
+                            :value="inputFocused ? text : ''"
                             class="qr-panel-input"
                             type="text"
                             spellcheck="false"
                             :placeholder="t('qrInputPlaceholder')"
-                            @focus="selectOnFocus"
+                            @input="onInputInput"
+                            @focus="onInputFocus"
+                            @blur="onInputBlur"
                         />
 
                         <!-- 复制 / 下载收进抽屉: 悬停浮层会挡住二维码热区, 也不便在触屏上触发 -->
@@ -370,6 +385,12 @@ onBeforeUnmount(() => {
     border: 1px solid #cbd5e1;
     border-radius: 4px;
     outline: none;
+}
+
+/* 占位提示居中, 真正输入的文字仍靠左: 提示只在没有值时出现,
+   条目式对齐更好看, 也不影响编辑长文本时从左边开始读 */
+.qr-panel-input:placeholder-shown {
+    text-align: center;
 }
 
 /* 聚焦不改变边框与背景, 没有任何高亮效果 */

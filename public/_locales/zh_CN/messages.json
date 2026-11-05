@@ -16,7 +16,7 @@
     "description": "右键菜单项：为选中的文字生成二维码"
   },
   "qrInputPlaceholder": {
-    "message": "输入文字，实时生成二维码",
+    "message": "输入文字实时生成二维码",
     "description": "二维码输入框的占位提示"
   },
   "moreOptions": {

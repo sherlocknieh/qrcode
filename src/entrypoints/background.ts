@@ -7,23 +7,26 @@ import { createScreenScan } from '@/services/background/screenScan';
 import { createPopupHost } from '@/services/popupHost';
 import { storageArea } from '@/services/storage';
 
-// WXT 后台脚本入口
-// 后台脚本是一个浏览器插件的主进程, 是插件各组件之间的通信中心
+
+// WXT 后台脚本入口：浏览器插件的主进程, 各组件(如 popup、扩展页、内容脚本等)之间互相通信的中心
 export default defineBackground(() => {
 
-    // popup 窗口控制器
+    // 扩展标签页管理器
+    const extensionTabs = createExtensionTabs();
+
+    // popup窗口管理器
     const popupControl = createPopupHost({
         // 注入 "关闭标签页" 这一后台能力, 独立扫描页的通知结束后由 popup 触发
         closeTab: (tabId) => extensionTabs.closeAndReturn(tabId),
     });
 
-    const extensionTabs = createExtensionTabs();
+    // 扫描入口: 由内容脚本、右键菜单、扩展页等触发, 统一调度扫描流程
     const scanEntry = createScanEntry({
         popup: popupControl,
         openExtensionPage: extensionTabs.open,
     });
 
-    // 屏幕截图扫描
+    // 屏幕截图扫描器
     const screenScan = createScreenScan({
         openExtensionPage: extensionTabs.open,
         tryContentAction: scanEntry.tryContentAction,
@@ -50,12 +53,16 @@ export default defineBackground(() => {
     });
 
 
-    // popup 打开后建立长连接; 关闭时收起未处理的通知
+    // 在本扩展中 popup 打开时会发起建立长连接; 监听并处理连接事件
     browser.runtime.onConnect.addListener(popupControl.connect);
+
     // 扩展安装/升级时重建右键菜单 (菜单不能跨版本沿用)
     browser.runtime.onInstalled.addListener(() => void menus.add());
-    // 标签页加载完成后恢复 Firefox 地址栏图标, 其他浏览器没有该图标, 不必监听
-    if (import.meta.env.FIREFOX) browser.tabs.onUpdated.addListener((tabId) => void pageAction.show(tabId));
+
+    // 标签页加载完成时添加 Firefox 地址栏图标
+    if (import.meta.env.FIREFOX)
+        browser.tabs.onUpdated.addListener((tabId) => void pageAction.show(tabId));
+
     // 用户手动点 X 关闭临时扩展页 (capture / upload) 时把焦点还给来源页;
     // 由后台主动关闭的标签页已先清除记录, 不会重复处理
     browser.tabs.onRemoved.addListener((tabId) => void extensionTabs.returnToOrigin(tabId));
