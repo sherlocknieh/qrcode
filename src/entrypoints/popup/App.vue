@@ -22,9 +22,11 @@ import { measureImageRect } from '@/services/imageRect';
 import { useNotify, notifyState } from '@/composables/useNotify';
 import { usePopupNoticeHost } from '@/composables/usePopupNoticeHost';
 import { useScanAnimation } from '@/composables/useScanAnimation';
+import { useCodePicker } from '@/composables/useCodePicker';
 import type { PopupNoticeRecord } from '@/services/popupNotice';
 import NotifyHost from '@/components/NotifyHost.vue';
 import QrCodePanel from '@/components/QrCodePanel.vue';
+import ScanMarks from '@/components/ScanMarks.vue';
 
 // 入口在挂载前读完存储的待展示通知: 首帧就要渲染它, 窗口才能直接按通知高度成型
 const props = defineProps<{ pendingNotice?: PopupNoticeRecord }>();
@@ -74,10 +76,31 @@ const previewUrl = ref('');
 const previewImg = ref<HTMLImageElement | null>(null);
 const scanAnimation = useScanAnimation();
 
+// 多码点选: 扫到多条结果时把预览图留在窗口里叠蓝点, 点哪条才出哪条的通知,
+// 与网页图片、扫描面板共用同一套蓝点交互
+const picking = ref(false);
+const codePicker = useCodePicker({
+  notifyResults: async (picked) => {
+    await showResultNotice(picked);
+    finishPickingIfDone();
+  },
+});
+const marks = codePicker.marks;
+const pickMark = codePicker.pick;
+
 // 收起扫描动画与预览图: 动画先淡出再取走图片, 免得图片先消失、光带还在飞
 async function stopPreview() {
   await scanAnimation.stop();
   previewUrl.value = '';
+}
+
+// 点完最后一条蓝点: 收起预览图, 没有二维码可展示时连空窗口一起关掉
+function finishPickingIfDone() {
+  if (!picking.value || marks.value.length > 0) return;
+  picking.value = false;
+  previewUrl.value = '';
+  scanActive.value = false;
+  if (!hasQrContent.value) window.close();
 }
 // 输入框内容即二维码内容, 打开时预填当前页地址
 const qrText = ref('');
@@ -155,7 +178,7 @@ async function decodeAndShow(
     showCloseButton: true,
   });
 
-  // 取图与扫描分开提示: 网络取图（含后台代理/截屏兜底）不占用"正在扫描"的等待时间.
+  // 取图提示与扫描分开: 网络取图（含后台代理/截屏兜底）不占用扫描动画的时间.
   // 卡在下载上 (跨域/防盗链) 超过 FETCH_TIMEOUT_MS 就换成建议截屏的通知:
   // 关掉通知即回到二维码面板继续等, 图片到手后照常扫描
   let fetchTimer: number | undefined;
@@ -174,12 +197,15 @@ async function decodeAndShow(
   }
 
   let results: DecodeResult[];
+  // 解码图像的像素尺寸: 多码点选时蓝点要按它把码的包围盒换算到预览图的实际显示区域
+  let imageSize = { width: 0, height: 0 };
   try {
     // 图片一到就撤掉超时计时, 免得它把扫描预览顶成"改用扫描屏幕"
     const dataUrl = await getDataUrl().finally(() => window.clearTimeout(fetchTimer));
     const imageData = await getImageDataFromDataUrl(dataUrl);
+    imageSize = { width: imageData.width, height: imageData.height };
     // 图片就绪后先把它显示出来再播扫描动画: 扩展商店这类只能由 popup 扫描的页面里,
-    // 用户能看清扫的是哪张图, 窗口也从这一刻起按图片成型, 而不是只闪一个"正在扫描"的空通知
+    // 用户能看清扫的是哪张图, 窗口也从这一刻起按图片成型, 而不是先占着一个空通知
     close();
     previewUrl.value = dataUrl;
     await nextTick();
@@ -207,9 +233,32 @@ async function decodeAndShow(
     return;
   }
 
+  // 多条结果: 预览图留在窗口里叠蓝点, 点哪条再出哪条的通知;
+  // 有码定位不到时蓝点会漏, 仍用列表通知把全部结果列出来
+  const image = previewImg.value;
+  const previewRect = image ? measureImageRect(image) : undefined;
+  if (results.length > 1 && previewRect && results.every((result) => result.bounds)) {
+    await scanAnimation.stop();
+    picking.value = true;
+    codePicker.show(results, {
+      rect: previewRect,
+      imageSize,
+      scroll: { x: 0, y: 0 },
+      viewportWidth: window.innerWidth,
+      // popup 是独立窗口, 不随页面滚动
+      followScroll: false,
+    });
+    return;
+  }
+
   // 动画淡出、图片收起后再出结果通知, 两者不同时占位, 窗口只在这一步换一次高度
   await stopPreview();
   scanActive.value = false;
+  await showResultNotice(results);
+}
+
+// 展示结果通知: 单条结果点确认时执行打开/复制
+async function showResultNotice(results: DecodeResult[]) {
   close();
   const payload = resultNotice(results);
   // 复制按钮不结束通知: 复制成功后按钮就地显示已复制
@@ -275,6 +324,9 @@ async function startPanelScan(entry: 'image' | 'screen' | 'camera') {
 async function startScan(imageUrl: string) {
   if (scanning) return;
   scanning = true;
+  // 上一轮可能停在多码点选: 新一轮扫描前先撤掉残留的蓝点与点选态
+  codePicker.clear();
+  picking.value = false;
   scanActive.value = true;
   prepareScanView();
   try {
@@ -283,7 +335,8 @@ async function startScan(imageUrl: string) {
     // 扫描流程结束就退出扫描态: 否则关掉结果通知后 popup 既没有二维码也没有内容,
     // 空窗兜底会因为 scanActive 仍为 true 而不关闭窗口, 留下白窗
     scanning = false;
-    scanActive.value = false;
+    // 多码点选期间保留预览图与窗口, 点完后由 finishPickingIfDone 收尾
+    if (!picking.value) scanActive.value = false;
   }
 }
 
@@ -351,7 +404,7 @@ watch(
       return;
     }
     if (!hadNotice) return;
-    if (hasQrContent.value || scanActive.value) return;
+    if (hasQrContent.value || scanActive.value || previewUrl.value) return;
     window.close();
   },
 );
@@ -373,10 +426,14 @@ onBeforeUnmount(() => {
     @scan="startPanelScan"
   />
 
-  <!-- 待扫描的图片: 扫描在 popup 里进行时先把图片显示出来, 扫描动画也播在它上面 -->
-  <div v-if="previewUrl" class="qr-scan-preview">
+  <!-- 待扫描的图片: 扫描在 popup 里进行时先把图片显示出来, 扫描动画也播在它上面;
+       多码点选时点了蓝点先让位给该条通知, 通知收起后再回来接着点 -->
+  <div v-if="previewUrl && !notifyState.open" class="qr-scan-preview">
     <img ref="previewImg" :src="previewUrl" alt="" />
   </div>
+
+  <!-- 多条结果时在预览图上叠蓝点, 点哪条就展示哪条的通知 -->
+  <ScanMarks v-if="!notifyState.open" :rects="marks" @pick="pickMark" />
 
   <!-- 通知弹窗 -->
   <NotifyHost embedded />

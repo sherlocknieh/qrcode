@@ -1,7 +1,6 @@
 import { useNotify, type NotifyOptions } from '@/composables/useNotify';
 import {
     copyHandlers,
-    decodingNotice,
     resultNotice,
     runNoticeAction,
 } from '@/services/decodeResultNotice';
@@ -14,8 +13,9 @@ import { t } from '@/services/i18n';
 // 通知统一策略: 优先在 popup 中展示, 失败时回退到当前页面。
 // 内容脚本与独立扫描页共用, 保证两种入口的提示行为一致。
 export type NoticeFallbackOptions = {
-    // 独立扫描页使用: 交给 popup 的通知带上标记, 由后台在通知结束后关闭本标签页
-    closeOriginTab?: boolean;
+    // 独立扫描页使用: 交给 popup 的通知带上标记, 由后台在通知结束后关闭本标签页;
+    // 传函数时在每次投递前求值, 供多码点选只让最后一条通知收尾
+    closeOriginTab?: boolean | (() => boolean);
     // 通知退回页面内展示时, 在用户结束通知后调用 (被新通知替换不算结束)
     onLocalNoticeDone?: () => void;
 };
@@ -25,7 +25,10 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
 
     // 标记来源, 由后台在通知结束时关闭该标签页
     function tag(payload: PopupNoticePayload): PopupNoticePayload {
-        return options.closeOriginTab ? { ...payload, closeOriginTab: true } : payload;
+        const close = typeof options.closeOriginTab === 'function'
+            ? options.closeOriginTab()
+            : options.closeOriginTab;
+        return close ? { ...payload, closeOriginTab: true } : payload;
     }
 
     // 页面内通知结束: 被后续通知替换时标签页仍有内容, 只有真正结束才回调
@@ -75,22 +78,20 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
 
     // 扫描结果: popup 可用时由 popup 直接完成打开/复制。
     // 返回 true 表示通知已由 popup 接管 (调用方可以关闭自己的临时页面)。
-    // pickHint: 画面上同时给出可点选的蓝点时, 在批量结果里说明怎么点
-    function notifyResults(
-        results: DecodeResult[],
-        options: { pickHint?: boolean } = {},
-    ): Promise<boolean> {
-        return deliver(resultNotice(results, options));
+    function notifyResults(results: DecodeResult[]): Promise<boolean> {
+        return deliver(resultNotice(results));
     }
 
-    // 扫描中的加载提示: 等待一帧让提示先渲染, 再做计算密集的解码
-    async function notifyDecoding(): Promise<void> {
-        await notify(decodingNotice());
-        await new Promise((resolve) => setTimeout(resolve, 50));
+    // 画面上的蓝点已经列出全部结果: 多条时不弹通知, 等用户点蓝点再逐条展示,
+    // 否则通知列表和蓝点会把同一批码重复列两遍; 有码定位不到时蓝点会漏, 仍用通知补齐
+    function notifyPickedResults(results: DecodeResult[]): Promise<boolean> {
+        const allLocated = results.every((result) => result.bounds);
+        if (results.length > 1 && allLocated) return Promise.resolve(false);
+        return notifyResults(results);
     }
 
     // 取图耗时提示: 网络取图期间先说明"正在获取图片"并解释原因,
-    // 图片就绪后由"正在扫描"通知替换, 避免用户把下载时间当成扫描时间
+    // 图片就绪后由扫描动画接替, 避免用户把下载时间当成扫描时间
     async function notifyFetching(): Promise<void> {
         await notify({
             options: {
@@ -111,7 +112,7 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     }
 
     // 供 recognizeImage 使用的宿主: 与上面的函数同一套实现
-    const host: RecognizeHost = { notify, notifyDecoding, notifyResults, notifyNoResult };
+    const host: RecognizeHost = { notify, notifyResults, notifyNoResult };
 
-    return { fireLocal, notify, notifyDecoding, notifyFetching, notifyNoResult, notifyResults, host };
+    return { fireLocal, notify, notifyFetching, notifyPickedResults, notifyNoResult, notifyResults, host };
 }

@@ -17,15 +17,25 @@ import { takeStoredString } from '@/services/storage';
 // background 截取视口后写入该键, 本页面读取后立即清除
 const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 
-// 通知结束后即视为本次扫描结束: 交给 popup 时由后台关闭标签页, 退回页面内时由本页自己关
+// 关闭本页的时机: 多码点选时要等用户点完所有蓝点, 由最后一条通知收尾;
+// 还有蓝点没点时关掉通知只回到截图上继续点
+let closeOnNoticeDone = true;
 const noticeOptions = {
-    closeOriginTab: true,
-    onLocalNoticeDone: () => closeTab(),
+    closeOriginTab: () => closeOnNoticeDone,
+    onLocalNoticeDone: () => {
+        if (closeOnNoticeDone) closeTab();
+    },
 };
-const { host, notify, notifyResults } = useNoticeFallback(noticeOptions);
+const { host, notify, notifyPickedResults, notifyResults } = useNoticeFallback(noticeOptions);
 const scanAnimation = useScanAnimation();
 // 与内容脚本一致: 命中码后在画面上叠蓝点, 点哪个就把通知切到哪个码
-const picker = useCodePicker({ notifyResults });
+const picker = useCodePicker({
+    notifyResults: (results) => {
+        // 通知在蓝点被移除前投递: 只剩这一个码时, 说明它是最后一条
+        closeOnNoticeDone = picker.marks.value.length <= 1;
+        return notifyResults(results);
+    },
+});
 const marks = picker.marks;
 const pickMark = picker.pick;
 
@@ -75,7 +85,7 @@ async function scan(dataUrl: string) {
     });
     if (outcome.status !== 'ok') return;
     picker.show(outcome.results, stillAnchor(outcome.imageSize));
-    await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
+    await notifyPickedResults(outcome.results);
 }
 
 onMounted(async () => {

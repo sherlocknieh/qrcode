@@ -171,10 +171,6 @@
     "message": "The image hasn't been downloaded yet. You can scan the screen instead: it captures the current view and reads the code from it.",
     "description": "Suggestion shown when fetching the image times out"
   },
-  "decodingQR": {
-    "message": "Scanning…",
-    "description": "Loading message when decoding QR code"
-  },
   "qrcodeScanSuccess": {
     "message": "Found QR Code",
     "description": "Title shown when a QR code is detected"

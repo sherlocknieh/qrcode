@@ -5,19 +5,6 @@ import type { DecodeResult } from '@/services/qrScanner';
 import { t } from '@/services/i18n';
 import { copyText } from '@/services/clipboard';
 
-// 扫描过程中的加载提示: 由调用方替换为结果通知
-export function decodingNotice(): PopupNoticePayload {
-    return {
-        options: {
-            toast: true,
-            icon: 'info',
-            title: t('decodingQR'),
-            showCloseButton: true,
-            loading: true,
-        },
-    };
-}
-
 // 通用警告提示 (轻量 toast)
 export function warningNotice(title: string, text?: string): PopupNoticePayload {
     return {
@@ -153,14 +140,13 @@ function multiResultTitle(results: DecodeResult[]): string {
     return t(hasBarcode ? 'multiBarcodeScanSuccess' : 'multiQrcodeScanSuccess');
 }
 
-// 多个结果: 逐条列出, 由用户分别打开/复制; pickHint 时额外提示在画面上点选
-function multiResultNotice(results: DecodeResult[], pickHint: boolean): PopupNoticePayload {
+// 多个结果: 逐条列出, 由用户分别打开/复制
+function multiResultNotice(results: DecodeResult[]): PopupNoticePayload {
     return {
         options: {
             toast: false,
             icon: 'success',
             title: multiResultTitle(results),
-            text: pickHint ? t('pickCodeHint') : undefined,
             items: toNoticeItems(results),
             showCloseButton: true,
         },
@@ -191,15 +177,14 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 // 按结果数量选择对应的通知。
 // retry: 未扫到码时提供的重试方式, 传 false 表示当前入口无法再试
 // (独立扫描页里截图只会截到自己); 缺省为整屏重扫
-// pickHint: 画面上同时给出可点选的蓝点时提示怎么选
 export function resultNotice(
     results: DecodeResult[],
-    options: { retry?: PopupNoticeAction | false; pickHint?: boolean } = {},
+    options: { retry?: PopupNoticeAction | false } = {},
 ): PopupNoticePayload {
     if (!results.length) {
         return noResultNotice(options.retry === false ? undefined : options.retry ?? { kind: 'screenScan' });
     }
-    if (results.length > 1) return multiResultNotice(results, options.pickHint === true);
+    if (results.length > 1) return multiResultNotice(results);
     return singleResultNotice(results[0]!);
 }
 

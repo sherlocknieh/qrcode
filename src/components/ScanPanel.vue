@@ -43,7 +43,7 @@ watch(() => props.mode, (value) => {
 });
 const isCamera = computed(() => mode.value === 'camera');
 
-const { host, notify, notifyResults } = useNoticeFallback();
+const { host, notify, notifyPickedResults, notifyResults } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
 const recognizing = ref(false);
 // 与其它入口一致: 命中码后在预览图上叠蓝点, 点哪个就把通知切到哪个码
@@ -85,8 +85,12 @@ async function runScan(
                 // 摄像头预览是镜像显示的, 横向坐标要翻过来才能压住码
                 mirrorX: isCamera.value,
             });
+            // 多条结果只留蓝点, 点哪条再出哪条的通知
+            await notifyPickedResults(outcome.results);
+            return;
         }
-        await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
+        // 量不出预览区域就叠不了蓝点, 仍由通知把结果列出来
+        await notifyResults(outcome.results);
     } finally {
         recognizing.value = false;
     }

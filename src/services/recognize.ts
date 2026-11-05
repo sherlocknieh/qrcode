@@ -8,7 +8,6 @@ import { t } from '@/services/i18n';
 export type RecognizeHost = {
     // onRetry: 通知里的"改用扫描屏幕"被点击时, 在无法由 popup 执行动作时于本进程内回调
     notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<unknown>;
-    notifyDecoding(): Promise<void>;
     notifyResults(results: DecodeResult[]): Promise<boolean>;
     // retry: 未扫到码时的重试方式, 与 onRetry 一一对应 (本地兜底执行 onRetry,
     // popup 代管时按 retry 转告页面)
@@ -29,7 +28,7 @@ export type RecognizeOptions = {
     host: RecognizeHost;
     // 错误提示标题, 缺省按图片扫描失败处理
     errorTitle?: string;
-    // 图片就绪、扫描提示出现后执行 (如播放扫描动画), 会等待其结束
+    // 图片就绪后执行 (如播放扫描动画), 会等待其结束
     beforeNotice?: () => Promise<void>;
     // 需要先从网络取图时提供: 取图慢于阈值时先提示"正在获取图片",
     // 避免用户把下载耗时误认为扫描耗时。本地图片/截图无需提供。
@@ -54,8 +53,11 @@ type LoadResult =
 // 取图超过这个时间才提示"正在获取图片", 快速完成的场景不会闪一下
 const FETCH_NOTICE_DELAY_MS = 150;
 
+// 解码会长时间占住主线程: 先让出一帧, 保证扫描动画与刚冻结的截图先画上屏
+const DECODE_FRAME_DELAY_MS = 50;
+
 // 拿到图像数据的统一扫描入口:
-// 获取图片提示 → 取图 → 扫描提示 → 扫描动画 → 解码 → 结果 / 无结果重试 / 错误。
+// 获取图片提示 → 取图 → 扫描动画 → 解码 → 结果 / 无结果重试 / 错误。
 // 网页图片、本地/粘贴图片、截图都走这里, 各处只负责把数据包装成 loader。
 export async function recognizeImage(
     loadImageData: () => Promise<ImageData>,
@@ -81,9 +83,9 @@ export async function recognizeImage(
         return { status: 'failed', error: settled.error };
     }
 
-    // 图片已经在手: 先给扫描提示并起动画, 动画在解码期间一直循环, 结束后由 afterDecode 收起
-    await host.notifyDecoding();
+    // 图片已经在手: 先起扫描动画, 动画在解码期间一直循环, 结束后由 afterDecode 收起
     await options.beforeNotice?.();
+    await new Promise((resolve) => setTimeout(resolve, DECODE_FRAME_DELAY_MS));
 
     if (isStale()) {
         await options.afterDecode?.();
@@ -114,7 +116,7 @@ export async function recognizeImage(
     };
 }
 
-// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由扫描提示替换;
+// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由扫描动画接替;
 // 远超阈值仍没结果时换成"改用扫描屏幕"的提示 (图片之后到达也照样继续扫描)
 async function loadWithFetchNotice(
     pending: Promise<LoadResult>,

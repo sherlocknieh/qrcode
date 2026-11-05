@@ -22,7 +22,7 @@ import type { ScanRect } from '@/components/ScanOverlay.vue';
 
 const { startScreenshot } = useScreenshot();
 let clearActiveMarks = () => {};
-const { notify, notifyFetching, notifyResults, host } = useNoticeFallback({
+const { notify, notifyFetching, notifyPickedResults, notifyResults, host } = useNoticeFallback({
     onLocalNoticeDone: () => clearActiveMarks(),
 });
 const scanAnimation = useScanAnimation();
@@ -35,10 +35,10 @@ const marksAnchor = picker.anchorElement;
 const pickMark = picker.pick;
 const clearMarks = picker.clear;
 
-// 码都在图标实际显示的区域里定位: 只有可定位的码才叠蓝点, 其余仍由结果列表列出
+// 码都在图标实际显示的区域里定位: 可定位的码叠蓝点, 多条结果只留蓝点, 点哪条出哪条的通知
 function showResults(outcome: Extract<DecodeOutcome, { status: 'ok' }>, anchor: PickAnchor) {
     picker.show(outcome.results, anchor);
-    return notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
+    return notifyPickedResults(outcome.results);
 }
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
@@ -132,7 +132,7 @@ async function handleImageUrl(imageUrl: string) {
             onRetry: () => void handleScreenScan(),
             // 网页图片需要先下载/取像素: 取图期间提示"正在获取图片"
             notifyFetching,
-            // 图片取到、扫描提示出现后, 再在网页上的图片区域播放扫描动画
+            // 图片取到后, 在网页上的图片区域播放扫描动画
             beforeNotice: async () => {
                 const image = findImageElement(imageUrl);
                 const rect = measureVisibleImage(image);
@@ -162,7 +162,7 @@ async function handleImageUrl(imageUrl: string) {
                 element: image,
             });
         } else {
-            await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
+            await notifyResults(outcome.results);
         }
         return;
     }
@@ -263,7 +263,7 @@ async function openShotSession(
             followScroll: false,
             clip: capture.rect,
         }));
-        await notifyResults(outcome.results, { pickHint: outcome.results.length > 1 });
+        await notifyPickedResults(outcome.results);
     }
 
     try {
@@ -295,11 +295,11 @@ async function openShotSession(
 async function showScanResult({ dataUrl, results: allResults }: ScreenScanResult) {
     // 一个码都定位不到时截图容器没有可点的蓝点, 直接给结果通知即可
     if (!allResults.some((result) => result.bounds)) {
-        await notifyResults(allResults, { pickHint: allResults.length > 1 });
+        await notifyResults(allResults);
         return;
     }
     if (!(await openShotSession({ dataUrl, results: allResults }))) return;
-    await notifyResults(allResults, { pickHint: allResults.length > 1 });
+    await notifyPickedResults(allResults);
 }
 
 // 框选扫描: 全屏扫描没扫到码时, 让用户在重新截取的视口图上自己框一块
