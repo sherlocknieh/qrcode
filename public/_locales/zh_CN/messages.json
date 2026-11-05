@@ -35,6 +35,18 @@
     "message": "内容过长，无法生成二维码",
     "description": "内容超出二维码容量时的提示"
   },
+  "scanSelfEgg1": {
+    "message": "自己扫自己？这个二维码有点哲学",
+    "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
+  },
+  "scanSelfEgg2": {
+    "message": "扫出来也是你刚打进去的那句话",
+    "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
+  },
+  "scanSelfEgg3": {
+    "message": "二维码：这步可以跳过，我就是你",
+    "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
+  },
   "scanWebImage": {
     "message": "扫描图片",
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"

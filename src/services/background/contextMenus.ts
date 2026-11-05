@@ -80,6 +80,28 @@ export const createContextMenus = (options: ContextMenusOptions) => {
         });
     };
 
+    // Chrome 在不属于标签页的页面上传的是 TAB_ID_NONE (-1) 而不是 undefined,
+    // 直接拿去 sendMessage 会抛 "Value must be at least 0", 这里统一当成没有标签页
+    const realTabId = (tab?: Browser.tabs.Tab) =>
+        tab?.id != null && tab.id >= 0 ? tab.id : undefined;
+
+    // 菜单是否弹在 popup 自己身上: 只看"菜单位于哪个页面", 不看 tab.
+    // popup 不是标签页, Chrome 给的是 -1, Firefox 干脆不给 tab, 两边不一致;
+    // 而 pageUrl 在两边都是被点击的那个文档的地址
+    const popupPageUrl = browser.runtime.getURL('/popup.html');
+    const isPopupPage = (url?: string) => !!url && url.split(/[?#]/)[0] === popupPageUrl;
+
+    // 图片扫描: 交给内容脚本取像素并定位蓝框, 注入不了时把图片地址交给 popup 取图解码。
+    // 这里必须 await 而不是只挂 .catch: sendMessage 参数非法时是同步抛错, 挂 catch 接不住
+    const requestImageScan = async (tabId: number, imageUrl?: string) => {
+        try {
+            await browser.tabs.sendMessage(tabId, { action: 'scanWebImage', imageUrl });
+        } catch {
+            // 体验会差一些: 没有扫描动画与蓝框定位, 但能出结果
+            await options.sendImageToPopup(imageUrl).catch(() => {});
+        }
+    };
+
     const handleClick = (info: Browser.contextMenus.OnClickData, tab?: Browser.tabs.Tab) => {
         // 地址栏图标开关
         if (info.menuItemId === 'togglePageAction') {
@@ -91,11 +113,31 @@ export const createContextMenus = (options: ContextMenusOptions) => {
             options.showQRcode(info.selectionText);
             return;
         }
+        // 菜单位于 popup 自己身上时, 点哪个扫描项都只是扫它刚生成的那张二维码:
+        // popup 不是标签页 (Chrome 给 TAB_ID_NONE, Firefox 不给 tab), 预览图又是 data: 地址,
+        // 内容脚本与图片交接都走不通; 而且扫自己没有意义, 所以统一只弹一句彩蛋.
+        // 这里不挑菜单项 id: 各家浏览器右键图片时命中的上下文不一定只有 image;
+        // pageUrl 也未必给, 再按"没有标签页 + 图片是 data:"兜底 (网页上的 data: 图片有真实标签页)
+        const tabId = realTabId(tab);
+        if (isPopupPage(info.pageUrl) || (tabId == null && info.srcUrl?.startsWith('data:'))) {
+            void browser.runtime.sendMessage({ action: 'scanPopupQr' }).catch(() => {});
+            return;
+        }
+
+        // 网页图片二维码扫描: 交给内容脚本取像素并定位蓝框, 注入不了时把图片地址交给 popup
+        if (info.menuItemId === 'scanWebImage') {
+            if (tabId == null) {
+                void options.sendImageToPopup(info.srcUrl).catch(() => {});
+                return;
+            }
+            void requestImageScan(tabId, info.srcUrl);
+            return;
+        }
 
         // 下面的操作都依赖标签页, 先查询当前前台标签页 ID
-        const tabId = tab?.id;
         if (tabId == null) {
-            console.warn('tabId is null');
+            // 带上菜单项 id: 各家浏览器命中的上下文不同, 排查时要知道点到的是哪一项
+            console.warn('tabId is null', info.menuItemId);
             return;
         }
 
@@ -107,20 +149,6 @@ export const createContextMenus = (options: ContextMenusOptions) => {
         // 打开摄像头扫码: 打开以摄像头模式进入的扫描页
         if (info.menuItemId === 'scanCamera') {
             void options.openCameraScan(tabId);
-            return;
-        }
-        // 网页图片二维码扫描
-        if (info.menuItemId === 'scanWebImage') {
-            // 发送扫描请求到当前标签页, 由内容脚本执行后续扫描操作
-            browser.tabs.sendMessage(tabId, {
-                action: 'scanWebImage',
-                imageUrl: info.srcUrl,
-            }).catch(() => {
-                // 对于无法运行内容脚本的页面 (Chrome 商店页、独立 SVG 等): 
-                // 直接把链接传给 popup, 由 popup 完成图片获取，扫描和通知;
-                // 体验会差一些：没有扫描动画，没有蓝框定位，但能出结果；
-                void options.sendImageToPopup(info.srcUrl).catch(() => {});
-            });
             return;
         }
         // 扫描当前页面: 内容脚本直接截取视口并扫描整图, 不可用时回退到独立扩展页

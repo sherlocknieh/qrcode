@@ -24,6 +24,11 @@ import QrCodePanel from '@/components/QrCodePanel.vue';
 const QR_TEXT_KEY = 'qrCodeText';
 // SVG 等非 HTML 页面无法使用内容脚本弹窗, 由 background 把图片地址写入该键
 const QR_IMAGE_KEY = 'qrImageUrl';
+// 在 popup 自己的二维码上右键"扫描图片"时随机挑一句逗趣文案
+const SCAN_SELF_EGG_KEYS = ['scanSelfEgg1', 'scanSelfEgg2', 'scanSelfEgg3'];
+// 彩蛋气泡的文案与自动消失定时器
+const eggText = ref('');
+let eggTimer: number | undefined;
 
 
 const { fire, close, showLoading } = useNotify();
@@ -142,6 +147,9 @@ async function decodeAndShow(
     await new Promise((resolve) => setTimeout(resolve, 50));
     results = await decodeAllFromImageData(imageData);
   } catch (error) {
+    // 扫描已经结束, 画面交给通知: 提前退出扫描态, 通知被关掉时才能立刻判断出
+    // "没有二维码可展示" 并关窗, 而不是等整个扫描流程 return 后才置回
+    scanActive.value = false;
     close();
     await fire({
       toast: true,
@@ -154,6 +162,7 @@ async function decodeAndShow(
     return;
   }
 
+  scanActive.value = false;
   close();
   const payload = resultNotice(results);
   // 复制按钮不结束通知: 复制成功后按钮就地显示已复制
@@ -232,6 +241,22 @@ async function startScan(imageUrl: string) {
   }
 }
 
+// 在 popup 里面的二维码上右键"扫描图片":
+// 扫自己刚生成的二维码本来就没有意义 (解出来就是地址栏/输入框里的文字),
+// 因此不真的解码, 只在二维码上逗一句.
+// 用面板内的气泡而不是通知: 通知会把弹窗窗口从二维码尺寸撑成通知尺寸,
+// 收起时窗口要重排, 中间会白闪一下
+function onRuntimeMessage(message: { action?: string }) {
+  if (message?.action !== 'scanPopupQr') return;
+  const keys = SCAN_SELF_EGG_KEYS;
+  eggText.value = t(keys[Math.floor(Math.random() * keys.length)]!);
+  if (eggTimer !== undefined) window.clearTimeout(eggTimer);
+  eggTimer = window.setTimeout(() => {
+    eggTimer = undefined;
+    eggText.value = '';
+  }, 2600);
+}
+
 // background 在用户手势中同步打开 popup, 临时文本可能稍后才写入, 需监听变更刷新
 function onStorageChanged(
   changes: Record<string, { newValue?: unknown }>,
@@ -256,6 +281,7 @@ function onStorageChanged(
 onMounted(async () => {
   // 先监听, 再解析, 以覆盖 background 稍后写入的竞态
   browser.storage.onChanged.addListener(onStorageChanged);
+  browser.runtime.onMessage.addListener(onRuntimeMessage);
   const imageUrl = await takeStoredImageUrl();
   if (imageUrl) {
     startScan(imageUrl);
@@ -267,46 +293,43 @@ onMounted(async () => {
 });
 
 // popup 是独立窗口, 通知结束后若没有任何内容会留下空白窗口;
-// 只在展示过通知、且既无二维码也无扫描结果时才关闭
+// 只在展示过通知、且既无二维码也无扫描结果时才关闭.
+// 关闭要落在通知还在画面的这一刻: 等它淡出结束后再关, 中间会露出一帧空窗口
+// (弹窗窗口已经缩了、内容还没画上来), 看起来就是白闪一下
 let hadNotice = false;
-let emptyTimer: number | undefined;
 watch(
   () => notifyState.open,
   (open) => {
     if (open) {
       hadNotice = true;
-      if (emptyTimer !== undefined) {
-        window.clearTimeout(emptyTimer);
-        emptyTimer = undefined;
-      }
       return;
     }
     if (!hadNotice) return;
-    if (emptyTimer !== undefined) window.clearTimeout(emptyTimer);
-    emptyTimer = window.setTimeout(() => {
-      emptyTimer = undefined;
-      if (notifyState.open || hasQrContent.value || scanActive.value) return;
-      window.close();
-    }, 320);
+    if (hasQrContent.value || scanActive.value) return;
+    window.close();
   },
 );
 
 onBeforeUnmount(() => {
-  if (emptyTimer !== undefined) {
-    window.clearTimeout(emptyTimer);
-    emptyTimer = undefined;
-  }
+  browser.runtime.onMessage.removeListener(onRuntimeMessage);
+  if (eggTimer !== undefined) window.clearTimeout(eggTimer);
 });
 
 </script>
 
 <template>
-  <QrCodePanel
-    v-if="!notifyState.open && !scanActive"
-    v-model="qrText"
-    collapsible
-    @scan="startPanelScan"
-  />
+  <div class="popup-panel">
+    <QrCodePanel
+      v-show="!notifyState.open"
+      v-model="qrText"
+      collapsible
+      @scan="startPanelScan"
+    />
+    <!-- 彩蛋叠在二维码上, 不占额外尺寸: 弹窗大小保持二维码的样子 -->
+    <Transition name="popup-egg">
+      <p v-if="eggText && !notifyState.open" class="popup-egg" role="status">{{ eggText }}</p>
+    </Transition>
+  </div>
   <NotifyHost embedded />
 </template>
 
@@ -320,6 +343,54 @@ body {
   display: flex;
   justify-content: center; /* 水平居中 */
   align-items: center;     /* 垂直居中 */
+  /* 通知退场时要叠在面板上定位 (见下方 leave-active 规则) */
+  position: relative;
+}
+
+/* 通知退场时脱离文档流并铺满 #app: 被它顶掉的面板此时已经回到流里,
+   两者叠着淡出, 而不是并排铺开把弹窗宽度撑大再缩回来 (那会闪一下).
+   退场期间不拦截点击, 面板上的操作照常可用 */
+#app > .qr-notify-root--embedded.qr-notify-fade-leave-active {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  min-width: 0;
+  pointer-events: none;
+}
+
+/* 彩蛋气泡: 相对二维码面板定位, 叠在图上而不是撑开弹窗 */
+.popup-panel {
+  position: relative;
+}
+
+.popup-egg {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  /* 面板预览自带 z-index: 1, 气泡要压在它上面 */
+  z-index: 2;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  /* 只用来逗一句, 别挡住面板本身的点击 */
+  pointer-events: none;
+}
+
+.popup-egg-enter-active,
+.popup-egg-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.popup-egg-enter-from,
+.popup-egg-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 /* 修复手机上二维码不居中的问题:

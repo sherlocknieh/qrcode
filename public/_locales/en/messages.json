@@ -35,6 +35,18 @@
     "message": "Content is too long to generate a QR code",
     "description": "Hint shown when the content exceeds the QR code capacity"
   },
+  "scanSelfEgg1": {
+    "message": "Scanning your own QR code? Very philosophical",
+    "description": "Easter egg shown when scanning the QR code the popup just generated"
+  },
+  "scanSelfEgg2": {
+    "message": "Spoiler: it says exactly what you just typed",
+    "description": "Easter egg shown when scanning the QR code the popup just generated"
+  },
+  "scanSelfEgg3": {
+    "message": "The QR code: skip this step, I'm literally you",
+    "description": "Easter egg shown when scanning the QR code the popup just generated"
+  },
   "scanWebImage": {
     "message": "Scan Image",
     "description": "Context menu item for recognizing QR code in image"
