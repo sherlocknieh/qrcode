@@ -37,7 +37,8 @@ Agent 调试时用户大概率已经打开 pnpm dev ， Agent 直接用 `http://
 
 | 路径 | 职责 |
 | --- | --- |
-| [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台：右键菜单、打开 popup、通知中转、跨域取图、截图、关标签页、图标开关 |
+| [src/entrypoints/background.ts](./src/entrypoints/background.ts) | 后台入口：只做依赖装配与事件注册，行为都在 [src/services/background/](./src/services/background/) |
+| [src/services/background/](./src/services/background/) | 后台能力按职责拆分：`contextMenus`（右键菜单）、`pageAction`（Firefox 地址栏图标）、`extensionTabs`（临时扩展页开合与来源页回跳）、`scanEntry`（内容脚本优先的扫描分发）、`screenScan`（截视口与 capture 页）、`messages`（运行时消息路由） |
 | [src/entrypoints/content/](./src/entrypoints/content/) | 全站注入 UI；消息 `scanWebImage` / `scanScreen` / `scanLocalImage` / `frameScan`；页面内通知兜底 |
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、扫描图片 |
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | `upload.html`：`?camera=1` 以摄像头模式开 `ScanPanel`；内容脚本注入不了时的兜底页 |
@@ -121,7 +122,7 @@ flowchart LR
 
 ## 修改指引
 
-- **右键菜单**：改 `background.ts` 的 `addContextMenus` + 点击分支，文案加进两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
+- **右键菜单**：改 [background/contextMenus.ts](./src/services/background/contextMenus.ts) 的 `add` + `handleClick` 分支，文案加进两个 locale（Chrome 用 emoji 前缀，Firefox 用 `menuIcons`）。
 - **二维码生成**：以 [qrCode.ts](./src/services/qrCode.ts) 的 SVG 为唯一来源（只画深色模块、背景透明），预览、复制、PNG 下载都由它 `svgToPngDataUrl()` 光栅化成带白底的位图，SVG 下载直接给源文件，别再另写一套 canvas 绘制；输入/预览在 [QrCodePanel.vue](./src/components/QrCodePanel.vue)；条形码生成未接入。
 - **码的位置标记**：`DecodeResult.bounds` 是码在解码所用图像中的像素包围盒：裁剪候选图靠 `Candidate.offsetX/Y` 平移回原图，缩放/旋转过的条形码候选图靠 `BoundsMapper` 换算，其余统一由 `toRect` 夹紧。**换算回原图之后的补高与夹紧一律按原图尺寸算，不能按候选图尺寸**（超过 `BARCODE_SCAN_DIMENSION` 的截图会先被缩小，按候选图高度夹会把原图的 y 压到候选图高度上，条形码标记就塌成一条线并跑到别处）。一维结果的定位点只到扫描行，条高方向就是包围盒的短边，由 `measureBarcodeBounds` 在原图上按条空剖面找连续带、再逐行解码确认，别再退回按宽度比例估算（UPC 条高约等于宽的一半，估算只补了宽度的 8%）。**条空排列方向上定位点在起始/终止图案的中心**（UPC/EAN 是 3 模块定界符中间的空隙、Code 128 是起始符中心），直接当边缘会把最外两根黑条切在框外，由 `measureBarEdges` 沿该方向走到静区取最外黑像素，别改回直接用定位点。调用方用 `DecodeOutcome.imageSize` 与目标矩形换算成 CSS 像素再画框，别在解码层输出页面坐标。命中码时先由 `toMarkRects(results, anchor)` 换算蓝框，`anchor` 只描述"图像画在视口哪块矩形上"（在结果画面里另框一块=选区并带 `clip`、网页图片/面板预览=`measureImageRect(img)` 的实际绘制区域、摄像头预览加 `mirrorX`）；网页图片的锚点要带 `measureRect`，蓝框每次重算都取图片实时位置——只按滚动差量平移的话，固定不随页面滚动的图片（图片查看器、`position: fixed` 浮层）上蓝框会随滚动漂移，`recognizeImage` 传 `deferResults` 暂缓结果通知，再由宿主 `notifyResults(results, { pickHint: 多码 })` 与蓝点同时给出。**扫描屏幕不在页面上叠蓝框**：解码完把这张视口截图交给 `startScreenshot({ src, initialResults })`，由截图容器铺满视口展示结果（`applyImageResults` 按解码图坐标换算到显示区域），标记跟着静止的截图走，页面滚动、内层容器滚动、缩放一概不影响位置；在结果画面上另框一块重扫则改用 `ScreenshotSession.showResults(marks)`，浮层确认时已冻结，蓝框按浮层自身显示区域（不是视口）记录并整体缩放——截图是改窗口大小之前拍的，浮窗按截图比例收缩，与改后的视口宽高比不同，按视口换算再统一缩放会让蓝框纵向差一截；`startScreenshot` 每次确认都回调 `onCapture`，所以同一个浮层能连续框选，没扫到用 `clearResults` 只清蓝框、留住截图。点哪个码就把通知切到哪个码，并撤掉该码的蓝框蓝点（面板与网页图片走 `useCodePicker.pick`，截图容器走 `ScreenshotSession.removeResult(index)`：两边都按同一份结果列表删，别只删渲染出来的框），剩下的继续可点；空白点击由 composable 在 `document` 捕获阶段判断（不铺全屏透明层，面板按钮照常可用），通知窗口刚被这次点击关掉时保留蓝点，只有窗口**宽度**变化会让页面重排时才收起（带 `measureRect` 的锚点不收起，重测一次即可跟住新排版）。
 - **扫描效果**：只改 [qrScanner.ts](./src/services/qrScanner.ts)。ZXing 用深路径导入（`@zxing/library/esm/core/...`），别改成包根导入；摄像头逐帧只走 `decodeCameraFrame`，换 `decodeAllFromImageData` 会卡预览；一维码命中后必须过 `isOneDResultConfirmed` 核对相邻行（文字行也能凑出校验位合法的条码，少了这层会把正文认成条形码），批量扫描里未通过的结果只遮罩不中断，否则一处误判会挡住同图真正的条码。二维码整图/码面矩形都没扫出时会把整图缩到 `QR_DOWNSCALE_DIMENSION` 再扫一遍（模块过大时 ZXing 的定位点会漏检），命中坐标靠 `Candidate.scale` 换回原图，这层别删。
