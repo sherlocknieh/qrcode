@@ -14,6 +14,25 @@ export const sendImageToPopup = async (imageUrl?: string): Promise<boolean> => {
     return true;
 };
 
+// 网页图片扫描: 优先交给内容脚本, 在页面上播扫描动画并叠蓝框定位;
+// 注入不了内容脚本的页面 (扩展商店页、独立 SVG、Firefox 新标签页) 退回 popup 取图,
+// 只是没有动画与蓝框, 直接弹结果通知
+export const requestWebImageScan = async (
+    tabId?: number,
+    imageUrl?: string,
+    pageUrl?: string,
+): Promise<boolean> => {
+    // popup 里右键的是它自己生成的那张二维码, 没有标签页可以交付;
+    // 若继续走取图流程会把 popup 再打开一次, 所以只让 popup 弹一句提示
+    if (pageUrl?.split(/[?#]/)[0] === browser.runtime.getURL('/popup.html')) {
+        void browser.runtime.sendMessage({ action: 'scanPopupQr' }).catch(() => { });
+        return true;
+    }
+    if (!imageUrl) return false;
+    if (await sendTabAction(tabId, 'scanWebImage', { imageUrl })) return true;
+    return sendImageToPopup(imageUrl).catch(() => false);
+};
+
 // 上传/粘贴图片: 与扫描屏幕的降级策略一致, 内容脚本不可用时退回 upload.html 自主取图
 export const requestLocalImageScan = async (tabId?: number): Promise<boolean> => {
     const targetTabId = await resolveActiveTabId(tabId);

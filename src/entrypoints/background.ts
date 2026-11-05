@@ -1,15 +1,102 @@
-import { addContextMenus, handleContextMenuClick } from '@/services/background/contextMenus';
 import { returnToOrigin } from '@/services/background/extensionTabs';
 import { handleBackgroundMessage } from '@/services/background/messages';
 import { addPageActionMenuItem, handlePageActionClick, showPageAction } from '@/services/background/pageAction';
+import { openCameraScan, requestLocalImageScan, requestWebImageScan } from '@/services/background/scanEntry';
+import { requestScreenScan } from '@/services/background/screenScan';
+import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { popupHost } from '@/services/popupHost';
 
-// WXT 后台脚本入口：
-// 浏览器插件的主进程
-// 各组件(如 popup、扩展页、内容脚本等)之间互相通信的中心。
-// 这里只注册事件, 各事件的处理都在 services/background/ 下对应的模块里
+
+// 设置右键菜单图标
+const IS_FIREFOX = import.meta.env.FIREFOX;
+// Firefox 内置支持图标设置
+const setMenuIcon = (name: MenuIconName) => IS_FIREFOX ? { icons: { 16: getMenuIcon(name) } } : {};
+// Chrome 只能通过在标题前添加 emoji 来充当图标
+type MenuMessageKey = 'selectionToQR' | 'scanWebImage' | 'scanScreen' | 'scanLocalImage' | 'scanCamera';
+const setMenuTitle = (key: MenuMessageKey, emoji?: string) => {
+    const title = browser.i18n.getMessage(key);
+    return IS_FIREFOX || !emoji ? title : `${emoji} ${title}`;
+};
+
+// 初始化右键菜单
+const addContextMenus = () => new Promise<void>((resolve) => {
+    browser.contextMenus.removeAll(() => {
+        // 选中文字生成二维码
+        browser.contextMenus.create({
+            id: 'selectionToQR',
+            title: browser.i18n.getMessage('selectionToQR'),
+            contexts: ['selection'],
+            ...setMenuIcon('text'),
+        });
+        // 扫描网页图片
+        browser.contextMenus.create({
+            id: 'scanWebImage',
+            title: browser.i18n.getMessage('scanWebImage'),
+            contexts: ['image'],
+            ...setMenuIcon('scan'),
+        });
+        // 扫描当前页面可视区域
+        browser.contextMenus.create({
+            id: 'scanScreen',
+            title: setMenuTitle('scanScreen', '🖥️'),
+            contexts: ['action', 'page_action'],
+            ...setMenuIcon('scanScreen'),
+        });
+        // 粘贴/上传本地图片扫描
+        browser.contextMenus.create({
+            id: 'scanLocalImage',
+            title: setMenuTitle('scanLocalImage', '📋'),
+            contexts: ['action', 'page_action'],
+            ...setMenuIcon('image'),
+        });
+        // 打开摄像头扫描
+        browser.contextMenus.create({
+            id: 'scanCamera',
+            title: setMenuTitle('scanCamera', '📷'),
+            contexts: ['action', 'page_action'],
+            ...setMenuIcon('camera'),
+        });
+        resolve();
+    });
+});
+
+// 处理右键菜单点击事件
+const handleContextMenuClick = (
+    info: Browser.contextMenus.OnClickData,
+    tab?: Browser.tabs.Tab) => {
+
+    // 选中文字生成二维码
+    if (info.menuItemId === 'selectionToQR') {
+        void popupHost.showQrCode(info.selectionText).catch(() => { });
+        return;
+    }
+
+    // 扫描网页图片中的二维码
+    if (info.menuItemId === 'scanWebImage') {
+        void requestWebImageScan(tab?.id, info.srcUrl, info.pageUrl);
+        return;
+    }
+
+    // 粘贴/上传本地图片扫描
+    if (info.menuItemId === 'scanLocalImage') {
+        void requestLocalImageScan(tab?.id);
+        return;
+    }
+    // 打开摄像头扫码
+    if (info.menuItemId === 'scanCamera') {
+        void openCameraScan(tab?.id);
+        return;
+    }
+    // 扫描当前页面视口: 独立 SVG 由 requestScreenScan 内部跳过内容脚本
+    if (info.menuItemId === 'scanScreen') {
+        void requestScreenScan(tab?.id, tab?.windowId, tab?.url);
+    }
+};
+
+// WXT 后台脚本入口
 export default defineBackground(() => {
-    // 在本扩展中 popup 打开时会发起建立长连接; 监听并处理连接事件
+    
+    // 监听 popup 发起的连接事件: 用于探测 popup 的打开
     browser.runtime.onConnect.addListener(popupHost.connect);
 
     // 扩展安装/升级时重建右键菜单 (菜单不能跨版本沿用).
@@ -19,17 +106,17 @@ export default defineBackground(() => {
     });
 
     // 标签页加载完成时添加 Firefox 地址栏图标
-    if (import.meta.env.FIREFOX)
+    if (IS_FIREFOX)
         browser.tabs.onUpdated.addListener((tabId) => void showPageAction(tabId));
 
     // 用户手动点 X 关闭临时扩展页 (capture / upload) 时把焦点还给来源页;
     // 由后台主动关闭的标签页已先清除记录, 不会重复处理
     browser.tabs.onRemoved.addListener((tabId) => void returnToOrigin(tabId));
 
-    // 监听并处理右键菜单点击事件: 地址栏开关归 pageAction 自己管, 其余交给菜单模块
+    // 监听并处理右键菜单点击事件: 地址栏开关归 pageAction 自己管, 其余按菜单项 id 分发
     browser.contextMenus.onClicked.addListener((info, tab) => {
         if (handlePageActionClick(info.menuItemId)) return;
-        void handleContextMenuClick(info, tab);
+        handleContextMenuClick(info, tab);
     });
 
     // 监听并处理来自内容脚本、扩展页、popup 的消息

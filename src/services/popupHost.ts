@@ -35,6 +35,15 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         lastOpenAt = Date.now();
     };
 
+    // 打开 popup 展示二维码: 二维码由 popup 挂载后从存储读取,
+    // 因此写入与开窗必须成对完成, 只做一半会开出一个空面板
+    const showQrCode = async (text?: string) => {
+        const value = text?.trim();
+        if (!value) return;
+        await storageArea().set({ qrCodeText: value });
+        await open();
+    };
+
     // 打开 popup 失败时撤掉刚才落盘的通知, 避免下次打开时还弹一条已经没人处理的
     const clearIfCurrent = async (id: number) => {
         const stored = await storageArea().get(POPUP_NOTICE_KEY);
@@ -117,7 +126,7 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         });
     };
 
-    return { open, showNotification, finish, isOpen, isConnected, connect };
+    return { open, showQrCode, showNotification, finish, isOpen, isConnected, connect };
 };
 
 export const popupHost = createPopupHost(closeTabAndReturn);
