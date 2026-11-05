@@ -34,10 +34,12 @@ const props = defineProps<{ pendingNotice?: PopupNoticeRecord }>();
 const QR_TEXT_KEY = 'qrCodeText';
 // SVG 等非 HTML 页面无法使用内容脚本弹窗, 由 background 把图片地址写入该键
 const QR_IMAGE_KEY = 'qrImageUrl';
-// 在 popup 自己的二维码上右键"扫描图片"时随机挑一句逗趣文案
+// 在 popup 自己的二维码上右键"扫描图片"时依次说下一句逗趣文案
 const SCAN_SELF_EGG_KEYS = ['scanSelfEgg1', 'scanSelfEgg2', 'scanSelfEgg3'];
 // 彩蛋气泡的文案与自动消失定时器
 const eggText = ref('');
+// 顺序轮播的下标: 每次右键往后挪一句, 说完再从第一句开始
+let eggIndex = 0;
 let eggTimer: number | undefined;
 
 
@@ -347,8 +349,9 @@ async function startScan(imageUrl: string) {
 // 收起时窗口要重排, 中间会白闪一下
 function onRuntimeMessage(message: { action?: string }) {
   if (message?.action !== 'scanPopupQr') return;
-  const keys = SCAN_SELF_EGG_KEYS;
-  eggText.value = t(keys[Math.floor(Math.random() * keys.length)]!);
+  const key = SCAN_SELF_EGG_KEYS[eggIndex % SCAN_SELF_EGG_KEYS.length]!;
+  eggIndex += 1;
+  eggText.value = t(key);
   if (eggTimer !== undefined) window.clearTimeout(eggTimer);
   eggTimer = window.setTimeout(() => {
     eggTimer = undefined;

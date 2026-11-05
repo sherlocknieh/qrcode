@@ -36,15 +36,15 @@
     "description": "Hint shown when the content exceeds the QR code capacity"
   },
   "scanSelfEgg1": {
-    "message": "Scanning yourself? This QR code is a bit narcissistic",
+    "message": "No need to scan — the answer is right here",
     "description": "Easter egg shown when scanning the QR code the popup just generated"
   },
   "scanSelfEgg2": {
-    "message": "No need to scan — the answer is the text you just typed",
+    "message": "Scanning yourself would cause a paradox",
     "description": "Easter egg shown when scanning the QR code the popup just generated"
   },
   "scanSelfEgg3": {
-    "message": "QR code: factory-sealed, no quality check needed",
+    "message": "QR code: I refuse to scan myself",
     "description": "Easter egg shown when scanning the QR code the popup just generated"
   },
   "scanWebImage": {

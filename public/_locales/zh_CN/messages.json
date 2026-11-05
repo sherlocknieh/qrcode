@@ -36,15 +36,15 @@
     "description": "内容超出二维码容量时的提示"
   },
   "scanSelfEgg1": {
-    "message": "自己扫自己，这二维码还挺自恋",
+    "message": "不用扫啦，答案就在附近",
     "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
   },
   "scanSelfEgg2": {
-    "message": "不用扫，答案就是你刚敲的那句话",
+    "message": "自己扫自己，会引发时空悖论",
     "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
   },
   "scanSelfEgg3": {
-    "message": "二维码：本码已出厂，无需质检",
+    "message": "二维码：我拒绝扫描我自己",
     "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
   },
   "scanWebImage": {
