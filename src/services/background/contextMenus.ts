@@ -1,32 +1,35 @@
+// 处理右键菜单相关的逻辑
+
+
 import type { PageAction } from '@/services/background/pageAction';
 import { isSvgDocumentUrl } from '@/services/background/screenScan';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
-
-// Chrome/Edge 不支持菜单图标, 用 emoji 前缀提升辨识度; Firefox 已有图标, 不重复添加
-type MenuMessageKey = 'scanWebImage' | 'selectionToQR' | 'scanScreen' | 'scanLocalImage' | 'cameraScanTitle';
-
-const IS_FIREFOX = import.meta.env.FIREFOX;
-
 export interface ContextMenusOptions {
     pageAction: PageAction;
     // 选中文字生成二维码
     showQRcode: (text?: string) => void;
     // 页面图片交给 popup 扫描 (内容脚本不可用时的降级)
-    showQrFromImagePage: (imageUrl?: string) => void;
+    sendImageToPopup: (imageUrl?: string) => Promise<boolean>;
     requestScreenScan: (tabId: number, windowId?: number) => Promise<boolean>;
     showScreenScan: (originTabId?: number, windowId?: number) => Promise<boolean>;
     requestLocalImageScan: (tabId?: number) => Promise<boolean>;
     openCameraScan: (originTabId?: number) => Promise<boolean>;
 }
 
+
+// 右键菜单的创建与点击处理
 export const createContextMenus = (options: ContextMenusOptions) => {
     const { pageAction } = options;
+
+    const IS_FIREFOX = import.meta.env.FIREFOX;
 
     // Firefox 支持为菜单项指定自定义图标 (Chrome 不支持, 因此仅在 Firefox 构建中传入);
     // 图标内嵌在 src/services/menuIcons.ts 中, 颜色跟随菜单主题自动变化
     const menuIcons = (name: MenuIconName) => IS_FIREFOX
         ? { icons: { 16: getMenuIcon(name) } }
         : {};
+
+    type MenuMessageKey = 'scanWebImage' | 'selectionToQR' | 'scanScreen' | 'scanLocalImage' | 'cameraScanTitle';
 
     const menuTitle = (key: MenuMessageKey, emoji?: string) => {
         const title = browser.i18n.getMessage(key);
@@ -106,16 +109,17 @@ export const createContextMenus = (options: ContextMenusOptions) => {
             void options.openCameraScan(tabId);
             return;
         }
-        // 页面图片二维码扫描, 扫描过程的提示统一由 popup 显示
+        // 网页图片二维码扫描
         if (info.menuItemId === 'scanWebImage') {
-            // 此 URL 是包含域名的完整 URL, 无论图片是否用了相对路径
+            // 发送扫描请求到当前标签页, 由内容脚本执行后续扫描操作
             browser.tabs.sendMessage(tabId, {
                 action: 'scanWebImage',
                 imageUrl: info.srcUrl,
             }).catch(() => {
-                // PDF、SVG 等无法注入内容脚本的特殊页面: 直接把链接传给 popup,
-                // 由 popup 完成图片获取和扫描
-                options.showQrFromImagePage(info.srcUrl);
+                // 对于无法运行内容脚本的页面 (Chrome 商店页、独立 SVG 等): 
+                // 直接把链接传给 popup, 由 popup 完成图片获取，扫描和通知;
+                // 体验会差一些：没有扫描动画，没有蓝框定位，但能出结果；
+                void options.sendImageToPopup(info.srcUrl).catch(() => {});
             });
             return;
         }

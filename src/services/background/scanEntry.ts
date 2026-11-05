@@ -13,7 +13,6 @@ export interface ScanEntryOptions {
 export interface ScanEntry {
     // 把图片交给 popup 扫描, 交接不成 (空地址) 返回 false
     sendImageToPopup: (imageUrl?: string) => Promise<boolean>;
-    showQrFromImagePage: (imageUrl?: string) => void;
     // 内容脚本可能未注入 (PDF、SVG 等), 统一处理发送异常与回执
     tryContentAction: (tabId: number | undefined, action: string) => Promise<boolean>;
     resolveActiveTabId: (tabId?: number) => Promise<number | undefined>;
@@ -24,18 +23,14 @@ export interface ScanEntry {
 }
 
 export const createScanEntry = ({ popup, openExtensionPage }: ScanEntryOptions): ScanEntry => {
-    // 把图片交给 popup 扫描: 非 HTML 页面 (SVG/PDF) 与截图降级共用同一条交接方式。
-    // popup 已打开时会通过 storage.onChanged 自动开始扫描, 无需重复打开。
+    // 把图片交给 popup 扫描: 内容脚本注入不了 (扩展商店页、独立 SVG 等) 的页面里
+    // 右键图片仍会带 srcUrl 命中菜单, 由这条路径兜底; 截图不走这里, 由 capture.html 承接。
     const sendImageToPopup = async (imageUrl?: string): Promise<boolean> => {
         if (!imageUrl) return false;
         await storageArea().set({ qrImageUrl: imageUrl });
         if (popup.isConnected()) return true;
         await popup.open();
         return true;
-    };
-
-    const showQrFromImagePage = (imageUrl?: string) => {
-        void sendImageToPopup(imageUrl).catch(() => {});
     };
 
     const tryContentAction = async (tabId: number | undefined, action: string): Promise<boolean> => {
@@ -68,7 +63,6 @@ export const createScanEntry = ({ popup, openExtensionPage }: ScanEntryOptions):
 
     return {
         sendImageToPopup,
-        showQrFromImagePage,
         tryContentAction,
         resolveActiveTabId,
         requestLocalImageScan,

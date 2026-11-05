@@ -42,7 +42,7 @@ export default defineBackground(() => {
     const menus = createContextMenus({
         pageAction,
         showQRcode,
-        showQrFromImagePage: scanEntry.showQrFromImagePage,
+        sendImageToPopup: scanEntry.sendImageToPopup,
         requestScreenScan: screenScan.request,
         showScreenScan: screenScan.show,
         requestLocalImageScan: scanEntry.requestLocalImageScan,
