@@ -12,7 +12,7 @@ const mode = ref<'image' | 'camera'>(
 );
 
 watch(mode, (value) => {
-    document.title = t(value === 'camera' ? 'cameraScanTitle' : 'appName');
+    document.title = t(value === 'camera' ? 'scanCamera' : 'appName');
 }, { immediate: true });
 </script>
 

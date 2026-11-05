@@ -1,23 +1,12 @@
-import type { ExtensionTabs } from '@/services/background/extensionTabs';
-import type { ScanEntry } from '@/services/background/scanEntry';
-import type { ScreenScan } from '@/services/background/screenScan';
-import type { createPopupHost } from '@/services/popupHost';
+import { closeTabAndReturn } from '@/services/background/extensionTabs';
+import { openCameraScan, requestLocalImageScan } from '@/services/background/scanEntry';
+import { captureVisibleTab, requestScreenScan } from '@/services/background/screenScan';
+import { resolveActiveTabId, sendTabAction } from '@/services/messaging';
+import { popupHost } from '@/services/popupHost';
 
-// 后台消息路由: 内容脚本与 popup 发来的请求都汇总在这里, 入口文件只把监听器挂上去。
+// 后台消息路由: 内容脚本与 popup 发来的请求都汇总在这里, 入口文件只把监听器挂上。
 // 每个 action 独立处理, 需要异步回执的返回 true 保持消息端口开启
-export interface BackgroundMessagesOptions {
-    popup: ReturnType<typeof createPopupHost>;
-    tabs: ExtensionTabs;
-    scanEntry: ScanEntry;
-    screenScan: ScreenScan;
-}
-
-export const createBackgroundMessageHandler = ({
-    popup,
-    tabs,
-    scanEntry,
-    screenScan,
-}: BackgroundMessagesOptions) => (
+export const handleBackgroundMessage = (
     request: any,
     sender: Browser.runtime.MessageSender,
     sendResponse: (response: any) => void,
@@ -25,19 +14,19 @@ export const createBackgroundMessageHandler = ({
     // 全屏扫描的蓝点被点空白处收起前先问一句: 通知窗口是否还开着。
     // 开着说明这一下点击是去关 popup 的, 内容脚本会保留蓝点等下一次点击
     if (request.action === 'popupNoticeOpen') {
-        sendResponse({ success: true, open: popup.isOpen() });
+        sendResponse({ success: true, open: popupHost.isOpen() });
         return false;
     }
     // 页面通知转发到 popup; 独立扫描页会带上 closeOriginTab, 记录发起它的标签页
     if (request.action === 'showNotification') {
-        popup.showNotification(request.payload, sender.tab?.id)
+        popupHost.showNotification(request.payload, sender.tab?.id)
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;
     }
     // popup 已展示通知, 清理待展示内容 (需要时一并关闭发起它的标签页)
     if (request.action === 'notificationResolved') {
-        void popup.finish(request.id);
+        void popupHost.finish(request.id);
         sendResponse({ success: true });
         return false;
     }
@@ -48,7 +37,7 @@ export const createBackgroundMessageHandler = ({
             sendResponse({ success: false });
             return false;
         }
-        tabs.closeAndReturn(tabId)
+        closeTabAndReturn(tabId)
             .then(() => sendResponse({ success: true }))
             .catch(() => sendResponse({ success: false }));
         return true;
@@ -62,7 +51,7 @@ export const createBackgroundMessageHandler = ({
             return tab?.windowId;
         };
         resolveWindowId()
-            .then(windowId => screenScan.capture(windowId))
+            .then(windowId => captureVisibleTab(windowId))
             .then(dataUrl => sendResponse({ success: true, dataUrl }))
             .catch(error => sendResponse({ success: false, error: error?.message ?? String(error) }));
         return true;
@@ -73,7 +62,7 @@ export const createBackgroundMessageHandler = ({
         browser.tabs.query({ active: true, currentWindow: true })
             .then(async ([tab]) => {
                 if (tab?.id == null) throw new Error('No active tab.');
-                return screenScan.request(tab.id, tab.windowId);
+                return requestScreenScan(tab.id, tab.windowId, tab.url);
             })
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
@@ -81,11 +70,8 @@ export const createBackgroundMessageHandler = ({
     }
     // popup 通知里点"框选扫描": 全屏扫描没扫到码, 由内容脚本打开框选浮层让用户自己选一块
     if (request.action === 'requestFrameScan') {
-        browser.tabs.query({ active: true, currentWindow: true })
-            .then(async ([tab]) => {
-                if (tab?.id == null) throw new Error('No active tab.');
-                return scanEntry.tryContentAction(tab.id, 'frameScan');
-            })
+        resolveActiveTabId()
+            .then(tabId => sendTabAction(tabId, 'frameScan'))
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;
@@ -93,7 +79,7 @@ export const createBackgroundMessageHandler = ({
     // popup 展开面板里的"扫描图片": 与右键菜单共用同一套分发,
     // 优先在当前页开扫描浮层, 内容脚本不可注入时再打开独立扫描页
     if (request.action === 'openImageScan') {
-        scanEntry.requestLocalImageScan(sender.tab?.id)
+        requestLocalImageScan(sender.tab?.id)
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;
@@ -101,7 +87,7 @@ export const createBackgroundMessageHandler = ({
     // 图片扫描浮层里点"从摄像头取图": 摄像头只能在扩展页运行,
     // 由后台打开 upload.html?camera=1, 并记录来源页以便关闭后切回
     if (request.action === 'openCameraScan') {
-        scanEntry.openCameraScan(sender.tab?.id)
+        openCameraScan(sender.tab?.id)
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;

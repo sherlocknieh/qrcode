@@ -1,6 +1,7 @@
 // 后台侧的 popup 宿主: 通知落盘与推送、窗口打开, 以及窗口开合的竞态兜底
 // popup 是否打开只能由后台感知 (长连接 + openPopup 的返回时机), 所以这一整块状态收在这里,
 // 入口文件只负责把拿到的消息转进来
+import { closeTabAndReturn } from '@/services/background/extensionTabs';
 import {
     POPUP_NOTICE_KEY,
     type PopupNoticePayload,
@@ -13,12 +14,8 @@ const POPUP_OPEN_GRACE = 1500;
 // 断开事件晚于真实点击, 关闭后这段时间仍算"开着", 让这一击去关 popup
 const POPUP_CLOSE_GRACE = 600;
 
-export interface PopupHostOptions {
-    // 通知结束时要关闭的标签页 (独立扫描页发起); 由调用方先切回来源页再关闭
-    closeTab: (tabId: number) => void | Promise<unknown>;
-}
-
-export const createPopupHost = ({ closeTab }: PopupHostOptions) => {
+// 关闭通知里提到的标签页 (独立扫描页发起): 先切回来源页再关闭
+const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) => {
     let port: Browser.runtime.Port | null = null;   // popup 窗口长连接
     let opening = false;                            // popup 窗口是否正在打开
     let lastOpenAt = 0;                             // popup 上次打开时间
@@ -122,3 +119,5 @@ export const createPopupHost = ({ closeTab }: PopupHostOptions) => {
 
     return { open, showNotification, finish, isOpen, isConnected, connect };
 };
+
+export const popupHost = createPopupHost(closeTabAndReturn);

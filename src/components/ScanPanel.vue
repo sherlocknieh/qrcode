@@ -213,7 +213,7 @@ async function handleCameraError(error: unknown) {
 
 // ---------------------------- 布局与交互 ----------------------------
 
-const title = computed(() => t(isCamera.value ? 'cameraScanTitle' : 'scanLocalImageTitle'));
+const title = computed(() => t(isCamera.value ? 'scanCamera' : 'scanLocalImageTitle'));
 
 // 提示始终占一行, 换源不改变面板高度
 const hint = computed(() => {

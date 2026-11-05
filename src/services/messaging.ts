@@ -33,6 +33,34 @@ export async function trySendMessage(
     }
 }
 
+// 后台向指定标签页的内容脚本下发动作, 返回内容脚本是否在线.
+// 注入不了内容脚本的页面 (扩展商店页、Firefox 内置 PDF 阅读器、独立 SVG 等) 发送会抛错,
+// 这里统一折成 false, 由调用方决定退到扩展页还是 popup
+export async function sendTabAction(
+    tabId: number | undefined,
+    action: string,
+    payload: Record<string, unknown> = {},
+): Promise<boolean> {
+    if (tabId == null) return false;
+    try {
+        const response = await browser.tabs.sendMessage(
+            tabId,
+            { action, ...payload },
+        ) as MessageResponse | undefined;
+        return response?.success !== false;
+    } catch {
+        return false;
+    }
+}
+
+// 右键菜单与部分消息不带标签页 (Firefox 的 popup 不是标签页), 统一取当前活动标签页兜底;
+// TAB_ID_NONE(-1) 是 devtools / app 这类没有标签页的宿主, 同样当作"没有"处理
+export async function resolveActiveTabId(tabId?: number): Promise<number | undefined> {
+    if (tabId != null && tabId >= 0) return tabId;
+    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+    return activeTab?.id;
+}
+
 function toError(error: unknown, fallback: string): Error {
     if (error instanceof Error) return error;
     if (typeof error === 'string' && error) return new Error(error);

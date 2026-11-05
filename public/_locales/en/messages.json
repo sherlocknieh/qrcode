@@ -16,7 +16,7 @@
     "description": "Context menu item for generating QR code from selected text"
   },
   "qrInputPlaceholder": {
-    "message": "Type text to generate a QR code",
+    "message": "Input text to generate QR code",
     "description": "Placeholder of the QR code input field"
   },
   "moreOptions": {
@@ -59,7 +59,7 @@
     "message": "Scan Local Image",
     "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image"
   },
-  "cameraScanTitle": {
+  "scanCamera": {
     "message": "Scan with Camera",
     "description": "Title of the camera scanning page"
   },

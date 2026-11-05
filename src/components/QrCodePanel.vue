@@ -10,8 +10,10 @@ const props = withDefaults(
     defineProps<{
         modelValue?: string;
         collapsible?: boolean;
+        // 叠在二维码上的一闪而过的文案 (popup 里右键扫自己的二维码时用), 不占面板尺寸
+        flashText?: string;
     }>(),
-    { modelValue: '', collapsible: false },
+    { modelValue: '', collapsible: false, flashText: '' },
 );
 
 const emit = defineEmits<{
@@ -117,7 +119,11 @@ onBeforeUnmount(() => {
 
 <template>
     <section class="qr-panel" :class="{ 'qr-panel--compact': !expanded }">
-        <div class="qr-panel-preview">
+        <div
+            class="qr-panel-preview"
+            :class="{ 'qr-panel-preview--toggle': collapsible }"
+            @click="collapsible && toggleExpanded()"
+        >
             <img
                 v-if="dataUrl"
                 class="qr-panel-image"
@@ -128,7 +134,9 @@ onBeforeUnmount(() => {
             <p v-else-if="error" class="qr-panel-error">{{ error }}</p>
             <p v-else class="qr-panel-hint">{{ t('qrEmptyHint') }}</p>
 
-            <!-- 点击整块二维码展开/收起 -->
+            <!-- 点击整块二维码展开/收起; 键盘入口仍是这个按钮, 鼠标点击冒泡到预览容器.
+                 按钮不接收指针, 否则右键命中的是按钮而不是 <img>, 浏览器只给 page 上下文的菜单,
+                 连图片扫描那一项都不会出现 -->
             <button
                 v-if="collapsible"
                 class="qr-panel-toggle"
@@ -136,8 +144,13 @@ onBeforeUnmount(() => {
                 :aria-expanded="expanded"
                 :aria-label="expanded ? t('collapseEditor') : t('moreOptions')"
                 :title="expanded ? t('collapseEditor') : t('moreOptions')"
-                @click="toggleExpanded"
             ></button>
+
+            <!-- 临时提示叠在二维码上而不是面板外面:
+                 抽屉展开时它也贴着二维码, 不跟着面板下沿跑 -->
+            <Transition name="qr-panel-flash">
+                <p v-if="flashText" class="qr-panel-flash" role="status">{{ flashText }}</p>
+            </Transition>
         </div>
 
         <Transition name="qr-drawer">
@@ -210,8 +223,8 @@ onBeforeUnmount(() => {
                             <button
                                 class="qr-panel-action qr-panel-action--camera"
                                 type="button"
-                                :aria-label="t('cameraScanTitle')"
-                                :title="t('cameraScanTitle')"
+                                :aria-label="t('scanCamera')"
+                                :title="t('scanCamera')"
                                 @click="emit('scan', 'camera')"
                             ></button>
                         </div>
@@ -296,6 +309,37 @@ onBeforeUnmount(() => {
 
 .qr-panel-error {
     color: #dc2626;
+}
+
+/* 临时提示: 绝对定位叠在二维码下沿, 不参与布局, 面板尺寸不会被它撑开 */
+.qr-panel-flash {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    /* 压住二维码图片和预览底部的投影 */
+    z-index: 2;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.88);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: center;
+    /* 只是顺带逗一句 / 报个状态, 点击照常落到二维码热区 */
+    pointer-events: none;
+}
+
+.qr-panel-flash-enter-active,
+.qr-panel-flash-leave-active {
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.qr-panel-flash-enter-from,
+.qr-panel-flash-leave-to {
+    opacity: 0;
+    transform: translateY(6px);
 }
 
 /* 展开区按 grid 行高 0fr → 1fr 撑开: 内容始终在顶部, 窗口拉多高就露出多少,
@@ -435,13 +479,19 @@ onBeforeUnmount(() => {
     outline: none;
 }
 
-/* 展开入口: 整块二维码都是热区, 平时完全透明, 键盘聚焦时给出描边 */
+/* 展开入口: 整块二维码都是热区, 平时完全透明, 键盘聚焦时给出描边.
+   按钮只留给键盘, 不接收指针——鼠标点击由 .qr-panel-preview 处理.
+   否则右键落在按钮上, 浏览器按 page 上下文出菜单, 图片相关的菜单项不会出现 */
 .qr-panel-toggle {
     position: absolute;
     inset: 0;
     padding: 0;
     background: transparent;
     border: 0;
+    pointer-events: none;
+}
+
+.qr-panel-preview--toggle {
     cursor: pointer;
 }
 

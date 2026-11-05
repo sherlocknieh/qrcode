@@ -1,9 +1,4 @@
-<!-- Popup 页面 
- 
-  - 展示二维码
-    - 后台扫描二维码
-  - 展示通知
- -->
+<!-- Popup 页面, 有两个职责: 展示二维码/展示通知 -->
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -318,18 +313,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="popup-panel">
-    <QrCodePanel
-      v-show="!notifyState.open"
-      v-model="qrText"
-      collapsible
-      @scan="startPanelScan"
-    />
-    <!-- 彩蛋叠在二维码上, 不占额外尺寸: 弹窗大小保持二维码的样子 -->
-    <Transition name="popup-egg">
-      <p v-if="eggText && !notifyState.open" class="popup-egg" role="status">{{ eggText }}</p>
-    </Transition>
-  </div>
+  <!-- 二维码面板 -->
+  <QrCodePanel
+    v-show="!notifyState.open"
+    v-model="qrText"
+    collapsible
+    :flash-text="eggText"
+    @scan="startPanelScan"
+  />
+
+  <!-- 通知弹窗 -->
   <NotifyHost embedded />
 </template>
 
@@ -356,41 +349,6 @@ body {
   width: auto;
   min-width: 0;
   pointer-events: none;
-}
-
-/* 彩蛋气泡: 相对二维码面板定位, 叠在图上而不是撑开弹窗 */
-.popup-panel {
-  position: relative;
-}
-
-.popup-egg {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
-  /* 面板预览自带 z-index: 1, 气泡要压在它上面 */
-  z-index: 2;
-  margin: 0;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.88);
-  color: #fff;
-  font-size: 13px;
-  line-height: 1.45;
-  text-align: center;
-  /* 只用来逗一句, 别挡住面板本身的点击 */
-  pointer-events: none;
-}
-
-.popup-egg-enter-active,
-.popup-egg-leave-active {
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-
-.popup-egg-enter-from,
-.popup-egg-leave-to {
-  opacity: 0;
-  transform: translateY(6px);
 }
 
 /* 修复手机上二维码不居中的问题:
