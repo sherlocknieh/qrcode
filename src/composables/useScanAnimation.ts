@@ -17,6 +17,8 @@ type ScanOptions = {
     duration?: number;
     // 区域扫描对应的图片元素: 用来算"只比它高一层"的层级
     anchor?: Element | null;
+    // 盖在截图容器上播放时指定: 截图容器用的是最高层级, 光带要压过它才看得见
+    zIndex?: number;
 };
 
 type ScanState = ScanOptions & { leaving: boolean };
@@ -49,8 +51,9 @@ export function useScanAnimation() {
         // 只在挂载时算一次: 动画淡出期间图片可能已被移除, 免得层级与挂载点中途变化
         const anchor = options.rect ? options.anchor : null;
         const mount = overlayMountPoint(anchor);
-        // 挂进图片容器时才跟随页面层级; 退回 body 时保留覆盖视口的最高层
-        const zIndex = mount === document.body ? null : overlayZIndex(anchor);
+        // 挂进图片容器时才跟随页面层级; 退回 body 时保留覆盖视口的最高层,
+        // 显式传了 zIndex (如盖在截图容器上) 时以它为准
+        const zIndex = options.zIndex ?? (mount === document.body ? null : overlayZIndex(anchor));
         const host = document.createElement('div');
         host.style.display = 'contents';
         mount.appendChild(host);

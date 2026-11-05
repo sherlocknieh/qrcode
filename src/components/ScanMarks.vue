@@ -40,6 +40,7 @@ function dotStyle(rect: ScanRect) {
                     :key="index"
                     class="qr-marks-item"
                     :style="rectStyle(rect)"
+                    @click.stop.prevent="emit('pick', index)"
                 >
                     <span class="qr-marks-box" />
                     <!-- 修复点蓝点会顺带触发下层交互的问题:
@@ -83,6 +84,9 @@ function dotStyle(rect: ScanRect) {
     padding: 0;
     opacity: 1;
     animation: qr-marks-pop 200ms ease both;
+    /* 整个蓝框区域都能点选: 不必非得点中中间的小蓝点 */
+    pointer-events: auto;
+    cursor: pointer;
 }
 
 .qr-marks-box {

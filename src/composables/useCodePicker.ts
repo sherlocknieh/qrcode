@@ -144,7 +144,8 @@ export function useCodePicker(options: CodePickerOptions) {
     function onDocumentClick(event: MouseEvent) {
         if (!picked.value) return;
         const target = event.target;
-        if (target instanceof Element && target.closest('.qr-marks-dot')) return;
+        // 蓝点与整个蓝框都算"点中了码", 不能当成点空白收起
+        if (target instanceof Element && target.closest('.qr-marks-dot, .qr-marks-item')) return;
         void dismiss();
     }
 

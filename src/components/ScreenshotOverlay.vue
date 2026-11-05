@@ -11,10 +11,10 @@ const props = withDefaults(
         src: string;
         // 是否播放"全屏闪光 -> 收缩到居中窗口"的入场动画
         intro?: boolean;
-        // 整屏扫描已经出结果: 打开就把整张截图作为结果画面, 直接标出这些码 (解码图像的像素坐标)
-        initialResults?: ScanRect[];
+        // 只读结果层: 只展示截图与结果蓝点, 不允许框选, 也不显示工具按钮
+        selectable?: boolean;
     }>(),
-    { intro: false, initialResults: () => [] },
+    { intro: false, selectable: true },
 );
 
 const emit = defineEmits<{
@@ -22,6 +22,8 @@ const emit = defineEmits<{
     (event: 'confirm', payload: { dataUrl: string; rect: Rect; viewport: { width: number; height: number } }): void;
     // 点中结果蓝点: 宿主把通知切到该码
     (event: 'pick', index: number): void;
+    // 只读结果层上点了空白处: 宿主确认没有通知在显示后收起这层
+    (event: 'blank'): void;
     (event: 'cancel'): void;
     (event: 'error'): void;
 }>();
@@ -103,7 +105,7 @@ const imageSize = ref({ width: 0, height: 0 });
 const loaded = ref(false);
 const selection = ref<Rect | null>(null);
 const toolbarPosition = ref({ left: 0, top: 0 });
-const cursor = ref('crosshair');
+const cursor = ref(props.selectable ? 'crosshair' : 'default');
 const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
 // 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中浮窗
@@ -220,7 +222,7 @@ const showToolbar = computed(() => loaded.value && !busy.value && !frozen.value 
 
 // 入场动画结束后、尚未框选时提示用户拖动框选
 const showHint = computed(
-    () => loaded.value && !busy.value && !frozen.value && !hasSelection.value,
+    () => loaded.value && !busy.value && !frozen.value && !hasSelection.value && props.selectable,
 );
 
 // 结果蓝框层按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域;
@@ -290,12 +292,21 @@ const draw = () => {
     context.clearRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
 
-    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩, 选区处挖空;
-    // 冻结后遮罩照旧保留 (选区只负责挖空), 让"截的是哪一块"一直看得见
+    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩; 选中的区域或结果蓝框内部挖空,
+    // 让码本身保持清晰, 冻结后也能一眼看出标记的是哪几块
     const rect = selection.value;
     context.beginPath();
     context.rect(0, 0, width, height);
-    if (rect) context.rect(rect.x, rect.y, rect.width, rect.height);
+    if (frozen.value && resultMarks.value.length) {
+        // 结果蓝框按浮层初始显示区域记录, 窗口尺寸变化后要换算回当前画布坐标
+        const source = sourceViewport.value;
+        const scale = source && source.width > 0 ? layout.value.width / source.width : 1;
+        for (const mark of resultMarks.value) {
+            context.rect(mark.x * scale, mark.y * scale, mark.width * scale, mark.height * scale);
+        }
+    } else if (rect) {
+        context.rect(rect.x, rect.y, rect.width, rect.height);
+    }
     context.fillStyle = MASK_COLOR;
     context.fill('evenodd');
 
@@ -569,25 +580,6 @@ const confirm = () => {
     });
 };
 
-// 整屏扫描的结果画面: 整张截图就是结果, 蓝框按解码图像的像素坐标换算到截图当前显示区域。
-// 页面之后的滚动、缩放都不再参与定位, 标记只跟着这张静止的截图
-function applyImageResults(bounds: ScanRect[]) {
-    frozen.value = true;
-    archivedMarks = null;
-    archivedSelection = null;
-    selection.value = null;
-    // 与框选流程一致: 蓝框层按浮层当前显示区域记录, 窗口尺寸变化时再整体缩放
-    sourceViewport.value = { width: layout.value.width, height: layout.value.height };
-    const scaleX = imageSize.value.width > 0 ? layout.value.width / imageSize.value.width : 1;
-    const scaleY = imageSize.value.height > 0 ? layout.value.height / imageSize.value.height : 1;
-    resultMarks.value = bounds.map((bound) => ({
-        x: bound.x * scaleX,
-        y: bound.y * scaleY,
-        width: bound.width * scaleX,
-        height: bound.height * scaleY,
-    }));
-}
-
 // 有选区时输出选区, 否则输出整张截图
 const getOutputDataUrl = (): string => {
     if (busy.value) return '';
@@ -627,8 +619,14 @@ const handleWheel = (event: WheelEvent) => {
     event.preventDefault();
 };
 
+// 只读结果层没有工具栏: 点画面空白处交给宿主收起 (通知还开着时由宿主忽略)
+const handleCanvasClick = () => {
+    if (props.selectable) return;
+    emit('blank');
+};
+
 const handlePointerDown = (event: PointerEvent) => {
-    if (busy.value || event.button !== 0) return;
+    if (!props.selectable || busy.value || event.button !== 0) return;
     // 结果画面上继续框选: 先收起上一轮蓝框, 拖出选区后照常确认、扫描新区域
     if (frozen.value) {
         archivedMarks = resultMarks.value;
@@ -656,7 +654,7 @@ const handlePointerDown = (event: PointerEvent) => {
 };
 
 const handlePointerMove = (event: PointerEvent) => {
-    if (busy.value) return;
+    if (!props.selectable || busy.value) return;
     const { x, y } = getPointerPosition(event);
     if (!drag) {
         updateCursor(x, y);
@@ -707,6 +705,7 @@ const handlePointerUp = (event: PointerEvent) => {
 };
 
 const handleOutsidePointerDown = (event: PointerEvent) => {
+    if (!props.selectable) return;
     const target = event.target;
     if (!loaded.value || busy.value) return;
     if (target instanceof Node && rootRef.value?.contains(target)) return;
@@ -714,7 +713,7 @@ const handleOutsidePointerDown = (event: PointerEvent) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-    if (!loaded.value || busy.value) return;
+    if (!props.selectable || !loaded.value || busy.value) return;
     if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -774,7 +773,7 @@ watch(
 );
 
 watch(
-    [layout, selection, loaded, frozen],
+    [layout, selection, loaded, frozen, resultMarks],
     () => {
         draw();
         nextTick(updateToolbarPosition);
@@ -797,9 +796,7 @@ onMounted(() => {
             height: element.naturalHeight || element.height,
         };
         loaded.value = true;
-        // 整屏扫描带着结果进来: 截图本身就是结果画面, 不播放入场动画也不等框选
-        if (props.initialResults.length) applyImageResults(props.initialResults);
-        else startIntro();
+        startIntro();
     };
     element.onerror = () => emit('error');
     element.src = props.src;
@@ -827,14 +824,18 @@ defineExpose({
         // 识别完成即收起这次选区: 遮罩恢复整片压暗, 只留结果蓝框;
         // 否则高亮块会一直挂在画面上, 看着像还在扫这一块
         selection.value = null;
+        // 整屏扫描没有经过框选确认: 在这里补记蓝框层对应的显示区域,
+        // 之后切成浮窗或改窗口大小时才能整体缩放对齐
+        sourceViewport.value = { width: layout.value.width, height: layout.value.height };
         resultMarks.value = marks;
     },
-    // 没扫到码: 清掉蓝框与选区高亮, 但留住截图, 用户直接拖下一块重扫
-    clearResults() {
+    // 没扫到码: 清掉蓝框, 但留住截图与这次的挖空范围,
+    // 用户能看清刚才扫的是哪一块, 直接拖下一块重扫
+    clearResults(rect?: ScanRect) {
         frozen.value = true;
         archivedMarks = null;
         archivedSelection = null;
-        selection.value = null;
+        if (rect) selection.value = rect;
         resultMarks.value = [];
     },
     // 点掉一个蓝点就只撤掉它的蓝框: 已看过的码不该继续挂在结果画面上,
@@ -842,6 +843,11 @@ defineExpose({
     removeResult(index: number) {
         if (index < 0 || index >= resultMarks.value.length) return;
         resultMarks.value = resultMarks.value.filter((_, markIndex) => markIndex !== index);
+    },
+    // 浮层显示区域坐标 → 视口坐标: 扫描动画挂在页面上, 浮窗模式下要加上窗口偏移
+    toViewportRect(rect: ScanRect): ScanRect {
+        const { left, top } = layout.value;
+        return { x: rect.x + left, y: rect.y + top, width: rect.width, height: rect.height };
     },
 });
 </script>
@@ -865,7 +871,8 @@ defineExpose({
             :width="pixelWidth"
             :height="pixelHeight"
             :style="canvasStyle"
-            @pointerdown="handlePointerDown" />
+            @pointerdown="handlePointerDown"
+            @click="handleCanvasClick" />
         <!-- 扫描结果直接标在冻结的截图上: 蓝框按截图时的视口坐标换算到浮层当前显示区域 -->
         <div
             v-if="frozen && resultMarks.length"
@@ -887,7 +894,7 @@ defineExpose({
             </p>
         </Transition>
         <!-- 截图操作组: 复制/保存/模式切换/关闭固定在右上角 -->
-        <div class="qr-shot-actions">
+        <div v-if="selectable" class="qr-shot-actions">
             <span
                 v-if="status"
                 class="qr-shot-status"

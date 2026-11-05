@@ -21,9 +21,11 @@ export type ScreenshotSession = {
     // 扫描命中: 在冻结的截图上标出码的蓝框
     showResults(marks: ScanRect[]): void;
     // 没扫到码: 清掉蓝框但留住截图, 让用户可以继续框选别的区域
-    clearResults(): void;
+    clearResults(rect?: ScanRect): void;
     // 点中一个蓝点后只撤掉它自己的蓝框, 剩下的继续可点
     removeResult(index: number): void;
+    // 把浮层显示区域里的坐标换算成视口坐标 (扫描动画按视口定位)
+    toViewportRect(rect: ScanRect): ScanRect;
     // 收起浮层, 回到页面
     close(): void;
 };
@@ -35,10 +37,16 @@ type StartOptions = {
     onPick?(index: number): void;
     // 截图读不出来, 由调用方提示失败
     onError?(): void;
-    // 已经有截好的视口图时直接复用 (整屏扫描在解码前就截过一次), 不再重复截取
+    // 用户主动收起截图 (关闭按钮 / ESC / 点外部)
+    onClose?(): void;
+    // 已经有截好的视口图时直接复用, 不再重复截取
     src?: string;
-    // 整屏扫描已命中: 打开就冻结整张截图并标出这些码 (解码图像的像素坐标), 跳过框选
-    initialResults?: ScanRect[];
+    // 是否播放入场动画, 缺省读用户设置
+    intro?: boolean;
+    // 只读结果层: 不允许框选, 也不显示工具按钮 (全屏扫描用)
+    selectable?: boolean;
+    // 只读结果层点了空白处
+    onBlank?(): void;
 };
 
 type CaptureResponse = { success: true; dataUrl: string } | { success: false; error?: string };
@@ -59,12 +67,11 @@ async function captureVisibleTab(): Promise<string> {
 
 export function useScreenshot() {
     const startScreenshot = async (options: StartOptions): Promise<ScreenshotSession> => {
-        const initialResults = options.initialResults ?? [];
-        // 带着结果打开时不需要框选, 也不该再播放入场动画 (截图是整屏扫出来的)
-        const preview = initialResults.length > 0;
         const [src, intro] = await Promise.all([
             options.src ? Promise.resolve(options.src) : captureVisibleTab(),
-            preview ? Promise.resolve(false) : getScreenshotIntroEnabled().catch(() => false),
+            options.intro !== undefined
+                ? Promise.resolve(options.intro)
+                : getScreenshotIntroEnabled().catch(() => false),
         ]);
 
         return new Promise<ScreenshotSession>((resolve) => {
@@ -89,10 +96,14 @@ export function useScreenshot() {
             app = createApp(ScreenshotOverlay, {
                 src,
                 intro,
-                initialResults,
+                selectable: options.selectable ?? true,
+                onBlank: () => options.onBlank?.(),
                 onConfirm: (payload: ScreenshotCapture) => options.onCapture(payload),
                 onPick: (index: number) => options.onPick?.(index),
-                onCancel: dispose,
+                onCancel: () => {
+                    options.onClose?.();
+                    dispose();
+                },
                 onError: () => {
                     options.onError?.();
                     dispose();
@@ -102,8 +113,9 @@ export function useScreenshot() {
             // 浮层一挂上就把会话交给调用方: 后续每次框选都由 onCapture 推进
             resolve({
                 showResults: (marks: ScanRect[]) => overlay?.showResults(marks),
-                clearResults: () => overlay?.clearResults(),
+                clearResults: (rect?: ScanRect) => overlay?.clearResults(rect),
                 removeResult: (index: number) => overlay?.removeResult(index),
+                toViewportRect: (rect: ScanRect) => overlay?.toViewportRect(rect) ?? rect,
                 close: dispose,
             });
         });
