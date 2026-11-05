@@ -311,6 +311,13 @@ onBeforeUnmount(() => {
     min-width: 360px;
     pointer-events: auto;
     background: #fff;
+    /* 扫描时二维码面板让位给通知, 而通知只有一行提示, 比 220px 的面板矮得多:
+       用和面板同高的下限撑住弹窗, 窗口才不会在"获取图片 / 正在扫描 / 扫描结果"之间伸缩;
+       同时在这个高度里垂直居中, 内容不会挤在窗口上半部分、下半部分空一大片.
+       退场时通知绝对定位铺满 #app, 沿用同一套居中才不会在淡出时上跳一下 */
+    display: flex;
+    align-items: center;
+    min-height: 220px;
 }
 
 .qr-notify-toast,

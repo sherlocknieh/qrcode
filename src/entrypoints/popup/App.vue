@@ -205,7 +205,6 @@ async function captureVisibleTab(): Promise<string> {
 function prepareScanView() {
   // 扫描结果弹窗需要更宽的展示空间
   document.documentElement.style.minWidth = '360px';
-  if (document.body) document.body.style.minHeight = '220px';
 }
 
 // 实现展开面板里的扫码入口: 扫描要在网页浮层或独立扫描页里完成,
