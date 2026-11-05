@@ -155,7 +155,7 @@ function watchOne({ port, extensionDir, label }, log) {
             if (done) {
               pinnedSession = session;
               const prefix = label ? `[${label}] ` : '';
-              log(`${prefix}${status === 'pinned' ? '✔ 已自动固定工具栏图标' : '✔ 工具栏图标已处于固定状态'}`);
+              log(`${prefix}${'✔ 工具栏图标已固定'}`);
             }
           }
         }
