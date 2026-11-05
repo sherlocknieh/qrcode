@@ -1,3 +1,10 @@
+<!-- Popup 页面 
+ 
+  - 展示二维码
+    - 后台扫描二维码
+  - 展示通知
+ -->
+
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {

@@ -108,8 +108,10 @@ const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
 // 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中浮窗
 const floatingMode = ref(false);
+
 // 冻结: 扫描结果的蓝框叠在截图浮层上; 截图仍可继续框选, 拖一下就开始扫下一块
 const frozen = ref(false);
+
 // 扫描结果: 按截图时的视口坐标给出, 由本层换算到浮层当前显示区域
 const resultMarks = ref<ScanRect[]>([]);
 // 在结果画面上重新框选时暂存上一轮蓝框与选区, 用户放弃这次框选就恢复
@@ -203,6 +205,7 @@ const canvasStyle = computed(() => ({
     height: `${phase.value === 'cover' ? viewport.value.height : layout.value.height}px`,
 }));
 
+// 入场动画期间或正在拖动时都算忙, 不显示工具栏
 const busy = computed(
     () => canAnimateIntro.value && (phase.value === 'cover' || settling.value),
 );
@@ -214,8 +217,6 @@ const hasSelection = computed(() => {
 
 const showToolbar = computed(() => loaded.value && !busy.value && !frozen.value && hasSelection.value);
 
-// 全选/复制/保存与关闭按钮固定在右上角, 未框选时也可直接作用于整张截图
-const showActions = computed(() => loaded.value && !busy.value && !frozen.value);
 
 // 入场动画结束后、尚未框选时提示用户拖动框选
 const showHint = computed(
@@ -886,7 +887,7 @@ defineExpose({
             </p>
         </Transition>
         <!-- 截图操作组: 复制/保存/模式切换/关闭固定在右上角 -->
-        <div v-if="showActions" class="qr-shot-actions">
+        <div class="qr-shot-actions">
             <span
                 v-if="status"
                 class="qr-shot-status"
