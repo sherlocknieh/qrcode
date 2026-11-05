@@ -267,53 +267,17 @@
     "message": "无法完成截图，请确认当前页面是普通网页后重试。",
     "description": "截图失败的提示信息"
   },
-  "screenshotCopy": {
-    "message": "复制",
-    "description": "复制选区截图的按钮"
+  "screenshotLayoutPip": {
+    "message": "画中画布局",
+    "description": "浮窗形态的布局切换按钮：切到右下角画中画"
   },
-  "screenshotSave": {
-    "message": "保存",
-    "description": "保存选区截图的按钮"
-  },
-  "screenshotCopied": {
-    "message": "已复制",
-    "description": "截图复制成功的提示"
+  "screenshotLayoutFit": {
+    "message": "撑开显示",
+    "description": "浮窗形态的布局切换按钮：切到尽量撑开"
   },
   "screenshotCopyFailed": {
     "message": "复制失败",
     "description": "截图复制失败的提示"
-  },
-  "screenshotSaved": {
-    "message": "已保存",
-    "description": "截图保存成功的提示"
-  },
-  "screenshotSaveFailed": {
-    "message": "保存失败",
-    "description": "截图保存失败的提示"
-  },
-  "screenshotFileName": {
-    "message": "截图",
-    "description": "保存截图时的文件名前缀"
-  },
-  "screenshotHint": {
-    "message": "拖动鼠标框选区域",
-    "description": "截图界面上提示用户框选区域的文字"
-  },
-  "screenshotModeFloating": {
-    "message": "浮窗模式",
-    "description": "截图界面显示模式开关的文本(当前为居中浮窗)"
-  },
-  "screenshotModeFullscreen": {
-    "message": "全屏模式",
-    "description": "截图界面显示模式开关的文本(当前铺满视口)"
-  },
-  "screenshotSwitchToFullscreen": {
-    "message": "切换到全屏模式",
-    "description": "截图界面显示模式开关的提示文本(当前为浮窗模式)"
-  },
-  "screenshotSwitchToFloating": {
-    "message": "切换到浮窗模式",
-    "description": "截图界面显示模式开关的提示文本(当前为全屏模式)"
   },
   "confirm": {
     "message": "确定",

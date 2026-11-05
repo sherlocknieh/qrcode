@@ -35,6 +35,11 @@ const FLOATING_MAX_WIDTH = 1200;
 const FLOATING_MAX_HEIGHT = 800;
 const FLOATING_VIEWPORT_WIDTH_RATIO = 0.9;
 const FLOATING_VIEWPORT_HEIGHT_RATIO = 0.8;
+// 画中画形态: 缩到右下角的小窗, 像播放器的画中画
+const FLOATING_MARGIN = 16;
+const PIP_MAX_WIDTH = 360;
+const PIP_VIEWPORT_WIDTH_RATIO = 0.4;
+const PIP_VIEWPORT_HEIGHT_RATIO = 0.45;
 const MIN_SELECTION = 8;
 const HANDLE_SIZE = 6;
 const HANDLE_HIT_SIZE = 9;
@@ -106,10 +111,23 @@ const loaded = ref(false);
 const selection = ref<Rect | null>(null);
 const toolbarPosition = ref({ left: 0, top: 0 });
 const cursor = ref(props.selectable ? 'crosshair' : 'default');
-const status = ref<{ text: string; kind: 'success' | 'error' } | null>(null);
 
-// 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中浮窗
+// 每次截图默认铺满视口; 窗口尺寸变化后自动切为浮窗
 const floatingMode = ref(false);
+// 浮窗形态: fit 尽量撑开占满可用宽高, pip 缩到右下角 (试验用按钮切换)
+const floatingLayout = ref<'fit' | 'pip'>('fit');
+// 只在进入浮窗/切换形态时短暂开启尺寸过渡: 拖拽框选时不能带过渡
+const allowLayoutTransition = ref(false);
+let layoutTransitionTimer: number | undefined;
+
+const beginLayoutTransition = (duration = 340) => {
+    allowLayoutTransition.value = true;
+    if (layoutTransitionTimer !== undefined) window.clearTimeout(layoutTransitionTimer);
+    layoutTransitionTimer = window.setTimeout(() => {
+        layoutTransitionTimer = undefined;
+        allowLayoutTransition.value = false;
+    }, duration);
+};
 
 // 冻结: 扫描结果的蓝框叠在截图浮层上; 截图仍可继续框选, 拖一下就开始扫下一块
 const frozen = ref(false);
@@ -125,20 +143,6 @@ const canAnimateIntro = computed(() => floatingMode.value && !prefersReducedMoti
 const phase = ref<Phase>(canAnimateIntro.value ? 'cover' : 'select');
 const flashing = ref(false);
 const settling = ref(false);
-
-// 立即在整屏与浮窗之间切换并持久化, 相邻两次截图沿用同一模式
-const toggleDisplayMode = () => {
-    if (busy.value) return;
-    floatingMode.value = !floatingMode.value;
-    void setScreenshotIntroEnabled(floatingMode.value).catch(() => {});
-};
-
-// 开关文本显示当前模式, 提示语说明点击后的切换方向
-const modeLabel = computed(() =>
-    floatingMode.value
-        ? t('screenshotModeFloating', 'Floating window')
-        : t('screenshotModeFullscreen', 'Full screen'),
-);
 
 const dpr = window.devicePixelRatio || 1;
 let image: HTMLImageElement | undefined;
@@ -159,6 +163,27 @@ const layout = computed(() => {
     const aspect = imageSize.value.width > 0 && imageSize.value.height > 0
         ? imageSize.value.width / imageSize.value.height
         : 1;
+    if (floatingLayout.value === 'pip') {
+        let width = Math.min(
+            PIP_MAX_WIDTH,
+            Math.floor(viewport.value.width * PIP_VIEWPORT_WIDTH_RATIO),
+        );
+        let height = Math.round(width / aspect);
+        const maxHeight = Math.max(1, Math.floor(viewport.value.height * PIP_VIEWPORT_HEIGHT_RATIO));
+        if (height > maxHeight) {
+            height = maxHeight;
+            width = Math.round(height * aspect);
+        }
+        width = Math.max(1, width);
+        height = Math.max(1, height);
+        // 贴右下角, 像播放器的画中画
+        return {
+            width,
+            height,
+            left: Math.max(FLOATING_MARGIN, viewport.value.width - width - FLOATING_MARGIN),
+            top: Math.max(FLOATING_MARGIN, viewport.value.height - height - FLOATING_MARGIN),
+        };
+    }
     const maxWidth = Math.min(
         FLOATING_MAX_WIDTH,
         Math.floor(viewport.value.width * FLOATING_VIEWPORT_WIDTH_RATIO),
@@ -212,6 +237,15 @@ const busy = computed(
     () => canAnimateIntro.value && (phase.value === 'cover' || settling.value),
 );
 
+// 试验用: 在"撑开"与"画中画"两种浮窗形态之间切换
+const toggleFloatingLayout = () => {
+    beginLayoutTransition(360);
+    // 先让过渡用的 class 上屏, 下一帧再改布局, 浏览器才会把它当成尺寸变化来补间
+    window.requestAnimationFrame(() => {
+        floatingLayout.value = floatingLayout.value === 'fit' ? 'pip' : 'fit';
+    });
+};
+
 const hasSelection = computed(() => {
     const rect = selection.value;
     return rect !== null && rect.width >= MIN_SELECTION && rect.height >= MIN_SELECTION;
@@ -220,13 +254,6 @@ const hasSelection = computed(() => {
 const showToolbar = computed(() => loaded.value && !busy.value && !frozen.value && hasSelection.value);
 
 
-// 入场动画结束后、尚未框选时提示用户拖动框选
-const showHint = computed(
-    () => loaded.value && !busy.value && !frozen.value && !hasSelection.value && props.selectable,
-);
-
-// 结果蓝框层按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域;
-// 浮窗模式下截图是缩小显示的, 不换算就会标到窗口外面
 const marksLayerStyle = computed(() => {
     const source = sourceViewport.value;
     const width = source?.width ?? layout.value.width;
@@ -433,86 +460,14 @@ const cropSelection = (rect: Rect) => {
     return output.toDataURL('image/png');
 };
 
-const dataUrlToBlob = (dataUrl: string): Blob | null => {
-    const comma = dataUrl.indexOf(',');
-    if (comma < 0) return null;
-    const mime = /data:([^;]+)/.exec(dataUrl.slice(0, comma))?.[1] ?? 'image/png';
-    try {
-        const binary = atob(dataUrl.slice(comma + 1));
-        const bytes = new Uint8Array(binary.length);
-        for (let index = 0; index < binary.length; index++) {
-            bytes[index] = binary.charCodeAt(index);
-        }
-        return new Blob([bytes], { type: mime });
-    } catch {
-        return null;
-    }
-};
-
-const copyImage = async (dataUrl: string): Promise<boolean> => {
-    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
-    const blob = dataUrlToBlob(dataUrl);
-    if (!blob) return false;
-    try {
-        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-        return true;
-    } catch {
-        return false;
-    }
-};
-
-const saveImage = (dataUrl: string) => {
-    const pad = (value: number) => String(value).padStart(2, '0');
-    const now = new Date();
-    const stamp = [
-        now.getFullYear(),
-        pad(now.getMonth() + 1),
-        pad(now.getDate()),
-        '-',
-        pad(now.getHours()),
-        pad(now.getMinutes()),
-        pad(now.getSeconds()),
-    ].join('');
-
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = `${t('screenshotFileName', 'Screenshot')}-${stamp}.png`;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-};
-
 let introTimer: number | undefined;
 let introSettleTimer: number | undefined;
-let statusTimer: number | undefined;
-let closeTimer: number | undefined;
 
 const clearTimers = () => {
     if (introTimer !== undefined) window.clearTimeout(introTimer);
     if (introSettleTimer !== undefined) window.clearTimeout(introSettleTimer);
-    if (statusTimer !== undefined) window.clearTimeout(statusTimer);
-    if (closeTimer !== undefined) window.clearTimeout(closeTimer);
     introTimer = undefined;
     introSettleTimer = undefined;
-    statusTimer = undefined;
-    closeTimer = undefined;
-};
-
-// 复制/保存成功后短暂提示, 再自动关闭框选界面
-const showStatus = (text: string, kind: 'success' | 'error', autoClose = false) => {
-    status.value = { text, kind };
-    if (statusTimer !== undefined) window.clearTimeout(statusTimer);
-    statusTimer = window.setTimeout(() => {
-        statusTimer = undefined;
-        status.value = null;
-    }, 1600);
-    if (autoClose && closeTimer === undefined) {
-        closeTimer = window.setTimeout(() => {
-            closeTimer = undefined;
-            emit('cancel');
-        }, 500);
-    }
 };
 
 // 入场: 整屏截图覆盖视口并闪一下, 再收缩到居中窗口
@@ -534,14 +489,6 @@ function startIntro() {
         }, INTRO_SHRINK_DURATION);
     }, INTRO_FLASH_DURATION);
 }
-
-// 关闭浮层: 无论当前是框选还是看结果都直接退出, 不恢复上一轮蓝框
-const close = () => {
-    if (busy.value) return;
-    archivedMarks = null;
-    archivedSelection = null;
-    emit('cancel');
-};
 
 // 取消: 在结果画面上重新框选时只撤回这次框选, 其余情况收起浮层
 const cancel = () => {
@@ -578,40 +525,6 @@ const confirm = () => {
         rect: { ...selectionRect },
         viewport: { width: viewportWidth, height: viewportHeight },
     });
-};
-
-// 有选区时输出选区, 否则输出整张截图
-const getOutputDataUrl = (): string => {
-    if (busy.value) return '';
-    const rect =
-        selection.value && hasSelection.value
-            ? selection.value
-            : { x: 0, y: 0, width: layout.value.width, height: layout.value.height };
-    return cropSelection(rect);
-};
-
-const copySelection = async () => {
-    const dataUrl = getOutputDataUrl();
-    if (!dataUrl) return;
-    const success = await copyImage(dataUrl);
-    showStatus(
-        success
-            ? t('screenshotCopied', 'Copied')
-            : t('screenshotCopyFailed', 'Copy failed'),
-        success ? 'success' : 'error',
-        success,
-    );
-};
-
-const saveSelection = () => {
-    const dataUrl = getOutputDataUrl();
-    if (!dataUrl) return;
-    try {
-        saveImage(dataUrl);
-        showStatus(t('screenshotSaved', 'Saved'), 'success', true);
-    } catch {
-        showStatus(t('screenshotSaveFailed', 'Save failed'), 'error');
-    }
 };
 
 // 浮层本身不可滚动, 不阻止的话滚轮会沿滚动链滚到底层页面
@@ -698,9 +611,12 @@ const handlePointerUp = (event: PointerEvent) => {
         canvas.releasePointerCapture(event.pointerId);
     }
     if (!drag) return;
+    const mode = drag.mode;
     drag = null;
     if (selection.value && !hasSelection.value) {
         selection.value = null;
+        // 没有工具栏关闭按钮了: 单击空白 (没拖出选区) 就收起框选层
+        if (mode === 'create') emit('cancel');
     }
 };
 
@@ -726,25 +642,17 @@ const handleKeyDown = (event: KeyboardEvent) => {
         confirm();
         return;
     }
-    // Ctrl/Cmd+C 复制截图(选区或整图), Ctrl/Cmd+S 保存截图
-    if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-        const key = event.key.toLowerCase();
-        if (key === 'c') {
-            event.preventDefault();
-            event.stopPropagation();
-            void copySelection();
-        } else if (key === 's') {
-            event.preventDefault();
-            event.stopPropagation();
-            saveSelection();
-        }
-    }
 };
 
 const handleWindowResize = () => {
     if (loaded.value && !floatingMode.value && !busy.value) {
-        floatingMode.value = true;
-        void setScreenshotIntroEnabled(true).catch(() => {});
+        // 窗口一变就从铺满收成右下角画中画, 尺寸与位置带过渡, 不做硬切
+        beginLayoutTransition(420);
+        window.requestAnimationFrame(() => {
+            floatingLayout.value = 'pip';
+            floatingMode.value = true;
+            void setScreenshotIntroEnabled(true).catch(() => {});
+        });
     }
     if (resizeFrame !== undefined) return;
     resizeFrame = window.requestAnimationFrame(() => {
@@ -813,6 +721,7 @@ onBeforeUnmount(() => {
         window.cancelAnimationFrame(resizeFrame);
         resizeFrame = undefined;
     }
+    if (layoutTransitionTimer !== undefined) window.clearTimeout(layoutTransitionTimer);
 });
 
 defineExpose({
@@ -861,6 +770,7 @@ defineExpose({
             'qr-shot--floating': floatingMode,
             'qr-shot--animating': busy,
             'qr-shot--frozen': frozen,
+            'qr-shot--transitioning': allowLayoutTransition,
         }"
         :style="[rootStyle, { cursor: busy ? 'default' : cursor }]"
         @wheel="handleWheel">
@@ -880,6 +790,48 @@ defineExpose({
             :style="marksLayerStyle">
             <ScanMarks :rects="resultMarks" @pick="emit('pick', $event)" />
         </div>
+        <!-- 试验用布局切换: 只在浮窗形态出现, 切"撑开"与"画中画" -->
+        <button
+            v-if="selectable && floatingMode && !busy"
+            class="qr-shot-layout-toggle"
+            type="button"
+            :aria-label="floatingLayout === 'fit'
+                ? t('screenshotLayoutPip', 'Picture-in-picture')
+                : t('screenshotLayoutFit', 'Fit to screen')"
+            :title="floatingLayout === 'fit'
+                ? t('screenshotLayoutPip', 'Picture-in-picture')
+                : t('screenshotLayoutFit', 'Fit to screen')"
+            @click.stop="toggleFloatingLayout"
+        >
+            <!-- 当前是撑开: 点击切到画中画 -->
+            <svg v-if="floatingLayout === 'fit'" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect
+                    x="3.5"
+                    y="5"
+                    width="17"
+                    height="14"
+                    rx="2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                />
+                <rect x="12.5" y="12" width="6.5" height="5.5" rx="1.2" fill="currentColor" />
+            </svg>
+            <!-- 当前是画中画: 点击切回撑开 -->
+            <svg v-else viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect
+                    x="4.5"
+                    y="4.5"
+                    width="15"
+                    height="15"
+                    rx="2.2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                />
+            </svg>
+        </button>
+
         <!-- 截图闪光效果容器 -->
         <div v-if="flashing" class="qr-shot-flash" aria-hidden="true">
             <span class="qr-shot-flash-edge edge-top" />
@@ -887,138 +839,8 @@ defineExpose({
             <span class="qr-shot-flash-edge edge-bottom" />
             <span class="qr-shot-flash-edge edge-left" />
         </div>
-        <!-- 截图框选提示语 -->
-        <Transition name="qr-shot-hint-fade">
-            <p v-if="showHint" class="qr-shot-hint" aria-live="polite">
-                {{ t('screenshotHint', 'Drag to select the area you want to scan') }}
-            </p>
-        </Transition>
-        <!-- 截图操作组: 复制/保存/模式切换/关闭固定在右上角 -->
-        <div v-if="selectable" class="qr-shot-actions">
-            <span
-                v-if="status"
-                class="qr-shot-status"
-                :class="`qr-shot-status--${status.kind}`"
-                aria-live="polite"
-            >{{ status.text }}</span>
-            <!-- 复制按钮 -->
-            <button
-                class="qr-shot-btn qr-shot-btn--icon"
-                type="button"
-                :aria-label="t('screenshotCopy', 'Copy')"
-                :title="t('screenshotCopy', 'Copy')"
-                @click="copySelection"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <rect
-                        x="9"
-                        y="9"
-                        width="11"
-                        height="11"
-                        rx="2"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                    />
-                    <path
-                        d="M15 6.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h.5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                        stroke-linecap="round"
-                    />
-                </svg>
-            </button>
-            <!-- 保存按钮 -->
-            <button
-                class="qr-shot-btn qr-shot-btn--icon"
-                type="button"
-                :aria-label="t('screenshotSave', 'Save')"
-                :title="t('screenshotSave', 'Save')"
-                @click="saveSelection"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path
-                        d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    />
-                    <path
-                        d="M5 15.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2.5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                        stroke-linecap="round"
-                    />
-                </svg>
-            </button>
-            <span class="qr-shot-actions-sep" aria-hidden="true" />
-            <!-- 显示模式开关: 全屏 / 浮窗, 点击立即切换, 文字只放在提示中 -->
-            <button
-                class="qr-shot-btn qr-shot-btn--icon"
-                type="button"
-                :aria-pressed="floatingMode"
-                :aria-label="modeLabel"
-                :title="floatingMode
-                    ? t('screenshotSwitchToFullscreen', 'Switch to full screen')
-                    : t('screenshotSwitchToFloating', 'Switch to floating window')"
-                @click="toggleDisplayMode"
-            >
-                <!-- 浮窗模式: 最大化图标(单窗口) -->
-                <svg v-if="floatingMode" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <rect
-                        x="4.5"
-                        y="4.5"
-                        width="15"
-                        height="15"
-                        rx="2.2"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                    />
-                </svg>
-                <!-- 全屏模式: 取消最大化图标(前后两个窗口) -->
-                <svg v-else viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path
-                        d="M9 7V6.2A1.7 1.7 0 0 1 10.7 4.5h7.1A1.7 1.7 0 0 1 19.5 6.2v7.1a1.7 1.7 0 0 1-1.7 1.7H17"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                        stroke-linecap="round"
-                    />
-                    <rect
-                        x="4.5"
-                        y="7.8"
-                        width="11.7"
-                        height="11.7"
-                        rx="1.8"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.7"
-                    />
-                </svg>
-            </button>
-            <!-- 关闭按钮 -->
-            <button
-                class="qr-shot-close"
-                type="button"
-                :aria-label="t('closeBtn', 'Close')"
-                @click="close"
-            >×</button>
-        </div>
         <!-- 截图工具栏: 取消 / 确认 -->
         <div v-if="showToolbar" ref="toolbarRef" class="qr-shot-toolbar" :style="toolbarStyle">
-            <!-- 取消按钮 -->
-            <button
-                class="qr-shot-btn qr-shot-btn--cancel"
-                type="button"
-                :aria-label="t('cancel', '取消')"
-                :title="t('cancel', '取消')"
-                @click="cancel"
-            >{{ t('cancel', '取消') }}</button>
             <!-- 确认按钮 -->
             <button
                 class="qr-shot-btn qr-shot-btn--confirm"
@@ -1200,93 +1022,6 @@ defineExpose({
     }
 }
 
-.qr-shot-hint {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    max-width: calc(100% - 96px);
-    margin: 0;
-    padding: 7px 14px;
-    border-radius: 999px;
-    background: rgba(25, 25, 25, 0.5);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-    color: #fff;
-    font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-    transform: translateX(-50%);
-}
-
-.qr-shot-hint-fade-enter-active,
-.qr-shot-hint-fade-leave-active {
-    transition: opacity 160ms ease;
-}
-
-.qr-shot-hint-fade-enter-from,
-.qr-shot-hint-fade-leave-to {
-    opacity: 0;
-}
-
-.qr-shot-actions {
-    position: absolute;
-    top: 10px;
-    right: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    max-width: calc(100% - 20px);
-    color: #fff;
-    font: 12px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    white-space: nowrap;
-}
-
-.qr-shot-actions .qr-shot-btn--icon {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border-color: rgba(255, 255, 255, 0.72);
-    border-radius: 50%;
-    background: rgba(25, 25, 25, 0.5);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-}
-
-.qr-shot-actions .qr-shot-btn--icon svg {
-    display: block;
-    width: 16px;
-    height: 16px;
-}
-
-.qr-shot-actions .qr-shot-btn--icon:hover {
-    background: rgba(60, 60, 60, 0.92);
-}
-
-.qr-shot-actions-sep {
-    flex: 0 0 auto;
-    width: 1px;
-    height: 16px;
-    margin: 0 2px;
-    background: rgba(255, 255, 255, 0.28);
-}
-
-.qr-shot-actions .qr-shot-status {
-    display: inline-flex;
-    align-items: center;
-    height: 30px;
-    padding: 0 12px;
-    border-radius: 999px;
-    background: rgba(25, 25, 25, 0.82);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-}
-
 .qr-shot-toolbar {
     position: absolute;
     display: flex;
@@ -1296,20 +1031,6 @@ defineExpose({
     font: 12px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
     white-space: nowrap;
     transform: translate(-50%, -50%);
-}
-
-.qr-shot-status {
-    padding: 0 4px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.qr-shot-status--success {
-    color: #6ee7a8;
-}
-
-.qr-shot-status--error {
-    color: #ff9b8f;
 }
 
 .qr-shot-btn {
@@ -1327,7 +1048,6 @@ defineExpose({
     background: rgba(255, 255, 255, 0.16);
 }
 
-.qr-shot-btn--cancel,
 .qr-shot-btn--confirm {
     min-width: 44px;
     height: 26px;
@@ -1339,14 +1059,6 @@ defineExpose({
     line-height: 26px;
 }
 
-.qr-shot-btn--cancel {
-    background: rgba(25, 25, 25, 0.62);
-}
-
-.qr-shot-btn--cancel:hover {
-    background: rgba(60, 60, 60, 0.9);
-}
-
 .qr-shot-btn--confirm {
     background: #0a7dd1;
 }
@@ -1355,8 +1067,35 @@ defineExpose({
     background: #1b93e8;
 }
 
-.qr-shot-close {
-    flex: 0 0 auto;
+
+
+/* 进入浮窗 / 切换形态时的过渡: 只在这段时间生效, 拖拽框选不受影响 */
+.qr-shot--transitioning {
+    transition:
+        left 0.34s ease,
+        top 0.34s ease,
+        width 0.34s ease,
+        height 0.34s ease;
+}
+
+.qr-shot--transitioning .qr-shot-canvas {
+    transition:
+        width 0.34s ease,
+        height 0.34s ease;
+}
+
+.qr-shot--transitioning .qr-shot-marks {
+    transition: transform 0.34s ease;
+}
+
+.qr-shot-layout-toggle {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 30px;
     height: 30px;
     padding: 0;
@@ -1365,14 +1104,17 @@ defineExpose({
     background: rgba(25, 25, 25, 0.5);
     color: #fff;
     cursor: pointer;
-    font: 22px/26px Arial, sans-serif;
-    text-align: center;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-    transition: background-color 120ms ease, transform 120ms ease;
+    transition: background-color 120ms ease;
 }
 
-.qr-shot-close:hover {
-    background: #d93025;
-    transform: scale(1.08);
+.qr-shot-layout-toggle:hover {
+    background: rgba(60, 60, 60, 0.92);
+}
+
+.qr-shot-layout-toggle svg {
+    display: block;
+    width: 16px;
+    height: 16px;
 }
 </style>
