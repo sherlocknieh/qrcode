@@ -206,6 +206,8 @@ onBeforeUnmount(() => {
 
 .qr-panel-preview {
     position: relative;
+    /* 压住抽屉内容, 让底部投影落在拉出来的抽屉上 */
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -213,6 +215,14 @@ onBeforeUnmount(() => {
     width: 220px;
     height: 220px;
     margin: 0 auto;
+    /* 收起态用全透明投影占位, 展开/收起时颜色才有得渐变 */
+    box-shadow: 0 6px 10px -6px rgba(15, 23, 42, 0);
+    transition: box-shadow 220ms ease;
+}
+
+/* 展开后二维码盖在抽屉上方: 底部投影体现两层的前后关系, 收起时下面没有东西就不投影 */
+.qr-panel:not(.qr-panel--compact) .qr-panel-preview {
+    box-shadow: 0 6px 10px -6px rgba(15, 23, 42, 0.45);
 }
 
 .qr-panel-image {
@@ -239,15 +249,22 @@ onBeforeUnmount(() => {
     color: #dc2626;
 }
 
-/* 展开区像抽屉一样从二维码下方滑出: 用 grid 行高做 0fr → 1fr,
-   不用写死高度, 输入框和扫码入口增减时动画仍然贴合内容 */
+/* 展开区是抽屉而不是原地显形: 外框用 grid 行高 0fr → 1fr 撑开,
+   内容贴住外框底边, 于是行高每加一点内容就整体下移一点, 画面跟着抽屉口一起被拉出来.
+   只撑高而不移动内容只是把已有画面露出来; 自己再补一段 transform 平移又会与 grid
+   实际撑高的曲线对不上 (0fr → 1fr 的位移是缓动曲线的平方), 动画中途底边会被切掉. */
 .qr-panel-drawer {
     display: grid;
     grid-template-rows: 1fr;
     transition: grid-template-rows 220ms ease;
 }
 
+/* 内容比外框高时贴底溢出, 让抽屉口 (外框下沿) 始终压住内容底边;
+   overflow 负责裁掉还藏在二维码下面的一半, flex: none 阻止内容被压扁 */
 .qr-panel-drawer-clip {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
     min-height: 0;
     overflow: hidden;
 }
@@ -259,10 +276,12 @@ onBeforeUnmount(() => {
 
 .qr-panel-expanded {
     box-sizing: border-box;
+    flex: none;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 0 8px 8px;
+    /* 顶部留白给二维码下方的投影让位, 展开时输入框不会被压暗 */
+    padding: 8px;
 }
 
 /* 展开后才出现扫描入口: 收起态只留二维码, 避免入口挤占预览 */
