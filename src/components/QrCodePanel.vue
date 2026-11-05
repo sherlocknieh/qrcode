@@ -215,14 +215,24 @@ onBeforeUnmount(() => {
     width: 220px;
     height: 220px;
     margin: 0 auto;
-    /* 收起态用全透明投影占位, 展开/收起时颜色才有得渐变 */
-    box-shadow: 0 6px 10px -6px rgba(15, 23, 42, 0);
-    transition: box-shadow 220ms ease;
 }
 
-/* 展开后二维码盖在抽屉上方: 底部投影体现两层的前后关系, 收起时下面没有东西就不投影 */
-.qr-panel:not(.qr-panel--compact) .qr-panel-preview {
+/* 展开后二维码盖在抽屉上方: 底部投影体现两层的前后关系, 收起时下面没有东西就不投影.
+   投影画在伪元素上只渐变不透明度: 直接过渡 box-shadow 会让 Firefox 每帧重画 220px 宽的
+   模糊阴影, 展开动画期间就是掉帧; 不透明度可以交给合成器做 */
+.qr-panel-preview::after {
+    content: '';
+    position: absolute;
+    inset: 0;
     box-shadow: 0 6px 10px -6px rgba(15, 23, 42, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease;
+    will-change: opacity;
+}
+
+.qr-panel:not(.qr-panel--compact) .qr-panel-preview::after {
+    opacity: 1;
 }
 
 .qr-panel-image {
@@ -249,24 +259,20 @@ onBeforeUnmount(() => {
     color: #dc2626;
 }
 
-/* 展开区是抽屉而不是原地显形: 外框用 grid 行高 0fr → 1fr 撑开,
-   内容贴住外框底边, 于是行高每加一点内容就整体下移一点, 画面跟着抽屉口一起被拉出来.
-   只撑高而不移动内容只是把已有画面露出来; 自己再补一段 transform 平移又会与 grid
-   实际撑高的曲线对不上 (0fr → 1fr 的位移是缓动曲线的平方), 动画中途底边会被切掉. */
+/* 展开区按 grid 行高 0fr → 1fr 撑开: 内容始终在顶部, 窗口拉多高就露出多少,
+   不会随外框平移 —— 内容每帧不用重排重绘, 也省掉火狐上那层逐帧重画的开销.
+   想再叠 transform 平移做抽屉的话, 位移曲线跟 grid 实际撑高对不上, 底边会被切掉. */
 .qr-panel-drawer {
     display: grid;
     grid-template-rows: 1fr;
     transition: grid-template-rows 220ms ease;
 }
 
-/* 内容比外框高时贴底溢出, 让抽屉口 (外框下沿) 始终压住内容底边;
-   overflow 负责裁掉还藏在二维码下面的一半, flex: none 阻止内容被压扁 */
+/* 内容跟着外框一起长: 下拉时画面原地显形, 内容本身不动, 不用每帧重排重绘;
+   用 clip 而不是 hidden: hidden 会把这里变成滚动容器, Firefox 得每帧重算可滚动区域 */
 .qr-panel-drawer-clip {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
     min-height: 0;
-    overflow: hidden;
+    overflow: clip;
 }
 
 .qr-drawer-enter-from,
@@ -276,7 +282,6 @@ onBeforeUnmount(() => {
 
 .qr-panel-expanded {
     box-sizing: border-box;
-    flex: none;
     display: flex;
     flex-direction: column;
     gap: 8px;

@@ -42,8 +42,11 @@ document.title = t('appShortName');
 onMounted(() => {
   requestAnimationFrame(() => {
     const contentHeight = document.querySelector('#app')?.getBoundingClientRect().height ?? 0;
+    // 两个类分开标: popup-page 是整页打开 (要铺满视口), popup-surface 才是真正的弹窗
     if (window.innerHeight - contentHeight > 120) {
       document.documentElement.classList.add('popup-page');
+    } else {
+      document.documentElement.classList.add('popup-surface');
     }
   });
 });
@@ -327,5 +330,10 @@ html.popup-page #app {
   min-height: 100vh;
   /* 手机地址栏会收起/展开, 用 dvh 按当前可见高度居中, 免得被算进的工具栏顶偏 */
   min-height: 100dvh;
+}
+
+/* 抽屉动画期间文档会比弹窗窗口略高 (窗口改尺寸是异步的), 不裁掉火狐会闪出滚动条 */
+html.popup-surface {
+  overflow: hidden;
 }
 </style>
