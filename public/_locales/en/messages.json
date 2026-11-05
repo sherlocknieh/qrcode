@@ -339,6 +339,10 @@
     "message": "Download PNG",
     "description": "Tooltip of the button that downloads the QR code as PNG"
   },
+  "qrDownloadSvg": {
+    "message": "Download SVG",
+    "description": "Tooltip of the button that downloads the QR code as SVG"
+  },
   "qrFileName": {
     "message": "QR Code",
     "description": "Default file name of the downloaded QR code"

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
 import { copyImageDataUrl } from '@/services/clipboardImage';
-import { svgToPngDataUrl } from '@/services/qrCode';
+import { toSvgDataUrl } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
 // 二维码生成面板: 默认只显示二维码, 点二维码展开输入框
@@ -25,7 +25,7 @@ const text = computed({
     set: (value: string) => emit('update:modelValue', value),
 });
 
-const { svg, svgDataUrl, error } = useQrCode(text);
+const { svg, dataUrl, error } = useQrCode(text);
 
 const inputRef = ref<HTMLInputElement>();
 const expanded = ref(!props.collapsible);
@@ -60,29 +60,18 @@ const copyLabel = computed(() => {
 });
 
 async function copyQrCode() {
-    if (!svg.value) return;
-    // 剪贴板只接受位图: 复制前把预览用的 SVG 光栅化成带白底的 PNG
-    try {
-        const png = await svgToPngDataUrl(svg.value);
-        setCopyState((await copyImageDataUrl(png)) ? 'done' : 'failed');
-    } catch {
-        setCopyState('failed');
-    }
+    if (!dataUrl.value) return;
+    setCopyState((await copyImageDataUrl(dataUrl.value)) ? 'done' : 'failed');
 }
 
-// 预览本身就是 SVG, 需要矢量图直接在图上右键另存; 下载按钮只导出 PNG,
-// 以免二维码被当成图片贴到聊天/文档里时因为透明背景看不清
-async function downloadQrCode() {
-    if (!svg.value) return;
-    try {
-        const href = await svgToPngDataUrl(svg.value);
-        const link = document.createElement('a');
-        link.href = href;
-        link.download = `${t('qrFileName')}.png`;
-        link.click();
-    } catch {
-        // 光栅化失败时宁可不下载, 也不要落一个坏文件
-    }
+// 两种格式都直接取现成结果: PNG 就是预览用的位图, SVG 是它的矢量源, 不再重新编码
+function downloadQrCode(format: 'png' | 'svg') {
+    const href = format === 'svg' ? toSvgDataUrl(svg.value) : dataUrl.value;
+    if (!href) return;
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = `${t('qrFileName')}.${format}`;
+    link.click();
 }
 
 onBeforeUnmount(() => {
@@ -93,11 +82,10 @@ onBeforeUnmount(() => {
 <template>
     <section class="qr-panel" :class="{ 'qr-panel--compact': !expanded }">
         <div class="qr-panel-preview">
-            <!-- 渲染成 <img> 而不是内联 SVG: 只有图片内容才有右键「图片另存为」 -->
             <img
-                v-if="svgDataUrl"
+                v-if="dataUrl"
                 class="qr-panel-image"
-                :src="svgDataUrl"
+                :src="dataUrl"
                 :alt="text"
                 :title="text"
             />
@@ -132,7 +120,7 @@ onBeforeUnmount(() => {
                         />
 
                         <!-- 复制 / 下载收进抽屉: 悬停浮层会挡住二维码热区, 也不便在触屏上触发 -->
-                        <div v-if="svgDataUrl" class="qr-panel-actions">
+                        <div v-if="dataUrl" class="qr-panel-actions">
                             <button
                                 class="qr-panel-action"
                                 :class="
@@ -146,12 +134,23 @@ onBeforeUnmount(() => {
                                 @click="copyQrCode"
                             ></button>
                             <button
-                                class="qr-panel-action qr-panel-action--download"
+                                class="qr-panel-action qr-panel-action--format"
                                 type="button"
                                 :aria-label="t('qrDownloadPng')"
                                 :title="t('qrDownloadPng')"
-                                @click="downloadQrCode"
-                            ></button>
+                                @click="downloadQrCode('png')"
+                            >
+                                PNG
+                            </button>
+                            <button
+                                class="qr-panel-action qr-panel-action--format"
+                                type="button"
+                                :aria-label="t('qrDownloadSvg')"
+                                :title="t('qrDownloadSvg')"
+                                @click="downloadQrCode('svg')"
+                            >
+                                SVG
+                            </button>
                         </div>
 
                         <div class="qr-panel-actions">
@@ -326,8 +325,13 @@ onBeforeUnmount(() => {
     --qr-action-icon: var(--qr-check);
 }
 
-.qr-panel-action--download {
+/* 两个下载按钮共用下载图标, 后缀标明导出的格式 */
+.qr-panel-action--format {
     --qr-action-icon: var(--qr-download);
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
 }
 
 .qr-panel-input {

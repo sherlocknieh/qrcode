@@ -38,13 +38,12 @@ export function createQrCodeSvg(text: string): string {
     );
 }
 
-// 预览与光栅化都用这条 data URL: 包在 <img> 里才保留浏览器右键「图片另存为」,
-// 内联 <svg> 不算图片内容, 菜单里没有这一项
+// SVG 下载与光栅化共用同一条 data URL; 保存下来的是解码后的源文件, 仍是可编辑的矢量图
 export function toSvgDataUrl(svg: string): string {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-// 剪贴板和 PNG 下载只认位图: 用到时再把同一份 SVG 光栅化, 并补白底,
+// 预览、复制、PNG 下载都需要位图: 由同一份 SVG 光栅化, 并补白底,
 // 否则透明二维码贴到深色底上会看不清
 export async function svgToPngDataUrl(svg: string): Promise<string> {
     const image = new Image();
