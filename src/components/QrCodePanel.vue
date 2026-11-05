@@ -311,18 +311,19 @@ onBeforeUnmount(() => {
     color: #dc2626;
 }
 
-/* 临时提示: 绝对定位叠在二维码下沿, 不参与布局, 面板尺寸不会被它撑开 */
+/* 临时提示: 半透明遮罩铺满整个码面, 文案居中, 不参与布局也不撑开面板尺寸 */
 .qr-panel-flash {
     position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
+    inset: 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     /* 压住二维码图片和预览底部的投影 */
     z-index: 2;
     margin: 0;
-    padding: 8px 12px;
-    border-radius: 10px;
-    background: rgba(15, 23, 42, 0.88);
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.55);
     color: #fff;
     font-size: 13px;
     line-height: 1.45;
@@ -333,13 +334,12 @@ onBeforeUnmount(() => {
 
 .qr-panel-flash-enter-active,
 .qr-panel-flash-leave-active {
-    transition: opacity 0.16s ease, transform 0.16s ease;
+    transition: opacity 0.16s ease;
 }
 
 .qr-panel-flash-enter-from,
 .qr-panel-flash-leave-to {
     opacity: 0;
-    transform: translateY(6px);
 }
 
 /* 展开区按 grid 行高 0fr → 1fr 撑开: 内容始终在顶部, 窗口拉多高就露出多少,

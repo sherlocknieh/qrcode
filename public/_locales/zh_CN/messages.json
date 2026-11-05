@@ -36,15 +36,15 @@
     "description": "内容超出二维码容量时的提示"
   },
   "scanSelfEgg1": {
-    "message": "自己扫自己？这个二维码有点哲学",
+    "message": "自己扫自己，这二维码还挺自恋",
     "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
   },
   "scanSelfEgg2": {
-    "message": "扫出来也是你刚打进去的那句话",
+    "message": "不用扫，答案就是你刚敲的那句话",
     "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
   },
   "scanSelfEgg3": {
-    "message": "二维码：这步可以跳过，我就是你",
+    "message": "二维码：本码已出厂，无需质检",
     "description": "彩蛋：在 popup 里扫描自己刚生成的二维码时的提示"
   },
   "scanWebImage": {
@@ -328,11 +328,11 @@
     "description": "复制按钮文字"
   },
   "recognitionFailed": {
-    "message": "未发现有效二维码/条形码",
+    "message": "扫描失败",
     "description": "扫描失败的标题"
   },
   "recognitionFailedMsg": {
-    "message": "也许是不支持的格式\n也许是图片太大或二维码太小\n可以试试框选出更精准的区域再扫描",
+    "message": "未发现有效二维码/条形码",
     "description": "扫描失败的提示信息"
   },
   "clearImage": {
