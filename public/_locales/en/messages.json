@@ -60,7 +60,7 @@
     "description": "Context menu item for selecting an area of the page and scanning only that area"
   },
   "scanCamera": {
-    "message": "Scan with Camera",
+    "message": "Camera",
     "description": "Title of the camera scanning page"
   },
   "scanSource": {
@@ -112,7 +112,7 @@
     "description": "Error text when the camera is occupied"
   },
   "cameraIdle": {
-    "message": "Camera is off",
+    "message": "Camera is OFF",
     "description": "Hint inside the viewfinder before the camera starts"
   },
   "cameraOffHint": {
@@ -120,7 +120,7 @@
     "description": "Hint inside the viewfinder while the camera is off"
   },
   "scanLocalImageTitle": {
-    "message": "Upload or Paste an Image to Scan",
+    "message": "Scan Local Image",
     "description": "Title of the local image scanning page"
   },
   "pickerHint": {

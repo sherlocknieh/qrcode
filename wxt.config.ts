@@ -52,11 +52,11 @@ export default defineConfig({
     binaries: binary ? { [devBrowser]: binary } : undefined, // 由 CHROME_BINARY 等环境变量传入
     // 调试时自动打开哪些页面
     startUrls: androidDebug ? [] : [
-      'about:newtab',  // 新标签页
+      // 'about:newtab',  // 新标签页
       'https://inftab.com/',
-      'https://en.wikipedia.org/wiki/QR_code',
-      'https://en.wikipedia.org/wiki/Barcode',
-      'https://app.trakt.tv/favicon.svg',
+      // 'https://en.wikipedia.org/wiki/QR_code',
+      // 'https://en.wikipedia.org/wiki/Barcode',
+      // 'https://app.trakt.tv/favicon.svg',
       pathToFileURL(resolve('.dev/codes.pdf')).href,
     ],
   },
