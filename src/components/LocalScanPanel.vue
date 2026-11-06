@@ -100,12 +100,6 @@ async function playScanAnimation() {
 
 const title = computed(() => t(isCamera.value ? 'scanCamera' : 'scanLocalImageTitle'));
 
-// 面板内的两个源: 相机是默认入口, 图片是相机不可用或被拒绝时的退路
-const sources: { mode: ScanMode; label: string }[] = [
-    { mode: 'camera', label: t('qrActionCamera') },
-    { mode: 'image', label: t('qrActionImage') },
-];
-
 // 面板内切源: 组件卸载会带走各自设备与预览, 这里只清掉旧结果
 function switchMode(next: ScanMode) {
     if (mode.value === next) return;
@@ -122,28 +116,37 @@ onBeforeUnmount(() => {
     <section class="qr-scan-panel" aria-labelledby="qr-scan-panel-title">
         <header class="qr-scan-panel-header">
             <h1 id="qr-scan-panel-title" class="qr-scan-panel-title">{{ title }}</h1>
+            <!-- 面板内的两个源: 相机是默认入口, 图片是相机不可用或被拒绝时的退路 -->
             <div class="qr-scan-source" role="tablist" :aria-label="t('scanSource')">
                 <button
-                    v-for="source in sources"
-                    :key="source.mode"
                     class="qr-scan-source-item"
-                    :class="{ 'qr-scan-source-item--active': mode === source.mode }"
+                    :class="{ 'qr-scan-source-item--active': isCamera }"
                     type="button"
                     role="tab"
-                    :aria-selected="mode === source.mode"
-                    @click="switchMode(source.mode)"
+                    :aria-selected="isCamera"
+                    @click="switchMode('camera')"
                 >
-                    <svg v-if="source.mode === 'camera'" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M4.4 8.2 5.5 6.6A1 1 0 0 1 6.3 6h3.4a1 1 0 0 1 .8.6l1.1 1.6" />
                         <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
                         <circle cx="12" cy="14.1" r="3.4" />
                     </svg>
-                    <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                    {{ t('qrActionCamera') }}
+                </button>
+                <button
+                    class="qr-scan-source-item"
+                    :class="{ 'qr-scan-source-item--active': !isCamera }"
+                    type="button"
+                    role="tab"
+                    :aria-selected="!isCamera"
+                    @click="switchMode('image')"
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
                         <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
                         <path d="M12 15.6V8.6" />
                         <path d="m8.8 11.6 3.2-3 3.2 3" />
                     </svg>
-                    {{ source.label }}
+                    {{ t('qrActionImage') }}
                 </button>
             </div>
         </header>
