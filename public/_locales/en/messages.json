@@ -8,7 +8,7 @@
     "description": "Short name used for the toolbar tooltip"
   },
   "appDescription": {
-    "message": "Minimal UI, All powerful: generate QR codes from text, and scan QR codes or barcodes from images, screenshots or the camera.",
+    "message": "Minimal UI, powerful features: generate QR codes from text, and scan QR codes or barcodes from images, screenshots, or the camera.",
     "description": "Application description"
   },
   "selectionToQR": {
@@ -16,7 +16,7 @@
     "description": "Context menu item for generating QR code from selected text"
   },
   "qrInputPlaceholder": {
-    "message": "Input text to generate QR code",
+    "message": "Enter text to generate a QR code",
     "description": "Placeholder of the QR code input field"
   },
   "moreOptions": {
@@ -128,7 +128,7 @@
     "description": "Title of the local image scanning page"
   },
   "pickerHint": {
-    "message": "Drop an image or click to choose",
+    "message": "Drop an image here or click to choose",
     "description": "Hint under the icon in the image picker"
   },
   "pasteImageHint": {
@@ -136,7 +136,7 @@
     "description": "Hint under the image viewfinder"
   },
   "previewHint": {
-    "message": "Click the box to choose another image",
+    "message": "Click the preview to choose another image",
     "description": "Hint shown after an image has been selected"
   },
   "chooseImage": {
@@ -164,23 +164,23 @@
     "description": "Loading message when fetching image"
   },
   "fetchingImageHint": {
-    "message": "Cross-origin or CDN images are fetched via the extension.\nThe first scan is slower, so please wait.",
+    "message": "Cross-origin images must be loaded from their source.\nThis may take a moment.",
     "description": "Explanation shown when loading the image takes a while"
   },
   "fetchTimeout": {
-    "message": "Image Is Taking Too Long",
+    "message": "Image Load Timed Out",
     "description": "Title shown when fetching the image does not finish in time"
   },
   "fetchTimeoutHint": {
-    "message": "The image hasn't been downloaded yet.\nYou can scan the screen instead: it captures the current view and reads the code from it.",
+    "message": "Scan the screen instead.",
     "description": "Suggestion shown when fetching the image times out"
   },
   "qrcodeScanSuccess": {
-    "message": "Found QR Code",
+    "message": "QR Code Detected",
     "description": "Title shown when a QR code is detected"
   },
   "barcodeScanSuccess": {
-    "message": "Found Barcode",
+    "message": "Barcode Detected",
     "description": "Title shown when a barcode is detected"
   },
   "openLink": {
@@ -196,15 +196,15 @@
     "description": "Button text after content is copied"
   },
   "multiScanSuccess": {
-    "message": "Found Multiple QR Codes and Barcodes",
+    "message": "Multiple QR Codes and Barcodes Detected",
     "description": "Title shown when several codes are recognized at once and both QR codes and barcodes are present"
   },
   "multiQrcodeScanSuccess": {
-    "message": "Found Multiple QR Codes",
+    "message": "Multiple QR Codes Detected",
     "description": "Title shown when several codes are recognized at once and all of them are QR codes"
   },
   "multiBarcodeScanSuccess": {
-    "message": "Found Multiple Barcodes",
+    "message": "Multiple Barcodes Detected",
     "description": "Title shown when several codes are recognized at once and all of them are barcodes"
   },
   "multiResultDeduped": {
@@ -228,35 +228,35 @@
     "description": "Copy all button for the batch result list"
   },
   "imageFetchFailed": {
-    "message": "Couldn't Load Image",
+    "message": "Unable to Load Image",
     "description": "Error dialog title for image loading failure"
   },
   "errorHintFileAccess": {
-    "message": "The extension isn't allowed to access local files yet.\nTurn on \"Allow access to file URLs\" in the extension's details page and try again, or save the image and scan it with the image picker.",
+    "message": "The extension does not have permission to access local files.\nEnable \"Allow access to file URLs\" in the extension's details page and try again, or save the image and scan it with the image picker.",
     "description": "Shown when the browser blocks the extension from accessing a file:// page"
   },
   "errorHintCrossOrigin": {
-    "message": "This image comes from another site or is protected, so the browser won't let the extension read its pixels.\nTry scanning a selection of the screen instead.",
+    "message": "This image is from another site or is protected, so the browser does not allow the extension to read its pixels.",
     "description": "Shown when a cross-origin image cannot be read from the canvas"
   },
   "errorHintNetwork": {
-    "message": "The image couldn't be downloaded.\nCheck your connection, or make sure the image address is still valid.",
+    "message": "The image could not be downloaded.",
     "description": "Shown when the image request fails"
   },
   "errorHintDecode": {
-    "message": "The image couldn't be decoded.\nThe format may be unsupported, the file may be damaged, or the link may not point to an image.",
+    "message": "The image could not be decoded.",
     "description": "Shown when the image data cannot be decoded"
   },
   "errorHintLocalFile": {
-    "message": "The local file couldn't be read.\nIt may have been moved, deleted, or made inaccessible. Please choose it again.",
+    "message": "The local file could not be read.",
     "description": "Shown when reading a local image file fails"
   },
   "errorHintTooLarge": {
-    "message": "The image is too large to process in memory.\nTry a smaller image.",
+    "message": "The image is too large to process in memory.",
     "description": "Shown when the image is too large to load"
   },
   "errorHintEmptyImage": {
-    "message": "The image has nothing to display.\nTry another image.",
+    "message": "The image contains no visible content.",
     "description": "Shown when the image has no size"
   },
   "error": {
@@ -272,7 +272,7 @@
     "description": "Button offered when an image cannot be read; captures the visible page and lets the user drag a region to scan"
   },
   "frameScanRetry": {
-    "message": "Try a Smaller Region",
+    "message": "Select a Smaller Region",
     "description": "Button that lets the user drag a smaller region on the full-screen screenshot when a full-screen scan finds no code"
   },
   "screenshotFailed": {
@@ -280,7 +280,7 @@
     "description": "Error title for screenshot operation failure"
   },
   "screenshotFailedMsg": {
-    "message": "The screenshot could not be captured.\nMake sure the page is a regular web page and try again.",
+    "message": "The screenshot could not be captured.\nMake sure the current page is a standard web page and try again.",
     "description": "Message shown when screenshot scan fails"
   },
   "screenshotCopyFailed": {
@@ -300,7 +300,7 @@
     "description": "Copy button text"
   },
   "recognitionFailedMsg": {
-    "message": "No Valid Code Found",
+    "message": "No Valid Code Detected",
     "description": "Message shown when screenshot scan fails"
   },
   "recognitionFailed": {
