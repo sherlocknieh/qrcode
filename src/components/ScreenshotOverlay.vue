@@ -11,7 +11,7 @@ const props = withDefaults(
         src: string;
         // 是否播放"全屏闪光 -> 收缩到居中窗口"的入场动画
         intro?: boolean;
-        // 只读结果层: 只展示截图与结果蓝点, 不允许框选, 也不显示工具按钮
+        // 只读结果层: 只展示截图与结果绿点, 不允许框选, 也不显示工具按钮
         selectable?: boolean;
     }>(),
     { intro: false, selectable: true },
@@ -20,7 +20,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     // rect 是选区在浮层显示区域中的位置, viewport 是截图时的视口尺寸
     (event: 'confirm', payload: { dataUrl: string; rect: Rect; viewport: { width: number; height: number } }): void;
-    // 点中结果蓝点: 宿主把通知切到该码
+    // 点中结果绿点: 宿主把通知切到该码
     (event: 'pick', index: number): void;
     // 只读结果层上点了空白处: 宿主确认没有通知在显示后收起这层
     (event: 'blank'): void;
@@ -46,7 +46,7 @@ const HANDLE_HIT_SIZE = 9;
 // 确认按钮与选区、画面边缘之间的间距
 const TOOLBAR_GAP = 8;
 const TOOLBAR_MARGIN = 8;
-const ACCENT_COLOR = '#2CABFF';
+const ACCENT_COLOR = '#22C55E';
 // 与整屏扫描扫描动画的遮罩保持一致
 const MASK_COLOR = 'rgba(8, 12, 20, 0.22)';
 
@@ -129,13 +129,16 @@ const beginLayoutTransition = (duration = 340) => {
     }, duration);
 };
 
-// 冻结: 扫描结果的蓝框叠在截图浮层上; 截图仍可继续框选, 拖一下就开始扫下一块
+// 冻结: 扫描结果的绿框叠在截图浮层上; 截图仍可继续框选, 拖一下就开始扫下一块
 const frozen = ref(false);
 
 // 扫描结果: 按截图时的视口坐标给出, 由本层换算到浮层当前显示区域
 const resultMarks = ref<ScanRect[]>([]);
-// 在结果画面上重新框选时暂存上一轮蓝框与选区, 用户放弃这次框选就恢复
+// 与绿框对齐: 标出已经点开过的码, 这些只留绿框、不再显示圆点
+const pickedMarks = ref<boolean[]>([]);
+// 在结果画面上重新框选时暂存上一轮绿框与选区, 用户放弃这次框选就恢复
 let archivedMarks: ScanRect[] | null = null;
+let archivedPicked: boolean[] | null = null;
 let archivedSelection: Rect | null = null;
 const sourceViewport = ref<{ width: number; height: number } | null>(null);
 // 仅在浮窗模式且未要求减少动态效果时才播放入场动画
@@ -319,13 +322,13 @@ const draw = () => {
     context.clearRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
 
-    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩; 选中的区域或结果蓝框内部挖空,
+    // 画面铺满视口, 再叠一层与整屏扫描一致的淡遮罩; 选中的区域或结果绿框内部挖空,
     // 让码本身保持清晰, 冻结后也能一眼看出标记的是哪几块
     const rect = selection.value;
     context.beginPath();
     context.rect(0, 0, width, height);
     if (frozen.value && resultMarks.value.length) {
-        // 结果蓝框按浮层初始显示区域记录, 窗口尺寸变化后要换算回当前画布坐标
+        // 结果绿框按浮层初始显示区域记录, 窗口尺寸变化后要换算回当前画布坐标
         const source = sourceViewport.value;
         const scale = source && source.width > 0 ? layout.value.width / source.width : 1;
         for (const mark of resultMarks.value) {
@@ -337,7 +340,7 @@ const draw = () => {
     context.fillStyle = MASK_COLOR;
     context.fill('evenodd');
 
-    // 冻结后选区只负责在遮罩上挖空: 蓝色选框与手柄都退场, 让结果蓝框成为唯一焦点;
+    // 冻结后选区只负责在遮罩上挖空: 绿色选框与手柄都退场, 让结果绿框成为唯一焦点;
     // 识别结束时选区本身也会被清空, 高亮块随之一起消失
     if (frozen.value) return;
 
@@ -495,8 +498,10 @@ const cancel = () => {
     if (busy.value) return;
     if (archivedMarks !== null) {
         resultMarks.value = archivedMarks;
+        pickedMarks.value = archivedPicked ?? archivedMarks.map(() => false);
         selection.value = archivedSelection;
         archivedMarks = null;
+        archivedPicked = null;
         archivedSelection = null;
         frozen.value = true;
         return;
@@ -511,13 +516,14 @@ const confirm = () => {
     if (!result) return;
     const viewportWidth = viewport.value.width;
     const viewportHeight = viewport.value.height;
-    // 确认后冻结框选: 扫描期间截图继续留在浮层上, 后续的蓝框也标在这张截图上
+    // 确认后冻结框选: 扫描期间截图继续留在浮层上, 后续的绿框也标在这张截图上
     frozen.value = true;
     archivedMarks = null;
+    archivedPicked = null;
     archivedSelection = null;
-    // 修复改过窗口大小后再框选、蓝框略微错位的问题:
+    // 修复改过窗口大小后再框选、绿框略微错位的问题:
     // 截图是改尺寸之前拍的, 浮窗按截图比例收缩, 宽高比和改后的视口不同;
-    // 先把选区换算到视口坐标、蓝框层再按宽度统一缩放回来, 纵向就会差一截。
+    // 先把选区换算到视口坐标、绿框层再按宽度统一缩放回来, 纵向就会差一截。
     // 改为都按浮层显示区域记录与缩放, 两个方向始终等比例
     sourceViewport.value = { width: layout.value.width, height: layout.value.height };
     emit('confirm', {
@@ -540,11 +546,13 @@ const handleCanvasClick = () => {
 
 const handlePointerDown = (event: PointerEvent) => {
     if (!props.selectable || busy.value || event.button !== 0) return;
-    // 结果画面上继续框选: 先收起上一轮蓝框, 拖出选区后照常确认、扫描新区域
+    // 结果画面上继续框选: 先收起上一轮绿框, 拖出选区后照常确认、扫描新区域
     if (frozen.value) {
         archivedMarks = resultMarks.value;
+        archivedPicked = pickedMarks.value;
         archivedSelection = selection.value;
         resultMarks.value = [];
+        pickedMarks.value = [];
         selection.value = null;
         frozen.value = false;
     }
@@ -725,20 +733,22 @@ onBeforeUnmount(() => {
 });
 
 defineExpose({
-    // 扫描命中: 在冻结的截图上标出码的蓝框, 之后仍可继续框选其他区域
+    // 扫描命中: 在冻结的截图上标出码的绿框, 之后仍可继续框选其他区域
     showResults(marks: ScanRect[]) {
         frozen.value = true;
         archivedMarks = null;
         archivedSelection = null;
-        // 识别完成即收起这次选区: 遮罩恢复整片压暗, 只留结果蓝框;
+        // 识别完成即收起这次选区: 遮罩恢复整片压暗, 只留结果绿框;
         // 否则高亮块会一直挂在画面上, 看着像还在扫这一块
         selection.value = null;
-        // 整屏扫描没有经过框选确认: 在这里补记蓝框层对应的显示区域,
+        // 整屏扫描没有经过框选确认: 在这里补记绿框层对应的显示区域,
         // 之后切成浮窗或改窗口大小时才能整体缩放对齐
         sourceViewport.value = { width: layout.value.width, height: layout.value.height };
         resultMarks.value = marks;
+        pickedMarks.value = marks.map(() => false);
+        archivedPicked = null;
     },
-    // 没扫到码: 清掉蓝框, 但留住截图与这次的挖空范围,
+    // 没扫到码: 清掉绿框, 但留住截图与这次的挖空范围,
     // 用户能看清刚才扫的是哪一块, 直接拖下一块重扫
     clearResults(rect?: ScanRect) {
         frozen.value = true;
@@ -746,12 +756,15 @@ defineExpose({
         archivedSelection = null;
         if (rect) selection.value = rect;
         resultMarks.value = [];
+        pickedMarks.value = [];
     },
-    // 点掉一个蓝点就只撤掉它的蓝框: 已看过的码不该继续挂在结果画面上,
-    // 剩下的蓝框保持原位, 直接按数组位置删除, 不重新换算坐标
-    removeResult(index: number) {
-        if (index < 0 || index >= resultMarks.value.length) return;
-        resultMarks.value = resultMarks.value.filter((_, markIndex) => markIndex !== index);
+    // 点掉一个绿点只摘掉它的圆点: 绿框留着标出这个码已经看过,
+    // 位置按数组下标记录, 不重新换算坐标
+    markPicked(index: number) {
+        if (index < 0 || index >= pickedMarks.value.length) return;
+        pickedMarks.value = pickedMarks.value.map((flag, markIndex) => (
+            markIndex === index ? true : flag
+        ));
     },
     // 浮层显示区域坐标 → 视口坐标: 扫描动画挂在页面上, 浮窗模式下要加上窗口偏移
     toViewportRect(rect: ScanRect): ScanRect {
@@ -783,12 +796,12 @@ defineExpose({
             :style="canvasStyle"
             @pointerdown="handlePointerDown"
             @click="handleCanvasClick" />
-        <!-- 扫描结果直接标在冻结的截图上: 蓝框按截图时的视口坐标换算到浮层当前显示区域 -->
+        <!-- 扫描结果直接标在冻结的截图上: 绿框按截图时的视口坐标换算到浮层当前显示区域 -->
         <div
             v-if="frozen && resultMarks.length"
             class="qr-shot-marks"
             :style="marksLayerStyle">
-            <ScanMarks :rects="resultMarks" @pick="emit('pick', $event)" />
+            <ScanMarks :rects="resultMarks" :picked="pickedMarks" @pick="emit('pick', $event)" />
         </div>
         <!-- 试验用布局切换: 只在浮窗形态出现, 切"撑开"与"画中画" -->
         <button
@@ -872,8 +885,8 @@ defineExpose({
     z-index: 2147483646;
 }
 
-/* 结果蓝框层: 按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域;
-   空白处不拦事件, 指针要能落回画布继续框选 (只有蓝点自己接管点击) */
+/* 结果绿框层: 按截图时的视口尺寸铺开, 再缩放对齐到浮层当前显示区域;
+   空白处不拦事件, 指针要能落回画布继续框选 (只有绿点自己接管点击) */
 .qr-shot-marks {
     position: absolute;
     top: 0;

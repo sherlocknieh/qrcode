@@ -203,8 +203,16 @@
     "message": "Found Multiple Barcodes",
     "description": "Title shown when several codes are recognized at once and all of them are barcodes"
   },
+  "showAll": {
+    "message": "Show all",
+    "description": "Button that expands every scanned result in the multi-code notice"
+  },
+  "multiScanHint": {
+    "message": "Tap any code on the screen to view it",
+    "description": "Shown when several codes are found, telling the user to pick one on screen"
+  },
   "pickCodeHint": {
-    "message": "Click a blue dot to choose a code",
+    "message": "Click a green dot to choose a code",
     "description": "Shown when a full-screen scan finds several codes and the user picks one"
   },
   "copyItem": {

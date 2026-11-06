@@ -6,7 +6,7 @@ import { sendMessage } from '@/services/messaging';
 
 // 点选锚点: 说明解码用的图像画在屏幕的哪块矩形上。
 // 各入口(扫描屏幕的结果截图/网页图片/扫描面板)只需要给出这个矩形,
-// 蓝点定位、点选切结果、空白收起都由 useCodePicker 统一处理。
+// 绿框定位、点选切结果、空白收起都由 useCodePicker 统一处理。
 export type PickAnchor = {
     // 图像在视口中的显示矩形 (CSS 像素, 锚定时)
     rect: ScanRect;
@@ -24,16 +24,16 @@ export type PickAnchor = {
     mirrorX?: boolean;
     // 只允许标记落在这个范围内: 框选扫描只截取了画面的一部分
     clip?: ScanRect;
-    // 网页图片扫描时对应的图片元素: 蓝框据此挂进图片所在层, 只压住图片本身
+    // 网页图片扫描时对应的图片元素: 绿框据此挂进图片所在层, 只压住图片本身
     element?: Element | null;
 };
 
 type CodePickerOptions = {
-    // 点中蓝点后怎么出结果: 各宿主都走统一的结果通知
+    // 点中绿点后怎么出结果: 各宿主都走统一的结果通知
     notifyResults(results: DecodeResult[]): Promise<unknown> | void;
 };
 
-// 把解码坐标换算成画面上的蓝框。各入口只需给出图像显示矩形、裁剪范围与滚动差量:
+// 把解码坐标换算成画面上的绿框。各入口只需给出图像显示矩形、裁剪范围与滚动差量:
 // 画在页面上的入口直接渲染, 画在截图浮层上的入口再按浮层缩放一次。
 export function toMarkRects(
     results: DecodeResult[],
@@ -56,7 +56,7 @@ export function toMarkRects(
         const bounds = result.bounds;
         if (!bounds) continue;
         const box: ScanRect = {
-            // 镜像显示时左右要翻过来, 否则蓝点会压到对称位置的空白上
+            // 镜像显示时左右要翻过来, 否则绿点会压到对称位置的空白上
             x: anchor.mirrorX
                 ? rect.x + rect.width - (bounds.x + bounds.width) * scaleX - shiftX
                 : rect.x + bounds.x * scaleX - shiftX,
@@ -71,10 +71,13 @@ export function toMarkRects(
     return marks;
 }
 
-// 全屏与面板共用的多码点选: 命中码后在画面上叠蓝点, 点哪个就把通知切到哪个并撤掉该码的标记
+// 全屏与面板共用的多码点选: 命中码后在画面上叠绿点, 点哪个就把通知切到哪个;
+// 点开过的码只摘掉圆点, 绿框留着标出已经看过的是哪一个
 export function useCodePicker(options: CodePickerOptions) {
     const picked = ref<(PickAnchor & { results: DecodeResult[] }) | null>(null);
-    // 蓝框跟随的图片元素: 供宿主把它渲染进图片所在层, 没有实体图片时为空
+    // 与 results 对齐: true 表示这个码已经点开过
+    const pickedFlags = ref<boolean[]>([]);
+    // 绿框跟随的图片元素: 供宿主把它渲染进图片所在层, 没有实体图片时为空
     const anchorElement = computed(() => picked.value?.element ?? null);
     // 页面滚动后框要跟着码走, 滚动位置用响应式保存下来触发重算
     const scrollPos = ref({ x: window.scrollX, y: window.scrollY });
@@ -85,7 +88,7 @@ export function useCodePicker(options: CodePickerOptions) {
         const scroll = scrollPos.value;
         const current = picked.value;
         if (!current) return [];
-        // 修复固定不随页面滚动的图片(如图片查看器里的图)上蓝框滚一下就漂移的问题:
+        // 修复固定不随页面滚动的图片(如图片查看器里的图)上绿框滚一下就漂移的问题:
         // 这类图片的屏幕位置与滚动无关, 按滚动差量平移会把框推离码所在位置,
         // 改为每次都测量图片实时位置, 图片动没动都能对准
         if (current.measureRect) {
@@ -95,13 +98,17 @@ export function useCodePicker(options: CodePickerOptions) {
         return toMarkRects(current.results, current, scroll);
     });
 
+    // 还没点开过的码数: 宿主据此判断什么时候可以收起整层标记
+    const remaining = computed(() => pickedFlags.value.filter((flag) => !flag).length);
+
     // 结果显示在画面上: 与结果通知同时给出, 点哪个就把通知切到哪个
     function show(results: DecodeResult[], anchor: PickAnchor) {
         clear();
         const located = results.filter((result) => result.bounds);
         if (!located.length) return;
-        // 修复全屏扫描命中后蓝框错位、滚动一下才归位的问题:
-        // 滚动位置只在滚动事件里更新, 没有蓝框时根本不记录, 沿用旧值会让首帧
+        pickedFlags.value = located.map(() => false);
+        // 修复全屏扫描命中后绿框错位、滚动一下才归位的问题:
+        // 滚动位置只在滚动事件里更新, 没有绿框时根本不记录, 沿用旧值会让首帧
         // 按"旧滚动位置 - 截图时的滚动位置"整体偏移, 这里同步成锚点记录的滚动位置
         scrollPos.value = { x: anchor.scroll.x, y: anchor.scroll.y };
         picked.value = { ...anchor, results: located };
@@ -109,17 +116,17 @@ export function useCodePicker(options: CodePickerOptions) {
 
     function clear() {
         picked.value = null;
+        pickedFlags.value = [];
     }
 
-    // 点中蓝点: 通知切到这个码的结果, 并把这个码的蓝框蓝点一并撤掉,
-    // 剩下的继续可点, 避免已经看过的码还挂在画面上
+    // 点中绿点: 通知切到这个码的结果, 只摘掉它的圆点; 绿框留着标出已经看过,
+    // 其余码继续可点
     function pick(index: number) {
         const current = picked.value;
         const result = current?.results[index];
-        if (!current || !result) return;
+        if (!current || !result || pickedFlags.value[index]) return;
+        pickedFlags.value = pickedFlags.value.map((flag, i) => (i === index ? true : flag));
         void options.notifyResults([result]);
-        const rest = current.results.filter((_, i) => i !== index);
-        picked.value = rest.length ? { ...current, results: rest } : null;
     }
 
     // 通知窗口是否还开着 (含刚被这次点击点掉的情况): 内容脚本发起的通知都落在 popup 里
@@ -132,20 +139,21 @@ export function useCodePicker(options: CodePickerOptions) {
         }
     }
 
-    // 点击空白处收起蓝点。但通知窗口开着时, 这一下往往是去关 popup 的,
+    // 点击空白处收起绿点。但通知窗口开着时, 这一下往往是去关 popup 的,
     // 若此时收起, 用户就没法接着点码了, 所以留到下一次点击再收
     async function dismiss() {
         if (await isNoticeWindowOpen()) return;
         clear();
     }
 
-    // 点在蓝点以外的任何地方都算"点空白"; 用 document 捕获阶段监听,
+    // 点在绿点以外的任何地方都算"点空白"; 用 document 捕获阶段监听,
     // 这样页面与面板里的按钮照常可用, 不必用一层覆盖全屏的透明层抢点击
     function onDocumentClick(event: MouseEvent) {
         if (!picked.value) return;
         const target = event.target;
-        // 蓝点与整个蓝框都算"点中了码", 不能当成点空白收起
-        if (target instanceof Element && target.closest('.qr-marks-dot, .qr-marks-item')) return;
+        // 绿点与整个绿框都算"点中了码"; 通知本身也是独立浮层 (如"显示全部"),
+        // 点它不算点空白, 不能因此撤掉还能点的绿框
+        if (target instanceof Element && target.closest('.qr-marks-dot, .qr-marks-item, .qr-notify-root')) return;
         void dismiss();
     }
 
@@ -185,5 +193,5 @@ export function useCodePicker(options: CodePickerOptions) {
         document.removeEventListener('click', onDocumentClick, true);
     });
 
-    return { marks, anchorElement, show, clear, pick };
+    return { marks, anchorElement, pickedFlags, remaining, show, clear, pick };
 }

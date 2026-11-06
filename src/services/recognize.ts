@@ -41,7 +41,7 @@ export type RecognizeOptions = {
     noResultRetry?: RetryKind;
     // 结果是否已被新一轮扫描取代
     isStale?: () => boolean;
-    // 结果通知交给调用方处理: 全屏扫描要先在画面上叠蓝点, 不能直接弹通知
+    // 结果通知交给调用方处理: 全屏扫描要先在画面上叠绿点, 不能直接弹通知
     deferResults?: boolean;
 };
 

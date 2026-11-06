@@ -4,7 +4,7 @@ import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 
 // 截图结果带上选区在浮层显示区域中的位置与截图时的视口尺寸;
-// 扫描后要按它们把码标在截图浮层上 (浮层显示区域与截图同比例, 蓝框层据此整体缩放)
+// 扫描后要按它们把码标在截图浮层上 (浮层显示区域与截图同比例, 绿框层据此整体缩放)
 export type ScreenshotCapture = {
     dataUrl: string;
     rect: ScanRect;
@@ -18,12 +18,12 @@ export type ScreenshotResult =
 
 // 打开后的截图浮层: 每次框选都会回调 onCapture, 浮层要等调用方收起才消失
 export type ScreenshotSession = {
-    // 扫描命中: 在冻结的截图上标出码的蓝框
+    // 扫描命中: 在冻结的截图上标出码的绿框
     showResults(marks: ScanRect[]): void;
-    // 没扫到码: 清掉蓝框但留住截图, 让用户可以继续框选别的区域
+    // 没扫到码: 清掉绿框但留住截图, 让用户可以继续框选别的区域
     clearResults(rect?: ScanRect): void;
-    // 点中一个蓝点后只撤掉它自己的蓝框, 剩下的继续可点
-    removeResult(index: number): void;
+    // 点中一个绿点后只摘掉它的圆点, 绿框留着标出这个码已经看过
+    markPicked(index: number): void;
     // 把浮层显示区域里的坐标换算成视口坐标 (扫描动画按视口定位)
     toViewportRect(rect: ScanRect): ScanRect;
     // 收起浮层, 回到页面
@@ -33,7 +33,7 @@ export type ScreenshotSession = {
 type StartOptions = {
     // 每确认一次选区回调一次: 首次扫描与"再框一块"共用同一张截图
     onCapture(capture: ScreenshotCapture): void;
-    // 点中蓝框上的蓝点: 由调用方把通知切到该码
+    // 点中绿框上的绿点: 由调用方把通知切到该码
     onPick?(index: number): void;
     // 截图读不出来, 由调用方提示失败
     onError?(): void;
@@ -114,7 +114,7 @@ export function useScreenshot() {
             resolve({
                 showResults: (marks: ScanRect[]) => overlay?.showResults(marks),
                 clearResults: (rect?: ScanRect) => overlay?.clearResults(rect),
-                removeResult: (index: number) => overlay?.removeResult(index),
+                markPicked: (index: number) => overlay?.markPicked(index),
                 toViewportRect: (rect: ScanRect) => overlay?.toViewportRect(rect) ?? rect,
                 close: dispose,
             });

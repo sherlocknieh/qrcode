@@ -4,7 +4,7 @@ import { useScreenshot, type ScreenshotCapture, type ScreenshotSession } from '@
 import type { DecodeOutcome } from '@/services/recognize';
 import type { DecodeResult } from '@/services/qrScanner';
 
-// 截图扫描: 一张截图 + 框选/整屏 → 解码 → 在冻结的截图上标蓝点, 点选逐条出结果。
+// 截图扫描: 一张截图 + 框选/整屏 → 解码 → 在冻结的截图上标绿点, 点选逐条出结果。
 // 全屏扫描就是"自动对整屏框选一次", 与用户手动框选共用同一条流程;
 // 内容脚本与独立扫描页都走这里, 不再各写一套截图承载逻辑。
 export type ScreenshotScanCapture = ScreenshotCapture;
@@ -21,9 +21,9 @@ export type ScreenshotScanContext = {
 type ScreenshotScanOptions = {
     // 解码一块截图; 播放扫描动画、错误提示与无结果通知都由调用方决定
     decode(capture: ScreenshotScanCapture, context: ScreenshotScanContext): Promise<DecodeOutcome>;
-    // 初次结果: 单条弹通知, 多条按宿主策略处理 (有蓝点时通常不弹)
+    // 初次结果: 单条弹结果通知, 多条弹一条"扫到多个码"的轻提示 (由宿主的 notifyResults 决定)
     notifyResults(results: DecodeResult[]): Promise<unknown>;
-    // 点中蓝点后展示这一条结果
+    // 点中绿点后展示这一条结果
     notifyPicked(result: DecodeResult): Promise<unknown>;
     // 截图读取失败
     onError?(): void;
@@ -40,7 +40,9 @@ type ScreenshotScanOptions = {
 export function useScreenshotScan(options: ScreenshotScanOptions) {
     const { startScreenshot } = useScreenshot();
     let session: ScreenshotSession | null = null;
+    // 本轮结果与"是否已点开"逐项对齐: 点过的码只摘掉圆点, 绿框继续留在截图上
     let results: DecodeResult[] = [];
+    let pickedFlags: boolean[] = [];
     // 框选轮次: 前一轮异步结果不能覆盖后一轮画面
     let seq = 0;
     // 每次打开截图会话递增: 上一张截图里的异步结果不再影响新画面
@@ -48,9 +50,25 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     // 当前这层是可框选的截图工具, 还是只展示结果的只读层
     let selectable = true;
 
+    // 通知宿主结果集合的变化: count 是画面上还能点的码数
+    function publish(picked: boolean, ok = true) {
+        options.onResultsChanged?.({
+            count: pickedFlags.filter((flag) => !flag).length,
+            picked,
+            ok,
+            selectable,
+        });
+    }
+
     function setResults(next: DecodeResult[], picked: boolean, ok = true) {
         results = next;
-        options.onResultsChanged?.({ count: next.length, picked, ok, selectable });
+        pickedFlags = next.map(() => false);
+        publish(picked, ok);
+    }
+
+    function resetResults() {
+        results = [];
+        pickedFlags = [];
     }
 
     // 对截图上的一块 (整屏也走这里) 解码并把结果标回画面
@@ -59,7 +77,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         if (!current) return;
         const currentEpoch = epoch;
         const currentSeq = ++seq;
-        results = [];
+        resetResults();
         const outcome = await options.decode(capture, {
             // 扫描动画在页面上按视口定位, 浮窗模式下要把选区换算出去
             rect: current.toViewportRect(capture.rect),
@@ -74,7 +92,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
             setResults([], false, false);
             return;
         }
-        // 蓝框只标可定位的码, 点选按下标取结果时两边要保持同一份列表
+        // 绿框只标可定位的码, 点选按下标取结果时两边要保持同一份列表
         const located = outcome.results.filter((result) => result.bounds);
         current.showResults(toMarkRects(located, {
             rect: capture.rect,
@@ -96,7 +114,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     } = {}): Promise<boolean> {
         close();
         const currentEpoch = epoch;
-        results = [];
+        resetResults();
         // 全屏扫描只需要结果展示, 默认不给框选与工具按钮; 手动框选入口保留完整截图工具
         selectable = params.selectable ?? !params.autoCapture;
         try {
@@ -108,10 +126,13 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                 onBlank: () => options.onBlank?.(),
                 onPick: (index) => {
                     const result = results[index];
-                    if (!result) return;
-                    // 先更新剩余结果 (宿主据此决定关通知时是否收尾), 再投递这一条结果
-                    setResults(results.filter((_, resultIndex) => resultIndex !== index), true);
-                    session?.removeResult(index);
+                    if (!result || pickedFlags[index]) return;
+                    // 先标记已点开 (宿主据此决定关通知时是否收尾), 再投递这一条结果
+                    pickedFlags = pickedFlags.map((flag, flagIndex) => (
+                        flagIndex === index ? true : flag
+                    ));
+                    session?.markPicked(index);
+                    publish(true);
                     void options.notifyPicked(result);
                 },
                 onCapture: (capture) => void scan(capture),
@@ -121,7 +142,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                     if (currentEpoch !== epoch) return;
                     epoch++;
                     seq++;
-                    results = [];
+                    resetResults();
                     session = null;
                     options.onClose?.();
                 },
@@ -142,13 +163,13 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     function close() {
         epoch++;
         seq++;
-        results = [];
+        resetResults();
         session?.close();
         session = null;
     }
 
     // 画面上还没点过的结果数: 通知结束时用它判断是否要收起截图
-    const remaining = () => results.length;
+    const remaining = () => pickedFlags.filter((flag) => !flag).length;
 
     return { open, close, remaining };
 }

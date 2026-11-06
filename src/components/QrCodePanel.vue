@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <section class="qr-panel" :class="{ 'qr-panel--compact': !expanded }">
+    <section class="qr-panel">
         <div
             class="qr-panel-preview"
             :class="{ 'qr-panel-preview--toggle': collapsible }"
@@ -253,7 +253,9 @@ onBeforeUnmount(() => {
     justify-content: center;
     gap: 0;
     width: 220px;
-    padding: 0;
+    /* 给二维码的底部投影留出可见空间: 弹窗窗口按内容尺寸成型,
+       投影落在内容区外就会被窗口边缘裁掉, 收起态等于看不见阴影 */
+    padding: 0 0 8px;
 }
 
 .qr-panel-preview {
@@ -269,22 +271,16 @@ onBeforeUnmount(() => {
     margin: 0 auto;
 }
 
-/* 展开后二维码盖在抽屉上方: 底部投影体现两层的前后关系, 收起时下面没有东西就不投影.
-   投影画在伪元素上只渐变不透明度: 直接过渡 box-shadow 会让 Firefox 每帧重画 220px 宽的
-   模糊阴影, 展开动画期间就是掉帧; 不透明度可以交给合成器做 */
+/* 二维码始终带一层底部投影: 收起时它就是面板下沿, 展开时则体现它与下方抽屉的前后关系.
+   投影单独画在伪元素上并提升为独立图层: 直接挂在码面上, 抽屉每帧撑高都会连同 220px
+   宽的模糊阴影一起重画, Firefox 弹窗里展开动画就掉帧 */
 .qr-panel-preview::after {
     content: '';
     position: absolute;
     inset: 0;
     box-shadow: 0 6px 10px -6px rgba(15, 23, 42, 0.45);
-    opacity: 0;
     pointer-events: none;
-    transition: opacity 220ms ease;
     will-change: opacity;
-}
-
-.qr-panel:not(.qr-panel--compact) .qr-panel-preview::after {
-    opacity: 1;
 }
 
 .qr-panel-image {
@@ -371,8 +367,9 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    /* 顶部留白给二维码下方的投影让位, 展开时输入框不会被压暗 */
-    padding: 8px;
+    /* 顶部留白给二维码下方的投影让位, 展开时输入框不会被压暗;
+       底部留白统一由面板的 padding 给, 收起与展开时下沿间距才能一致 */
+    padding: 8px 8px 0;
 }
 
 /* 展开后才出现扫描入口: 收起态只留二维码, 避免入口挤占预览 */

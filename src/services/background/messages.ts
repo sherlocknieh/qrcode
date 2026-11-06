@@ -11,8 +11,8 @@ export const handleBackgroundMessage = (
     sender: Browser.runtime.MessageSender,
     sendResponse: (response: any) => void,
 ): boolean => {
-    // 全屏扫描的蓝点被点空白处收起前先问一句: 通知窗口是否还开着。
-    // 开着说明这一下点击是去关 popup 的, 内容脚本会保留蓝点等下一次点击
+    // 全屏扫描的绿点被点空白处收起前先问一句: 通知窗口是否还开着。
+    // 开着说明这一下点击是去关 popup 的, 内容脚本会保留绿点等下一次点击
     if (request.action === 'popupNoticeOpen') {
         sendResponse({ success: true, open: popupHost.isOpen() });
         return false;

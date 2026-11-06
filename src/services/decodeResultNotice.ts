@@ -153,6 +153,22 @@ function multiResultNotice(results: DecodeResult[]): PopupNoticePayload {
     };
 }
 
+// 画面上已经用绿框标出每个码时先只给一条轻提示: 说明这次扫到多个码、每个都能点开;
+// 内容默认收起, 点"显示全部"才摊开, 避免一上来就把同一批码在列表和绿框里各列一遍
+export function multiFoundNotice(results: DecodeResult[]): PopupNoticePayload {
+    return {
+        options: {
+            toast: true,
+            icon: 'success',
+            title: multiResultTitle(results),
+            text: t('multiScanHint'),
+            items: toNoticeItems(results),
+            itemsCollapsed: true,
+            showCloseButton: true,
+        },
+    };
+}
+
 // 单个结果: 链接提供"打开/复制", 纯文本只提供"复制"
 function singleResultNotice(result: DecodeResult): PopupNoticePayload {
     const isLink = isLinkText(result.text);

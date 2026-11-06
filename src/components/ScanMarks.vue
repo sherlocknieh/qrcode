@@ -4,11 +4,23 @@ import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { overlayMountPoint, overlayZIndex } from '@/services/overlayHost';
 import { t } from '@/services/i18n';
 
-// 扫描命中后标出码的位置: 每个码上叠可点击蓝点, 由用户选用哪一个
-// anchor 传图片元素时蓝框跟随图片所在层, 只压住图片而不遮挡页面自己的浮层(如维基的下载面板);
+// 扫描命中后标出码的位置: 每个码上叠可点击绿点, 由用户选用哪一个
+// picked 标出已经点开过的码: 这些码只留绿框做位置标记, 圆点摘掉也不再接收点击
+// anchor 传图片元素时绿框跟随图片所在层, 只压住图片而不遮挡页面自己的浮层(如维基的下载面板);
 // 整屏截图等没有实体图片的场景不传, 仍覆盖整个视口
-const props = defineProps<{ rects: ScanRect[]; anchor?: Element | null }>();
+const props = defineProps<{ rects: ScanRect[]; anchor?: Element | null; picked?: boolean[] }>();
 const emit = defineEmits<{ pick: [index: number] }>();
+
+// 绿点只用来在多个码之间做选择: 只有一个码时不需要它
+const showDots = computed(() => props.rects.length > 1);
+const isPicked = (index: number) => props.picked?.[index] === true;
+
+// 点过的码不再重复点开; 单码的结果通知已经展示过这个码,
+// 绿框只作位置标记, 否则关掉通知后还能一遍遍点出同一条结果
+function pick(index: number) {
+    if (!showDots.value || isPicked(index)) return;
+    emit('pick', index);
+}
 
 const pickHint = t('pickCodeHint');
 
@@ -24,7 +36,7 @@ const rectStyle = (rect: ScanRect) => ({
     height: `${rect.height}px`,
 });
 
-// 蓝点压在码中央: 尺寸跟随码的大小, 小码也留出足够的可点面积
+// 绿点压在码中央: 尺寸跟随码的大小, 小码也留出足够的可点面积
 function dotStyle(rect: ScanRect) {
     const size = Math.round(Math.min(56, Math.max(26, Math.min(rect.width, rect.height) * 0.42)));
     return { width: `${size}px`, height: `${size}px` };
@@ -39,22 +51,29 @@ function dotStyle(rect: ScanRect) {
                     v-for="(rect, index) in props.rects"
                     :key="index"
                     class="qr-marks-item"
+                    :class="{
+                        'qr-marks-item--picked': isPicked(index),
+                        'qr-marks-item--static': !showDots,
+                    }"
                     :style="rectStyle(rect)"
-                    @click.stop.prevent="emit('pick', index)"
+                    @click.stop.prevent="pick(index)"
                 >
                     <span class="qr-marks-box" />
-                    <!-- 修复点蓝点会顺带触发下层交互的问题:
-                         蓝框挂在图片所在容器里, 点击继续冒泡会被当成点了图片/面板
-                         (网页打开看图浮层、面板重新弹出选文件), 这里就地截断这次点击 -->
+                    <!-- 单个码不叠绿点: 绿点是给多码点选用的, 只有一个码时结果通知已经展示,
+                         点还压在码中央会挡住内容, 整块绿框本身就能点 -->
                     <button
+                        v-if="showDots && !isPicked(index)"
                         type="button"
                         class="qr-marks-dot"
                         :style="dotStyle(rect)"
                         :title="pickHint"
                         :aria-label="pickHint"
-                        @click.stop.prevent="emit('pick', index)"
+                        @click.stop.prevent="pick(index)"
                     >
-                        <!-- 实现"点蓝点看信息"的语义: 点蓝点只是把通知切到这个码的扫描结果,
+                        <!-- 修复点绿点会顺带触发下层交互的问题:
+                             绿框挂在图片所在容器里, 点击继续冒泡会被当成点了图片/面板
+                             (网页打开看图浮层、面板重新弹出选文件), 上面已就地截断这次点击 -->
+                        <!-- 实现"点绿点看信息"的语义: 点绿点只是把通知切到这个码的扫描结果,
                              并不打开链接, 用箭头容易被当成跳转, 改为字母 i -->
                         <svg class="qr-marks-dot-icon" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M12 11v6" />
@@ -84,9 +103,27 @@ function dotStyle(rect: ScanRect) {
     padding: 0;
     opacity: 1;
     animation: qr-marks-pop 200ms ease both;
-    /* 整个蓝框区域都能点选: 不必非得点中中间的小蓝点 */
+    /* 整个绿框区域都能点选: 不必非得点中中间的小绿点 */
     pointer-events: auto;
     cursor: pointer;
+}
+
+/* 点过的码只留绿框做位置标记: 空出来的地方还给页面, 不再接收点击 */
+.qr-marks-item--picked {
+    pointer-events: none;
+    cursor: default;
+}
+
+/* 单码没有点选这回事: 结果已经由通知展示, 绿框同样不接收点击 */
+.qr-marks-item--static {
+    pointer-events: none;
+    cursor: default;
+}
+
+/* 点过的码把绿框转灰并去掉荧光: 一眼分清"看过"和"还没点"的码 */
+.qr-marks-item--picked .qr-marks-box {
+    border-color: #9ca3af;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
 }
 
 .qr-marks-box {
@@ -96,14 +133,14 @@ function dotStyle(rect: ScanRect) {
     margin: 0;
     padding: 0;
     opacity: 1;
-    border: 2px solid #2cabff;
+    border: 2px solid #22c55e;
     border-radius: 6px;
     box-shadow:
         0 0 0 1px rgba(0, 0, 0, 0.28),
-        0 0 18px rgba(44, 171, 255, 0.55);
+        0 0 18px rgba(34, 197, 94, 0.55);
 }
 
-/* 只有蓝点接管点击: 空白点击由 useCodePicker 在 document 上判断, 不挡住页面与面板按钮 */
+/* 只有绿点接管点击: 空白点击由 useCodePicker 在 document 上判断, 不挡住页面与面板按钮 */
 .qr-marks-dot {
     position: absolute;
     inset: 0;
@@ -114,9 +151,9 @@ function dotStyle(rect: ScanRect) {
     appearance: none;
     border: 2px solid #fff;
     border-radius: 50%;
-    background: #2cabff;
+    background: #22c55e;
     box-shadow:
-        0 0 0 2px rgba(44, 171, 255, 0.55),
+        0 0 0 2px rgba(34, 197, 94, 0.55),
         0 2px 8px rgba(0, 0, 0, 0.35);
     display: flex;
     align-items: center;
@@ -130,7 +167,7 @@ function dotStyle(rect: ScanRect) {
 
 .qr-marks-dot:hover {
     transform: scale(1.08);
-    background: #1e9bf0;
+    background: #16a34a;
 }
 
 .qr-marks-dot:focus-visible {

@@ -14,6 +14,7 @@ import {
   describeImageError,
   FETCH_TIMEOUT_MS,
   fetchTimeoutNotice,
+  multiFoundNotice,
   resultNotice,
   runNoticeAction,
 } from '@/services/decodeResultNotice';
@@ -78,8 +79,8 @@ const previewUrl = ref('');
 const previewImg = ref<HTMLImageElement | null>(null);
 const scanAnimation = useScanAnimation();
 
-// 多码点选: 扫到多条结果时把预览图留在窗口里叠蓝点, 点哪条才出哪条的通知,
-// 与网页图片、扫描面板共用同一套蓝点交互
+// 多码点选: 扫到多条结果时把预览图留在窗口里叠绿点, 点哪条才出哪条的通知,
+// 与网页图片、扫描面板共用同一套绿点交互
 const picking = ref(false);
 const codePicker = useCodePicker({
   notifyResults: async (picked) => {
@@ -88,6 +89,7 @@ const codePicker = useCodePicker({
   },
 });
 const marks = codePicker.marks;
+const pickedFlags = codePicker.pickedFlags;
 const pickMark = codePicker.pick;
 
 // 收起扫描动画与预览图: 动画先淡出再取走图片, 免得图片先消失、光带还在飞
@@ -96,9 +98,9 @@ async function stopPreview() {
   previewUrl.value = '';
 }
 
-// 点完最后一条蓝点: 收起预览图, 没有二维码可展示时连空窗口一起关掉
+// 点完最后一条绿点: 收起预览图, 没有二维码可展示时连空窗口一起关掉
 function finishPickingIfDone() {
-  if (!picking.value || marks.value.length > 0) return;
+  if (!picking.value || codePicker.remaining.value > 0) return;
   picking.value = false;
   previewUrl.value = '';
   scanActive.value = false;
@@ -199,7 +201,7 @@ async function decodeAndShow(
   }
 
   let results: DecodeResult[];
-  // 解码图像的像素尺寸: 多码点选时蓝点要按它把码的包围盒换算到预览图的实际显示区域
+  // 解码图像的像素尺寸: 多码点选时绿点要按它把码的包围盒换算到预览图的实际显示区域
   let imageSize = { width: 0, height: 0 };
   try {
     // 图片一到就撤掉超时计时, 免得它把扫描预览顶成"改用扫描屏幕"
@@ -235,15 +237,23 @@ async function decodeAndShow(
     return;
   }
 
-  // 多条结果: 预览图留在窗口里叠蓝点, 点哪条再出哪条的通知;
-  // 有码定位不到时蓝点会漏, 仍用列表通知把全部结果列出来
+  // 多条结果: 先弹一条"扫到多个码"的提示, 关掉后再把预览图留在窗口里叠绿点,
+  // 点哪条才出哪条的通知; 有码定位不到时绿点会漏, 仍用列表通知把全部结果列出来
   const image = previewImg.value;
   const previewRect = image ? measureImageRect(image) : undefined;
   if (results.length > 1 && previewRect && results.every((result) => result.bounds)) {
     await scanAnimation.stop();
+    // 提示与预览图不同时占位: 窗口小, 两者并排会把弹窗撑开
+    await fire({ ...multiFoundNotice(results).options });
+    // 预览图随提示收起后重新挂载, 绿点要按它这次的位置量
+    await nextTick();
+    const preview = previewImg.value;
+    if (preview) await preview.decode().catch(() => { });
+    await nextTick();
+    const rect = (previewImg.value && measureImageRect(previewImg.value)) || previewRect;
     picking.value = true;
     codePicker.show(results, {
-      rect: previewRect,
+      rect,
       imageSize,
       scroll: { x: 0, y: 0 },
       viewportWidth: window.innerWidth,
@@ -326,7 +336,7 @@ async function startPanelScan(entry: 'image' | 'screen' | 'camera') {
 async function startScan(imageUrl: string) {
   if (scanning) return;
   scanning = true;
-  // 上一轮可能停在多码点选: 新一轮扫描前先撤掉残留的蓝点与点选态
+  // 上一轮可能停在多码点选: 新一轮扫描前先撤掉残留的绿点与点选态
   codePicker.clear();
   picking.value = false;
   scanActive.value = true;
@@ -430,13 +440,13 @@ onBeforeUnmount(() => {
   />
 
   <!-- 待扫描的图片: 扫描在 popup 里进行时先把图片显示出来, 扫描动画也播在它上面;
-       多码点选时点了蓝点先让位给该条通知, 通知收起后再回来接着点 -->
+       多码点选时点了绿点先让位给该条通知, 通知收起后再回来接着点 -->
   <div v-if="previewUrl && !notifyState.open" class="qr-scan-preview">
     <img ref="previewImg" :src="previewUrl" alt="" />
   </div>
 
-  <!-- 多条结果时在预览图上叠蓝点, 点哪条就展示哪条的通知 -->
-  <ScanMarks v-if="!notifyState.open" :rects="marks" @pick="pickMark" />
+  <!-- 多条结果时在预览图上叠绿点, 点哪条就展示哪条的通知 -->
+  <ScanMarks v-if="!notifyState.open" :rects="marks" :picked="pickedFlags" @pick="pickMark" />
 
   <!-- 通知弹窗 -->
   <NotifyHost embedded />

@@ -36,7 +36,7 @@ const screenshotScan = useScreenshotScan({
     notifyPicked: (result) => notifyResults([result]),
     onError: () => notifyScreenshotError({ type: 'failed' }),
     onResultsChanged: ({ count, picked, ok, selectable }) => {
-        // 单码结果的通知就是这次展示, 关掉即收起截图; 多码等最后一个蓝点被点掉;
+        // 单码结果的通知就是这次展示, 关掉即收起截图; 多码等最后一个绿点被点掉;
         // 只读结果层没扫到也没有框选入口, 关掉通知就收起
         closeShotOnNotice = ok ? (picked ? count === 0 : count === 1) : !selectable;
     },
@@ -48,7 +48,7 @@ const screenshotScan = useScreenshotScan({
     },
 });
 
-// 命中码后统一在画面上叠蓝点: 网页图片按图片实时位置定位; 整屏扫描改用截图容器承载结果
+// 命中码后统一在画面上叠绿点: 网页图片按图片实时位置定位; 整屏扫描改用截图容器承载结果
 // 点选产生的通知要单独标记: 关掉它只是看完其中一个码, 画面上还有码没点就继续留着
 let pickedNotice = false;
 const picker = useCodePicker({
@@ -59,13 +59,15 @@ const picker = useCodePicker({
 });
 const marks = picker.marks;
 const marksAnchor = picker.anchorElement;
+const pickedFlags = picker.pickedFlags;
 const pickMark = picker.pick;
 const clearMarks = picker.clear;
 
-// 结果通知结束: 多码点选还有蓝点就留着继续点, 都看过之后清掉标记并收起该收的截图浮层
+// 结果通知结束: 画面上还有多个码没点时, 这条通知要么只是多码提示, 要么只是看完了其中一个,
+// 绿框都要留着继续点; 全点完才清标记并收起该收的截图浮层
 function onNoticeDone() {
-    const keepOpen = pickedNotice
-        && (marks.value.length > 0 || screenshotScan.remaining() > 0);
+    const pending = picker.remaining.value + screenshotScan.remaining();
+    const keepOpen = pending > 1 || (pickedNotice && pending > 0);
     pickedNotice = false;
     if (keepOpen) return;
     clearActiveMarks();
@@ -74,7 +76,7 @@ function onNoticeDone() {
     screenshotScan.close();
 }
 
-// 码都在图标实际显示的区域里定位: 可定位的码叠蓝点, 多条结果只留蓝点, 点哪条出哪条的通知
+// 码都在图标实际显示的区域里定位: 可定位的码叠绿点, 多条结果只留绿点, 点哪条出哪条的通知
 function showResults(outcome: Extract<DecodeOutcome, { status: 'ok' }>, anchor: PickAnchor) {
     picker.show(outcome.results, anchor);
     return notifyPickedResults(outcome.results);
@@ -140,7 +142,7 @@ function findImageElement(imageUrl: string): HTMLImageElement | undefined {
         });
 }
 
-// 图片的显示区域: 完全移出视口时返回 undefined, 既不用播放动画也不必叠蓝点
+// 图片的显示区域: 完全移出视口时返回 undefined, 既不用播放动画也不必叠绿点
 function measureVisibleImage(image: HTMLImageElement | undefined): ScanRect | undefined {
     if (!image) return undefined;
     const box = image.getBoundingClientRect();
@@ -180,14 +182,14 @@ async function handleImageUrl(imageUrl: string) {
                 if (rect) await scanAnimation.play({ rect, anchor: image });
             },
             afterDecode: () => scanAnimation.stop(),
-            // 结果通知与蓝点同时给出, 由这里统一处理
+            // 结果通知与绿点同时给出, 由这里统一处理
             deferResults: true,
         },
     );
     if (isStale()) return;
 
     if (outcome.status === 'ok') {
-        // 码坐标按图片实际显示区域换算, 点蓝点即可切换到该码的结果
+        // 码坐标按图片实际显示区域换算, 点绿点即可切换到该码的结果
         const image = findImageElement(imageUrl);
         const rect = measureVisibleImage(image);
         if (rect && image) {
@@ -197,8 +199,8 @@ async function handleImageUrl(imageUrl: string) {
                 scroll: { x: window.scrollX, y: window.scrollY },
                 viewportWidth: window.innerWidth,
                 followScroll: true,
-                // 图片查看器等浮层里的图片不随页面滚动, 只按滚动差量平移会把蓝框推偏,
-                // 交一个重测函数让蓝框每次都以图片的实时位置为准
+                // 图片查看器等浮层里的图片不随页面滚动, 只按滚动差量平移会把绿框推偏,
+                // 交一个重测函数让绿框每次都以图片的实时位置为准
                 measureRect: () => measureVisibleImage(image),
                 element: image,
             });
@@ -229,7 +231,7 @@ async function handleImageUrl(imageUrl: string) {
 // 每轮扫描开始都会递增, 用于判断上一轮的结果是否已过期
 let screenshotEpoch = 0;
 // 全屏扫描的截图是否随结果通知一起收起:
-// 单码的通知就是结果展示; 多码要等最后一个蓝点被点掉, 关闭那条通知后才收起
+// 单码的通知就是结果展示; 多码要等最后一个绿点被点掉, 关闭那条通知后才收起
 let closeShotOnNotice = false;
 clearActiveMarks = clearMarks;
 
@@ -288,7 +290,7 @@ async function openFrameScan() {
 }
 
 // 扫描屏幕: 截取当前视口后直接进入截图扫描, 自动对整屏扫一次;
-// 蓝框标在静止的截图上, 页面滚动/缩放都不会让标记漂移
+// 绿框标在静止的截图上, 页面滚动/缩放都不会让标记漂移
 async function handleScreenScan() {
     screenshotEpoch++;
     clearMarks();
@@ -349,6 +351,6 @@ async function fetchImageViaProxy(url: string): Promise<string> {
 <template>
     <div class="qr-content-root">
         <NotifyHost />
-        <ScanMarks :rects="marks" :anchor="marksAnchor" @pick="pickMark" />
+        <ScanMarks :rects="marks" :anchor="marksAnchor" :picked="pickedFlags" @pick="pickMark" />
     </div>
 </template>

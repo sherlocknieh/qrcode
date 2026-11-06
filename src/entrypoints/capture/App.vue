@@ -20,8 +20,8 @@ import { takeStoredString } from '@/services/storage';
 // background 截取视口后写入该键, 本页面读取后立即清除
 const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 
-// 关闭本页的时机: 多码点选时要等用户点完所有蓝点, 由最后一条通知收尾;
-// 还有蓝点没点时关掉通知只回到截图上继续点
+// 关闭本页的时机: 多码点选时要等用户点完所有绿点, 由最后一条通知收尾;
+// 还有绿点没点时关掉通知只回到截图上继续点
 let closeOnNoticeDone = true;
 const noticeOptions = {
     closeOriginTab: () => closeOnNoticeDone,
@@ -40,7 +40,7 @@ const screenshotScan = useScreenshotScan({
     onError: () => void notifyScreenshotError(),
     onClose: () => closeTab(),
     onResultsChanged: ({ count, picked, ok, selectable }) => {
-        // 单码结果的通知就是这次展示, 关掉即关页; 多码等最后一个蓝点被点掉;
+        // 单码结果的通知就是这次展示, 关掉即关页; 多码等最后一个绿点被点掉;
         // 只读结果层没扫到也没有继续框选的入口, 关掉通知就关页
         closeOnNoticeDone = ok ? (picked ? count === 0 : count === 1) : !selectable;
     },
@@ -96,7 +96,7 @@ onMounted(async () => {
             await notifyScreenshotError();
             return;
         }
-        // 截图交给截图容器承载: 扫描结果、蓝点与后续框选都标在这张静止的截图上
+        // 截图交给截图容器承载: 扫描结果、绿点与后续框选都标在这张静止的截图上
         await screenshotScan.open({ src: stored, autoCapture: fullScreenCapture(stored) });
     } catch (error) {
         await notifyScreenshotError(error);

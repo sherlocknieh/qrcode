@@ -14,9 +14,9 @@ export const sendImageToPopup = async (imageUrl?: string): Promise<boolean> => {
     return true;
 };
 
-// 网页图片扫描: 优先交给内容脚本, 在页面上播扫描动画并叠蓝框定位;
+// 网页图片扫描: 优先交给内容脚本, 在页面上播扫描动画并叠绿框定位;
 // 注入不了内容脚本的页面 (扩展商店页, data:image/*页面、独立 SVG、Firefox 新标签页) 退回 popup 取图,
-// 只是没有动画与蓝框, 直接弹结果通知
+// 只是没有动画与绿框, 直接弹结果通知
 export const requestWebImageScan = async (
     tabId?: number,
     imageUrl?: string,

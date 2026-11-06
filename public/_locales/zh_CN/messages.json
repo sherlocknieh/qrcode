@@ -203,6 +203,14 @@
     "message": "发现多个条形码",
     "description": "一次扫描到多个码, 且全是条形码时的标题"
   },
+  "showAll": {
+    "message": "显示全部",
+    "description": "多码提示里展开全部扫描结果的按钮"
+  },
+  "multiScanHint": {
+    "message": "画面上的每个码都能点开查看",
+    "description": "扫到多个码时, 提示用户在画面上点选其中一个查看内容"
+  },
   "pickCodeHint": {
     "message": "点击查看扫描结果",
     "description": "全屏扫描命中多个码时, 提示用户在画面上点选其中一个"

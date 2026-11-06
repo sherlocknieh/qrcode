@@ -22,6 +22,7 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
     let lastOpenAt = 0;                             // popup 上次打开时间
     let lastCloseAt = 0;                            // popup 上次关闭时间
     let noticeSeq = 0;                              // 通知自增 id, 用于丢弃过期记录
+    let lastFinishedId: number | null = null;       // 已收尾的通知, 用于丢弃重复的结束通知
 
     // 打开 popup 窗口: 优先用 Firefox 地址栏按钮, 不可用或被拒绝时回退工具栏图标
     const open = async () => {
@@ -59,6 +60,11 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         const current = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
         if (!current) return;
         if (id != null && current.id !== id) return;
+        // 修复点选后剩下的绿框被一起清掉的问题: popup 点完通知就关窗, 关窗的断开事件
+        // 有时比它发来的 notificationResolved 更早, 同一条通知会收尾两次,
+        // 调用方按第二次"最多只剩一个码"的旧状态就把还能点的绿框撤了
+        if (lastFinishedId === current.id) return;
+        lastFinishedId = current.id;
         await storageArea().remove(POPUP_NOTICE_KEY);
         // 通知结束也告诉发起它的页面: 内容脚本据此清掉扫描标记, 全屏扫描的截图浮层随结果通知收起
         void sendTabAction(current.sourceTabId, 'notificationResolved', { id: current.id });

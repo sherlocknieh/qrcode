@@ -16,6 +16,8 @@ export interface NotifyOptions {
     text?: string;
     // 多结果列表; 设置后通知主体改为逐条展示
     items?: NotifyResultItem[];
+    // 列表先收起, 只显示标题与提示, 由"显示全部"按钮展开
+    itemsCollapsed?: boolean;
     showCloseButton?: boolean;
     showCancelButton?: boolean;
     confirmButtonText?: string;

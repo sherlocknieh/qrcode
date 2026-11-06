@@ -18,6 +18,8 @@ export interface PopupNoticeOptions {
     title?: string;
     text?: string;
     items?: NotifyResultItem[];
+    // 列表先收起, 等用户点"显示全部"再摊开 (多码提示用)
+    itemsCollapsed?: boolean;
     showCloseButton?: boolean;
     showCancelButton?: boolean;
     confirmButtonText?: string;

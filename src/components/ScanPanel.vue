@@ -46,9 +46,10 @@ const isCamera = computed(() => mode.value === 'camera');
 const { host, notify, notifyPickedResults, notifyResults } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
 const recognizing = ref(false);
-// 与其它入口一致: 命中码后在预览图上叠蓝点, 点哪个就把通知切到哪个码
+// 与其它入口一致: 命中码后在预览图上叠绿点, 点哪个就把通知切到哪个码
 const codePicker = useCodePicker({ notifyResults });
 const marks = codePicker.marks;
+const pickedFlags = codePicker.pickedFlags;
 const pickMark = codePicker.pick;
 
 // ---------------------------- 共用扫描流水线 ----------------------------
@@ -67,7 +68,7 @@ async function runScan(
             beforeNotice: playScanAnimation,
             afterDecode: () => scanAnimation.stop(),
             onRetry: options.onRetry,
-            // 结果通知与蓝点同时给出, 由这里统一处理
+            // 结果通知与绿点同时给出, 由这里统一处理
             deferResults: true,
         });
         if (outcome.status !== 'ok') return;
@@ -85,11 +86,11 @@ async function runScan(
                 // 画面镜像显示时才需要翻转横向坐标才能压住码
                 mirrorX: isCamera.value && cameraMirrored.value,
             });
-            // 多条结果只留蓝点, 点哪条再出哪条的通知
+            // 多条结果只留绿点, 点哪条再出哪条的通知
             await notifyPickedResults(outcome.results);
             return;
         }
-        // 量不出预览区域就叠不了蓝点, 仍由通知把结果列出来
+        // 量不出预览区域就叠不了绿点, 仍由通知把结果列出来
         await notifyResults(outcome.results);
     } finally {
         recognizing.value = false;
@@ -260,7 +261,7 @@ const actions = computed<PanelAction[]>(() => {
             {
                 label: t('clearImage'),
                 disabled: recognizing.value,
-                // 图片清掉后蓝点没有可标的区域
+                // 图片清掉后绿点没有可标的区域
                 run: () => { clear(); codePicker.clear(); },
             },
             { label: t('scanNow'), primary: true, disabled: recognizing.value, run: () => void scanLocalImage() },
@@ -278,11 +279,11 @@ function switchSource() {
     const next: ScanMode = isCamera.value ? 'image' : 'camera';
     mode.value = next;
     emit('update:mode', next);
-    // 预览换成另一个源, 原来的蓝点已经没有对应关系
+    // 预览换成另一个源, 原来的绿点已经没有对应关系
     codePicker.clear();
 }
 
-// 恢复摄像头后画面在动, 原来的蓝点已经没有意义
+// 恢复摄像头后画面在动, 原来的绿点已经没有意义
 watch(cameraActive, (active) => {
     if (active) codePicker.clear();
 });
@@ -437,7 +438,7 @@ onBeforeUnmount(() => {
                 </div>
             </section>
         </div>
-        <ScanMarks :rects="marks" @pick="pickMark" />
+        <ScanMarks :rects="marks" :picked="pickedFlags" @pick="pickMark" />
     </Teleport>
 </template>
 

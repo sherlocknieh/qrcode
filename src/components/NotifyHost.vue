@@ -15,15 +15,20 @@ const props = defineProps<{ embedded?: boolean }>();
 const embedded = computed(() => props.embedded === true);
 
 const t = (
-    key: 'confirm' | 'closeBtn' | 'copied' | 'openLink' | 'copyItem' | 'copyAll',
+    key: 'confirm' | 'closeBtn' | 'copied' | 'openLink' | 'copyItem' | 'copyAll' | 'showAll',
     fallback: string,
 ) => browser.i18n.getMessage(key) || fallback;
 
 const options = computed(() => notifyState.options);
-const isToast = computed(() => options.value.toast === true);
+// 多码提示只说明"有几个码", 点"显示全部"才摊开列表: 展开后就按列表呈现,
+// 不再走紧凑的 toast 样式
+const expanded = ref(false);
+const isToast = computed(() => options.value.toast === true && !expanded.value);
 const listItems = computed(() => options.value.items ?? []);
+const itemsCollapsed = computed(() => options.value.itemsCollapsed === true && !expanded.value);
+const listVisible = computed(() => listItems.value.length > 0 && !itemsCollapsed.value);
 // popup 内的 toast 只是过程提示, 不渲染操作按钮; 多结果列表使用自己的按钮
-const showActions = computed(() => !(embedded.value && isToast.value) && listItems.value.length === 0);
+const showActions = computed(() => !(embedded.value && isToast.value) && !listVisible.value);
 const icon = computed(() => options.value.icon ?? 'info');
 const confirmText = computed(() => options.value.confirmButtonText || t('confirm', 'OK'));
 const cancelText = computed(() => options.value.cancelButtonText || 'Cancel');
@@ -49,6 +54,7 @@ function clearCopiedItem() {
 watch(options, () => {
     copiedButton.value = null;
     hoveredButton.value = null;
+    expanded.value = false;
     clearCopiedItem();
 });
 
@@ -161,6 +167,13 @@ onBeforeUnmount(() => {
                     </div>
 
                     <button
+                        v-if="itemsCollapsed"
+                        type="button"
+                        class="qr-notify-item-btn qr-notify-more"
+                        @click="expanded = true"
+                    >{{ t('showAll', 'Show all') }}</button>
+
+                    <button
                         v-if="options.showCloseButton"
                         type="button"
                         class="qr-notify-close"
@@ -218,7 +231,15 @@ onBeforeUnmount(() => {
                                 {{ options.text }}
                             </div>
 
-                            <div v-if="listItems.length" class="qr-notify-list">
+                            <div v-if="itemsCollapsed" class="qr-notify-actions">
+                                <button
+                                    type="button"
+                                    class="qr-notify-btn qr-notify-btn--primary"
+                                    @click="expanded = true"
+                                >{{ t('showAll', 'Show all') }}</button>
+                            </div>
+
+                            <div v-if="listVisible" class="qr-notify-list">
                                 <div
                                     v-for="(item, index) in listItems"
                                     :key="`${item.kind}-${index}`"
@@ -246,7 +267,7 @@ onBeforeUnmount(() => {
                             </div>
                         </div>
 
-                        <div v-if="listItems.length" class="qr-notify-actions">
+                        <div v-if="listVisible" class="qr-notify-actions">
                             <button type="button" class="qr-notify-btn qr-notify-btn--primary" @click="copyAll">
                                 {{ copiedAll ? t('copied', 'Copied') : t('copyAll', 'Copy all') }}
                             </button>
@@ -483,6 +504,13 @@ onBeforeUnmount(() => {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* toast 形态里的"显示全部": 贴在关闭按钮左侧, 与正文垂直居中 */
+.qr-notify-more {
+    flex: none;
+    align-self: center;
+    margin-right: 6px;
 }
 
 .qr-notify-close {

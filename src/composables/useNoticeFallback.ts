@@ -1,6 +1,7 @@
 import { useNotify, type NotifyOptions } from '@/composables/useNotify';
 import {
     copyHandlers,
+    multiFoundNotice,
     resultNotice,
     runNoticeAction,
 } from '@/services/decodeResultNotice';
@@ -82,11 +83,12 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         return deliver(resultNotice(results));
     }
 
-    // 画面上的蓝点已经列出全部结果: 多条时不弹通知, 等用户点蓝点再逐条展示,
-    // 否则通知列表和蓝点会把同一批码重复列两遍; 有码定位不到时蓝点会漏, 仍用通知补齐
+    // 画面上的绿框已经列出全部结果: 多码时只弹一条"扫到多个码"的轻提示,
+    // 内容等用户点某个码再逐条展示, 否则通知列表和绿框会把同一批码列两遍;
+    // 有码定位不到时绿框会漏, 仍用列表通知把全部结果补齐
     function notifyPickedResults(results: DecodeResult[]): Promise<boolean> {
         const allLocated = results.every((result) => result.bounds);
-        if (results.length > 1 && allLocated) return Promise.resolve(false);
+        if (results.length > 1 && allLocated) return notify(multiFoundNotice(results));
         return notifyResults(results);
     }
 
