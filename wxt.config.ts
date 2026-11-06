@@ -54,7 +54,7 @@ export default defineConfig({
     startUrls: androidDebug ? [] : [
       // 'about:newtab',  // 新标签页
       'https://inftab.com/',
-      // 'https://en.wikipedia.org/wiki/QR_code',
+      'https://en.wikipedia.org/wiki/QR_code',
       // 'https://en.wikipedia.org/wiki/Barcode',
       // 'https://app.trakt.tv/favicon.svg',
       pathToFileURL(resolve('.dev/codes.pdf')).href,

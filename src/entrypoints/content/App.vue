@@ -6,7 +6,7 @@ import { getImageDataFromDataUrl, loadImageDataFromUrl } from '@/services/qrScan
 import { t } from '@/services/i18n';
 import { sendMessage } from '@/services/messaging';
 import { describeImageError, errorNotice, warningNotice } from '@/services/decodeResultNotice';
-import { recognizeImage, type DecodeOutcome, type RetryKind } from '@/services/recognize';
+import { recognizeImage, type DecodeOutcome, type RecognizeHost, type RetryKind } from '@/services/recognize';
 import { measureImageRect } from '@/services/imageRect';
 import { isNoticeShowing } from '@/services/popupNotice';
 
@@ -60,8 +60,13 @@ const dismissMarks = picker.dismiss;
 
 // 结果通知结束: 画面上还有多个码没点时, 这条通知要么只是多码提示, 要么只是看完了其中一个,
 // 绿框都要留着继续点; 全点完才清网页图片上的标记。
-// 截图浮层不跟通知走: 扫完之后还能接着拖框重扫, 单击才收起
+// 截图浮层不跟结果通知走: 扫完之后还能接着拖框重扫, 单击才收起
 function onNoticeDone() {
+    // 整屏扫描没扫到的通知关掉了: 用户没在通知里选「框选扫描」, 这次截图就此收摊
+    if (emptyNoticePending) {
+        emptyNoticePending = false;
+        screenshotScan.close();
+    }
     const pending = picker.remaining.value;
     const keepOpen = pending > 1 || (pickedNotice && pending > 0);
     pickedNotice = false;
@@ -90,6 +95,8 @@ const mainProcess = (
     if (message.action !== undefined) {
         screenshotEpoch++;
         pickedNotice = false;
+        // 这轮操作本身就是对截图的处置: 上一轮空结果不再替用户做退出决定
+        emptyNoticePending = false;
         screenshotScan.close();
     }
     if (message.action === 'scanWebImage' && message.imageUrl) {
@@ -250,12 +257,26 @@ function fullScreenCapture(dataUrl: string): ScreenshotScanCapture {
 // 扫描光带要压过截图容器 (它用的是最高层级)
 const SCAN_OVER_SHOT_Z_INDEX = 2147483647;
 
+// 整屏扫描没扫到: 这条通知收尾就算放弃这次截图, 截图层跟着收起
+let emptyNoticePending = false;
+const emptyNoticeHost: RecognizeHost = {
+    ...host,
+    notifyNoResult: (onRetry, retry) => {
+        // 只有整屏扫描的无结果通知会带框选入口, 也是唯一"关掉即退出"的那种
+        if (retry === 'frameScanOnly') emptyNoticePending = true;
+        return host.notifyNoResult(onRetry, retry);
+    },
+};
+
 // 截图扫描的解码: 在选区 (整屏扫描就是整个画面) 上播放扫描动画, 再解码
 function decodeScreenshotCapture(
     capture: ScreenshotScanCapture,
     context: ScreenshotScanContext,
 ) {
+    // 每一轮都是新的结论: 先撤掉上一轮空结果留下的退出标记
+    emptyNoticePending = false;
     return decodeAndNotify(() => getImageDataFromDataUrl(capture.dataUrl), {
+        host: emptyNoticeHost,
         isStale: context.isStale,
         beforeNotice: () => scanAnimation.play({
             rect: context.rect,
@@ -264,7 +285,8 @@ function decodeScreenshotCapture(
             mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
-        // 整页扫描没扫到: 通知里不留"确定", 只给框选入口; 退出与否看用户是单击还是拖框
+        // 整页扫描没扫到: 通知里不留"确定", 只给框选入口; 关掉通知就收起截图层,
+        // 点了框选入口才退回纯框选态继续扫
         noResultRetry: context.fullScreen ? 'frameScanOnly' : undefined,
         onRetry: context.fullScreen ? () => void openFrameScan() : undefined,
         deferResults: true,
@@ -308,10 +330,12 @@ function decodeAndNotify(
         notifyFetching?: () => Promise<unknown>;
         afterDecode?: () => void;
         deferResults?: boolean;
+        // 需要单独接管无结果提示的流程 (截图扫描) 时传入
+        host?: RecognizeHost;
     } = {},
 ) {
     return recognizeImage(loadImageData, {
-        host,
+        host: options.host ?? host,
         isStale: options.isStale,
         // 只有调用方确认"再试一次"有意义时才传 onRetry (截图流程自己就不该再给截图入口)
         onRetry: options.onRetry,

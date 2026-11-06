@@ -14,7 +14,7 @@ import { describeImageError, errorNotice } from '@/services/decodeResultNotice';
 import { sendMessage } from '@/services/messaging';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
 import { isNoticeShowing } from '@/services/popupNotice';
-import { recognizeImage } from '@/services/recognize';
+import { recognizeImage, type RecognizeHost } from '@/services/recognize';
 import { takeStoredString } from '@/services/storage';
 
 // background 截取视口后写入该键, 本页面读取后立即清除
@@ -78,9 +78,21 @@ function fullScreenCapture(dataUrl: string): ScreenshotScanCapture {
     return { dataUrl, rect: { x: 0, y: 0, ...viewport }, viewport };
 }
 
+// 整页扫描没扫到: 这条通知收尾时连这一页一起收掉, 通知里点了「框选扫描」则不再关
+const emptyNoticeHost: RecognizeHost = {
+    ...host,
+    notifyNoResult: (onRetry, retry) => {
+        // 只有整屏扫描的无结果通知会带框选入口, 也是唯一"关掉即退出"的那种
+        if (retry === 'frameScanOnly') closeOnNoticeDone = true;
+        return host.notifyNoResult(onRetry, retry);
+    },
+};
+
 function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanContext) {
+    // 这一轮要么出结果要么重新框选: 先撤掉上一轮空结果留下的退出标记
+    closeOnNoticeDone = false;
     return recognizeImage(() => getImageDataFromDataUrl(capture.dataUrl), {
-        host,
+        host: emptyNoticeHost,
         errorTitle: t('screenshotFailed'),
         isStale: context.isStale,
         beforeNotice: () => scanAnimation.play({
@@ -90,7 +102,8 @@ function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanCo
             mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
-        // 整页扫描没扫到: 通知里不留"确定", 只给框选入口; 退出与否看用户是单击还是拖框
+        // 整页扫描没扫到: 通知里不留"确定", 只给框选入口; 关掉通知就关掉这一页,
+        // 点了框选入口才退回纯框选态继续扫
         noResultRetry: context.fullScreen ? 'frameScanOnly' : undefined,
         // 通知在 popup 里时由 popup 转发框选请求, 页面内兜底通知就地退回框选态
         onRetry: context.fullScreen ? () => void switchToFrameScan() : undefined,
