@@ -638,8 +638,10 @@ onBeforeUnmount(() => {
 }
 
 .qr-notify-btn {
-    max-width: 160px;
+    /* 让三到四个单词的英文标签单行排下: 上限偏小时 "Select Smaller Region" 会被折成两行 */
+    max-width: 220px;
     min-width: 92px;
+    box-sizing: border-box;
     padding: 8px 16px;
     border: 1px solid #d1d5db;
     border-radius: 8px;
