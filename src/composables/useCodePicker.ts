@@ -101,6 +101,9 @@ export function useCodePicker(options: CodePickerOptions) {
     // 还没点开过的码数: 宿主据此判断什么时候可以收起整层标记
     const remaining = computed(() => pickedFlags.value.filter((flag) => !flag).length);
 
+    // 正在多码点选: 画面上还有码等着用户挑
+    const awaitingPick = computed(() => (picked.value?.results.length ?? 0) > 1 && remaining.value > 0);
+
     // 结果显示在画面上: 与结果通知同时给出, 点哪个就把通知切到哪个
     function show(results: DecodeResult[], anchor: PickAnchor) {
         clear();
@@ -139,9 +142,12 @@ export function useCodePicker(options: CodePickerOptions) {
         }
     }
 
-    // 点击空白处收起绿点。但通知窗口开着时, 这一下往往是去关 popup 的,
-    // 若此时收起, 用户就没法接着点码了, 所以留到下一次点击再收
+    // 点击空白处只当是在消通知: 多码还没点完时无论通知开没开都不收摊,
+    // 否则关掉通知就再也点不了剩下的码; 退出交给点已看过的灰框(或单码框)。
+    // 单码的结果通知已经展示过, 通知窗口开着时这一下往往是去关 popup 的,
+    // 也得留到下一次点击再收
     async function dismiss() {
+        if (awaitingPick.value) return;
         if (await isNoticeWindowOpen()) return;
         clear();
     }
