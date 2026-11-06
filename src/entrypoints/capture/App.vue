@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted } from 'vue';
+import { onBeforeUnmount, onMounted } from 'vue';
 
 import NotifyHost from '@/components/NotifyHost.vue';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
@@ -20,13 +20,19 @@ import { takeStoredString } from '@/services/storage';
 // background 截取视口后写入该键, 本页面读取后立即清除
 const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 
+// ?frame=1 由"框选扫描"打开: 同一张视口图不自动整屏扫, 直接交给用户框一块
+const frameOnly = new URLSearchParams(location.search).get('frame') === '1';
+
 // 关闭本页的时机: 多码点选时要等用户点完所有绿点, 由最后一条通知收尾;
 // 还有绿点没点时关掉通知只回到截图上继续点
 let closeOnNoticeDone = true;
+// 通知里的"框选扫描"要留在这一页继续扫, 这条通知收尾不能把页面关掉
+let keepOnNoticeDone = false;
+const shouldCloseOnNotice = () => closeOnNoticeDone && !keepOnNoticeDone;
 const noticeOptions = {
-    closeOriginTab: () => closeOnNoticeDone,
+    closeOriginTab: shouldCloseOnNotice,
     onLocalNoticeDone: () => {
-        if (closeOnNoticeDone) closeTab();
+        if (shouldCloseOnNotice()) closeTab();
     },
 };
 const { host, notify, notifyPickedResults, notifyResults } = useNoticeFallback(noticeOptions);
@@ -41,7 +47,8 @@ const screenshotScan = useScreenshotScan({
     onClose: () => closeTab(),
     onResultsChanged: ({ count, picked, ok, selectable }) => {
         // 单码结果的通知就是这次展示, 关掉即关页; 多码等最后一个绿点被点掉;
-        // 只读结果层没扫到也没有继续框选的入口, 关掉通知就关页
+        // 没扫到码时: 可框选层留着继续框, 只读结果层没有框选入口, 关掉通知就关页
+        keepOnNoticeDone = false;
         closeOnNoticeDone = ok ? (picked ? count === 0 : count === 1) : !selectable;
     },
     onBlank: async () => {
@@ -84,9 +91,40 @@ function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanCo
             zIndex: SCAN_OVER_SHOT_Z_INDEX,
         }),
         afterDecode: () => scanAnimation.stop(),
+        // 只读结果层没扫到码时给出"框选扫描", 换成可框选的工具在同一张截图上继续扫
+        noResultRetry: context.selectable ? undefined : 'frameScan',
+        onRetry: context.selectable ? undefined : () => void switchToFrameScan(),
         deferResults: true,
     });
 }
+
+// 这次扫的视口图: 换到框选工具时要复用同一张, 重新截屏只会截到本页自己
+let shotSrc = '';
+
+// 通知里点"框选扫描": 同一张截图切成可框选的一层, 不重新截屏
+async function switchToFrameScan() {
+    if (!shotSrc) return;
+    keepOnNoticeDone = true;
+    await screenshotScan.open({ src: shotSrc, selectable: true });
+}
+
+// 扩展页收不到内容脚本那套 tabs.sendMessage: 自己连一个端口,
+// 让后台把通知里的"框选扫描"推回持有截图的那一页; 后台重启会断开端口, 断开后重连
+function connectPagePort(): Browser.runtime.Port | undefined {
+    try {
+        const port = browser.runtime.connect({ name: 'extensionPage' });
+        port.onMessage.addListener((message: { action?: string }) => {
+            if (message?.action === 'frameScan') void switchToFrameScan();
+        });
+        port.onDisconnect.addListener(() => { pagePort = connectPagePort(); });
+        return port;
+    } catch {
+        // 扩展正在卸载或页面已关闭: 不再重连
+        return undefined;
+    }
+}
+
+let pagePort = connectPagePort();
 
 onMounted(async () => {
     document.title = t('appName');
@@ -96,12 +134,18 @@ onMounted(async () => {
             await notifyScreenshotError();
             return;
         }
-        // 截图交给截图容器承载: 扫描结果、绿点与后续框选都标在这张静止的截图上
-        await screenshotScan.open({ src: stored, autoCapture: fullScreenCapture(stored) });
+        shotSrc = stored;
+        // 截图交给截图容器承载: 扫描结果、绿点与后续框选都标在这张静止的截图上;
+        // 框选入口只要可框选的一层, 整屏扫描则再自动扫一次整个画面
+        await screenshotScan.open(frameOnly
+            ? { src: stored, selectable: true }
+            : { src: stored, autoCapture: fullScreenCapture(stored) });
     } catch (error) {
         await notifyScreenshotError(error);
     }
 });
+
+onBeforeUnmount(() => pagePort?.disconnect());
 </script>
 
 <template>

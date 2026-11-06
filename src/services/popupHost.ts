@@ -71,6 +71,16 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         if (current.closeTabId != null) await closeTab(current.closeTabId);
     };
 
+    // 通知里的动作要让这一页继续扫 (框选扫描) 时, 这条通知收尾不能把它一起关掉:
+    // closeTabId 只该在"扫完就收摊"的通知上生效
+    const keepTab = async (tabId: number) => {
+        const stored = await storageArea().get(POPUP_NOTICE_KEY);
+        const current = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
+        if (!current || current.closeTabId !== tabId) return;
+        const { closeTabId: _closeTabId, ...rest } = current;
+        await storageArea().set({ [POPUP_NOTICE_KEY]: rest });
+    };
+
     // 返回 false 表示当前无法显示 popup, 内容脚本将回退到页面内通知
     const showNotification = async (
         payload?: PopupNoticePayload,
@@ -136,7 +146,7 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         });
     };
 
-    return { open, showQrCode, showNotification, finish, isOpen, isConnected, connect };
+    return { open, showQrCode, showNotification, finish, keepTab, isOpen, isConnected, connect };
 };
 
 export const popupHost = createPopupHost(closeTabAndReturn);

@@ -1,6 +1,6 @@
-import { closeTabAndReturn } from '@/services/background/extensionTabs';
+import { closeTabAndReturn, sendExtensionPageAction } from '@/services/background/extensionTabs';
 import { openCameraScan, requestLocalImageScan } from '@/services/background/scanEntry';
-import { captureVisibleTab, requestScreenScan } from '@/services/background/screenScan';
+import { captureVisibleTab, requestScreenScan, showFrameScan } from '@/services/background/screenScan';
 import { resolveActiveTabId, sendTabAction } from '@/services/messaging';
 import { popupHost } from '@/services/popupHost';
 
@@ -68,11 +68,20 @@ export const handleBackgroundMessage = (
             .catch(() => sendResponse({ success: false }));
         return true;
     }
-    // popup 通知里点"框选扫描": 图片扫描失败或全屏扫描没扫到码,
-    // 由内容脚本打开框选浮层让用户自己选一块
+    // 通知里的"框选扫描": 图片扫描失败或全屏扫描没扫到码, 由页面打开框选工具让用户自己选一块。
+    // 内容脚本优先; 扩展页 (capture.html) 收不到 tabs.sendMessage, 走它自己连上来的端口;
+    // 都够不着 (扩展商店、独立 SVG 等注入不了脚本的页面) 就截张视口图开可框选的截图页
     if (request.action === 'requestFrameScan') {
         resolveActiveTabId()
-            .then(tabId => sendTabAction(tabId, 'frameScan'))
+            .then(async (tabId) => {
+                if (tabId == null) return false;
+                const delivered = await sendTabAction(tabId, 'frameScan')
+                    || sendExtensionPageAction(tabId, 'frameScan')
+                    || await showFrameScan(tabId);
+                // 框选要在这一页继续扫, 别让这条通知收尾时把该页一起关掉
+                if (delivered) await popupHost.keepTab(tabId);
+                return delivered;
+            })
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;

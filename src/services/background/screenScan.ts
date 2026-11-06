@@ -20,23 +20,39 @@ export const captureVisibleTab = (windowId?: number): Promise<string> => windowI
     ? browser.tabs.captureVisibleTab({ format: 'png' })
     : browser.tabs.captureVisibleTab(windowId, { format: 'png' });
 
-// 截视口后在新标签页直接扫描整图。
-// 兜底交给 popup 会受其窗口尺寸限制, 所以截图类降级统一走 capture.html;
-// originTabId 用于关闭 capture 页时切回来源页面, 否则浏览器会切到相邻标签
-export const showScreenScan = async (originTabId?: number, windowId?: number): Promise<boolean> => {
-    let dataUrl: string;
+// 截视口并落盘: capture.html 读取后立即清除
+const storeViewportCapture = async (windowId?: number): Promise<boolean> => {
     try {
-        dataUrl = await captureVisibleTab(windowId);
+        const dataUrl = await captureVisibleTab(windowId);
+        // 截图体积较大, 交给扩展页面读取后立即清除
+        await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
+        return true;
     } catch (error) {
         // 截图失败不再弹通知: 最常见的原因是标签页没有 activeTab 授权,
         // 调用方只拿到 false, 原因留在控制台供排查
         console.warn('[qrcode] 截取视口失败:', error);
         return false;
     }
-    // 截图体积较大, 交给扩展页面读取后立即清除
-    await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
+};
+
+// 截视口后在新标签页直接扫描整图。
+// 兜底交给 popup 会受其窗口尺寸限制, 所以截图类降级统一走 capture.html;
+// originTabId 用于关闭 capture 页时切回来源页面, 否则浏览器会切到相邻标签
+export const showScreenScan = async (originTabId?: number, windowId?: number): Promise<boolean> => {
+    if (!await storeViewportCapture(windowId)) return false;
     // capture 页只做整图扫描, 不再提供框选
     return openExtensionPage('/capture.html', originTabId);
+};
+
+// 框选扫描的兜底: 注入不了内容脚本的页面 (扩展商店、独立 SVG、PDF 阅读器)
+// 也先截一张视口图, 打开可框选的截图页让用户自己框住要看的那块。
+// 截视口必须带来源页所在的窗口, 否则可能落到 popup 自己那一窗
+export const showFrameScan = async (originTabId?: number): Promise<boolean> => {
+    const windowId = originTabId == null
+        ? undefined
+        : await browser.tabs.get(originTabId).then((tab) => tab.windowId).catch(() => undefined);
+    if (!await storeViewportCapture(windowId)) return false;
+    return openExtensionPage('/capture.html?frame=1', originTabId);
 };
 
 // 扫描屏幕要用到标签页 id、窗口与地址, 三者必须来自同一个标签页:

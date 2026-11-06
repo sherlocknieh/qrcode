@@ -78,3 +78,30 @@ export const returnToOrigin = async (tabId: number) => {
         await browser.tabs.update(originTabId, { active: true }).catch(() => {});
     }
 };
+
+// 扩展页所在的标签页收到 tabs.sendMessage 的连接会直接失败,
+// 由页面挂载时自己连一个端口过来; 后台据此把动作推回持有截图的那一页
+const pagePorts = new Map<number, Browser.runtime.Port>();
+
+export const connectExtensionPage = (port: Browser.runtime.Port) => {
+    if (port.name !== 'extensionPage') return;
+    const tabId = port.sender?.tab?.id;
+    if (tabId == null) return;
+    pagePorts.set(tabId, port);
+    port.onDisconnect.addListener(() => {
+        if (pagePorts.get(tabId) === port) pagePorts.delete(tabId);
+    });
+};
+
+// 给指定标签页里的扩展页推一个动作; 返回是否推到了
+export const sendExtensionPageAction = (tabId: number, action: string): boolean => {
+    const port = pagePorts.get(tabId);
+    if (!port) return false;
+    try {
+        port.postMessage({ action });
+        return true;
+    } catch {
+        pagePorts.delete(tabId);
+        return false;
+    }
+};

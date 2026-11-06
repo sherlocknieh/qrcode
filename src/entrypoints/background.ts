@@ -1,4 +1,4 @@
-import { returnToOrigin } from '@/services/background/extensionTabs';
+import { connectExtensionPage, returnToOrigin } from '@/services/background/extensionTabs';
 import { handleBackgroundMessage } from '@/services/background/messages';
 import { addPageActionMenuItem, handlePageActionClick, showPageAction } from '@/services/background/pageAction';
 import { openCameraScan, requestLocalImageScan, requestWebImageScan } from '@/services/background/scanEntry';
@@ -98,6 +98,9 @@ export default defineBackground(() => {
     
     // 监听 popup 发起的连接事件: 用于探测 popup 的打开
     browser.runtime.onConnect.addListener(popupHost.connect);
+    // 临时扩展页 (capture) 自己连上来: tabs.sendMessage 投递不到扩展页,
+    // 通知里的"框选扫描"要落回持有截图的那一页, 只能走这条端口
+    browser.runtime.onConnect.addListener(connectExtensionPage);
 
     // 扩展安装/升级时重建右键菜单 (菜单不能跨版本沿用).
     // 地址栏开关挂在同一份菜单上, 必须在菜单重建完成后再加, 否则会被 removeAll 清掉

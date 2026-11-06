@@ -12,6 +12,7 @@ import { sendMessage, trySendMessage } from '@/services/messaging';
 import {
   copyHandlers,
   describeImageError,
+  errorNoticeWithScreenshot,
   FETCH_TIMEOUT_MS,
   fetchTimeoutNotice,
   multiFoundNotice,
@@ -226,13 +227,15 @@ async function decodeAndShow(
     // "没有二维码可展示" 并关窗, 而不是等整个扫描流程 return 后才置回
     scanActive.value = false;
     close();
-    await fire({
-      toast: true,
-      icon: 'error',
-      title: errorTitle,
-      text: describeImageError(error),
-      showCloseButton: true,
-    });
+    // 图片加载失败与其它入口共用同一条失败通知: toast 形态在 popup 里不渲染操作按钮,
+    // 这里必须用带"框选扫描"的完整通知, 用户才能从读不出的图片换到框选
+    const { options: failureOptions } = errorNoticeWithScreenshot(errorTitle, describeImageError(error));
+    const response = await fire(failureOptions);
+    if (response.dismiss === 'extra') {
+      // 与本页其它失败出口一致交给当前页, 注入不了内容脚本的页面由后台截视口开可框选的截图页
+      const result = await trySendMessage('requestFrameScan');
+      if (result?.success) window.close();
+    }
     // 流程结束后保留窗口, 由用户自行关闭
     return;
   }
