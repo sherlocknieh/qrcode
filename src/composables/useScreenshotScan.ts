@@ -106,10 +106,9 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                     void options.notifyPicked(result);
                 },
                 onDismiss: () => {
-                    // 点已经看过的灰框 / 单码框就是"看完了": 与点空白同一条收尾,
-                    // 直接收起截图层 (独立扫描页由 onClose 关掉标签页)
-                    close();
-                    options.onClose?.();
+                    // 点已经看过的灰框 / 单码框与点空白同一条收尾: 由宿主判断
+                    // 这一下是消通知还是收起截图层 (独立扫描页则关掉标签页)
+                    options.onBlank?.();
                 },
                 onCapture: (capture) => void scan(capture),
                 onError: () => options.onError?.(),

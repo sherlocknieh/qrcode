@@ -20,7 +20,7 @@ const emit = defineEmits<{
     (event: 'confirm', payload: { dataUrl: string; rect: Rect; viewport: { width: number; height: number } }): void;
     // 点中结果绿点: 宿主把通知切到该码
     (event: 'pick', index: number): void;
-    // 点一下已经看过的绿框 / 单码绿框: 当作"看完了", 宿主收摊(截图层退出)
+    // 点一下已经看过的灰框 / 单码框: 与点空白一样交给宿主收摊, 只是不把点击传给网页
     (event: 'dismiss'): void;
     // 单击 (没拖出选区) 视为退出: 宿主确认没有通知在显示后收起这层
     (event: 'blank'): void;

@@ -129,8 +129,9 @@ export function useCodePicker(options: CodePickerOptions) {
         void options.notifyResults([result]);
     }
 
-    // 点击空白处收起绿点。但通知还开着时, 这一下往往是去关通知的,
-    // 若此时收起, 用户就没法接着点码了, 所以留到下一次点击再收
+    // 收起绿点: 点空白, 以及点已看过的灰框(或单码框)都走这里。
+    // 通知还开着时, 这一下往往是去关通知的, 若此时收起, 用户就没法接着点码了,
+    // 所以留到下一次点击再收
     async function dismiss() {
         if (await isNoticeShowing()) return;
         clear();
@@ -183,5 +184,5 @@ export function useCodePicker(options: CodePickerOptions) {
         document.removeEventListener('click', onDocumentClick, true);
     });
 
-    return { marks, anchorElement, pickedFlags, remaining, show, clear, pick };
+    return { marks, anchorElement, pickedFlags, remaining, show, clear, dismiss, pick };
 }

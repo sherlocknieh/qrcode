@@ -55,6 +55,8 @@ const marksAnchor = picker.anchorElement;
 const pickedFlags = picker.pickedFlags;
 const pickMark = picker.pick;
 const clearMarks = picker.clear;
+// 点已看过的灰框(或单码框)与点空白同一个收尾: 通知还开着时这一下只当是在消通知
+const dismissMarks = picker.dismiss;
 
 // 结果通知结束: 画面上还有多个码没点时, 这条通知要么只是多码提示, 要么只是看完了其中一个,
 // 绿框都要留着继续点; 全点完才清网页图片上的标记。
@@ -338,6 +340,6 @@ async function fetchImageViaProxy(url: string): Promise<string> {
 <template>
     <div class="qr-content-root">
         <NotifyHost />
-        <ScanResultMarks :rects="marks" :anchor="marksAnchor" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
+        <ScanResultMarks :rects="marks" :anchor="marksAnchor" :picked="pickedFlags" @pick="pickMark" @dismiss="dismissMarks" />
     </div>
 </template>

@@ -93,6 +93,8 @@ const marks = codePicker.marks;
 const pickedFlags = codePicker.pickedFlags;
 const pickMark = codePicker.pick;
 const clearMarks = codePicker.clear;
+// 点已看过的灰框(或单码框)与点空白同一个收尾
+const dismissMarks = codePicker.dismiss;
 
 // 收起扫描动画与预览图: 动画先淡出再取走图片, 免得图片先消失、光带还在飞
 async function stopPreview() {
@@ -446,7 +448,7 @@ onBeforeUnmount(() => {
   </div>
 
   <!-- 多条结果时在预览图上叠绿点, 点哪条就展示哪条的通知 -->
-  <ScanResultMarks v-if="!notifyState.open" :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
+  <ScanResultMarks v-if="!notifyState.open" :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="dismissMarks" />
 
   <!-- 通知弹窗 -->
   <NotifyHost embedded />

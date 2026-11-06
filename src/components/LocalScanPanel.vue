@@ -34,6 +34,8 @@ const marks = codePicker.marks;
 const pickedFlags = codePicker.pickedFlags;
 const pickMark = codePicker.pick;
 const clearMarks = codePicker.clear;
+// 点已看过的灰框(或单码框)与点空白同一个收尾
+const dismissMarks = codePicker.dismiss;
 
 // 当前源自己知道画面画在哪里: 面板只问它要区域, 不关心是视频还是预览图
 type ScanArea = {
@@ -164,7 +166,7 @@ onBeforeUnmount(() => {
         />
     </section>
 
-    <ScanResultMarks :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
+    <ScanResultMarks :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="dismissMarks" />
 </template>
 
 <style scoped>

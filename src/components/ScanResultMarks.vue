@@ -22,8 +22,8 @@ function pick(index: number) {
     emit('pick', index);
 }
 
-// 点框内的分工: 还没点过的码把通知切到它; 已经看过的灰框与单码框只标位置,
-// 点一下就当作"看完了", 由宿主收摊 (网页图片收标记, 截图层整个退出)
+// 点框内的分工: 还没点过的码把通知切到它; 已经看过的灰框与单码框与点空白同一条收尾,
+// 只是拦下这次点击不传给网页, 由宿主觉得是收标记还是退出
 function activate(index: number) {
     if (showDots.value && !isPicked(index)) {
         emit('pick', index);
