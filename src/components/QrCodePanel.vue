@@ -97,6 +97,11 @@ const copyLabel = computed(() => {
     return t('qrCopy');
 });
 
+// 按钮图标下方只放得下短文案: 完整说明仍留给悬停提示与读屏, 复制成功后直接换成结果
+const copyButtonText = computed(() =>
+    copyState.value === 'idle' ? t('qrActionCopy') : copyLabel.value,
+);
+
 async function copyQrCode() {
     if (!dataUrl.value) return;
     setCopyState((await copyImageDataUrl(dataUrl.value)) ? 'done' : 'failed');
@@ -184,7 +189,9 @@ onBeforeUnmount(() => {
                                 :aria-label="copyLabel"
                                 :title="copyLabel"
                                 @click="copyQrCode"
-                            ></button>
+                            >
+                                <span class="qr-panel-action-label">{{ copyButtonText }}</span>
+                            </button>
                             <button
                                 class="qr-panel-action qr-panel-action--format"
                                 type="button"
@@ -192,7 +199,7 @@ onBeforeUnmount(() => {
                                 :title="t('qrDownloadPng')"
                                 @click="downloadQrCode('png')"
                             >
-                                PNG
+                                <span class="qr-panel-action-label">PNG</span>
                             </button>
                             <button
                                 class="qr-panel-action qr-panel-action--format"
@@ -201,7 +208,7 @@ onBeforeUnmount(() => {
                                 :title="t('qrDownloadSvg')"
                                 @click="downloadQrCode('svg')"
                             >
-                                SVG
+                                <span class="qr-panel-action-label">SVG</span>
                             </button>
                         </div>
 
@@ -212,21 +219,27 @@ onBeforeUnmount(() => {
                                 :aria-label="t('scanCamera')"
                                 :title="t('scanCamera')"
                                 @click="emit('scan', 'camera')"
-                            ></button>
+                            >
+                                <span class="qr-panel-action-label">{{ t('qrActionCamera') }}</span>
+                            </button>
                             <button
                                 class="qr-panel-action qr-panel-action--screen"
                                 type="button"
                                 :aria-label="t('scanScreen')"
                                 :title="t('scanScreen')"
                                 @click="emit('scan', 'screen')"
-                            ></button>
+                            >
+                                <span class="qr-panel-action-label">{{ t('qrActionScreen') }}</span>
+                            </button>
                             <button
                                 class="qr-panel-action qr-panel-action--image"
                                 type="button"
                                 :aria-label="t('scanLocalImage')"
                                 :title="t('scanLocalImage')"
                                 @click="emit('scan', 'image')"
-                            ></button>
+                            >
+                                <span class="qr-panel-action-label">{{ t('qrActionImage') }}</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -379,20 +392,30 @@ onBeforeUnmount(() => {
 .qr-panel-action {
     display: flex;
     flex: 1;
+    flex-direction: column;
+    /* 允许按钮比内容窄: flex 项默认 min-width: auto, 长文案 (英文 Scan Camera) 会把
+       三个格子撑出 220px 的面板, 整个抽屉连同输入框一起溢出窗口 */
+    min-width: 0;
     align-items: center;
     justify-content: center;
-    height: 28px;
-    padding: 0;
+    gap: 4px;
+    min-height: 52px;
+    padding: 6px 2px;
     color: #475569;
-    background: #f1f5f9;
+    background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .qr-panel-action:hover {
     color: #0f172a;
+    background: #eef2f7;
+    border-color: #cbd5e1;
+}
+
+.qr-panel-action:active {
     background: #e2e8f0;
 }
 
@@ -403,11 +426,23 @@ onBeforeUnmount(() => {
 
 .qr-panel-action::before {
     content: '';
-    width: 16px;
-    height: 16px;
+    flex: none;
+    width: 18px;
+    height: 18px;
     background: currentColor;
-    -webkit-mask: var(--qr-action-icon) center / 16px 16px no-repeat;
-    mask: var(--qr-action-icon) center / 16px 16px no-repeat;
+    -webkit-mask: var(--qr-action-icon) center / 18px 18px no-repeat;
+    mask: var(--qr-action-icon) center / 18px 18px no-repeat;
+}
+
+/* 图标下方一行文字: 格子只有六十来像素宽, 长文案换行而不是省略, 免得英文只剩半个词;
+   完整说明仍留在悬停提示里 */
+.qr-panel-action-label {
+    max-width: 100%;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
 }
 
 .qr-panel-action--image {
@@ -430,12 +465,12 @@ onBeforeUnmount(() => {
     --qr-action-icon: var(--qr-check);
 }
 
-/* 两个下载按钮共用下载图标, 后缀标明导出的格式 */
+/* 两个下载按钮共用下载图标, 下方文字标明导出的格式 */
 .qr-panel-action--format {
     --qr-action-icon: var(--qr-download);
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 500;
+}
+
+.qr-panel-action--format .qr-panel-action-label {
     letter-spacing: 0.04em;
 }
 

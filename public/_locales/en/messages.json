@@ -334,5 +334,21 @@
   "qrFileName": {
     "message": "QR Code",
     "description": "Default file name of the downloaded QR code"
+  },
+  "qrActionCopy": {
+    "message": "Copy",
+    "description": "二维码面板：复制按钮下方的文字"
+  },
+  "qrActionCamera": {
+    "message": "Scan Camera",
+    "description": "二维码面板：相机扫码按钮下方的文字"
+  },
+  "qrActionScreen": {
+    "message": "Scan Screen",
+    "description": "二维码面板：屏幕扫描按钮下方的文字"
+  },
+  "qrActionImage": {
+    "message": "Scan Image",
+    "description": "二维码面板：图片扫描按钮下方的文字"
   }
 }

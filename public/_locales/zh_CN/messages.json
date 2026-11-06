@@ -334,5 +334,21 @@
   "qrFileName": {
     "message": "二维码",
     "description": "下载二维码时的默认文件名"
+  },
+  "qrActionCopy": {
+    "message": "复制",
+    "description": "二维码面板：复制按钮下方的文字"
+  },
+  "qrActionCamera": {
+    "message": "相机扫描",
+    "description": "二维码面板：相机扫码按钮下方的文字"
+  },
+  "qrActionScreen": {
+    "message": "屏幕扫描",
+    "description": "二维码面板：屏幕扫描按钮下方的文字"
+  },
+  "qrActionImage": {
+    "message": "图片扫描",
+    "description": "二维码面板：图片扫描按钮下方的文字"
   }
 }

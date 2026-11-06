@@ -323,7 +323,10 @@ onBeforeUnmount(() => {
     text-align: left;
 }
 
-/* popup 内: 通知就是 popup 的内容, 不浮层、不投影、不留边 */
+/* popup 内: 通知就是 popup 的内容, 不浮层、不留边.
+   投影仍照画: 弹窗窗口按内容尺寸成型会把它裁掉, 只有用标签页打开 popup 页面时
+   才有页面背景接住这层投影, 通知才像浮在页面上的一张卡片.
+   不开圆角: 圆角处会漏出投影, 弹窗里就成了四个脏角 */
 .qr-notify-root--embedded {
     position: relative;
     inset: auto;
@@ -332,6 +335,7 @@ onBeforeUnmount(() => {
     min-width: 360px;
     pointer-events: auto;
     background: #fff;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
 }
 
 .qr-notify-toast,
