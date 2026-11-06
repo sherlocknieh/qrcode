@@ -82,8 +82,8 @@ async function runScan(
                 viewportWidth: window.innerWidth,
                 // 浮层固定不动, 独立页里的卡片会随页面滚动
                 followScroll: !overlay,
-                // 摄像头预览是镜像显示的, 横向坐标要翻过来才能压住码
-                mirrorX: isCamera.value,
+                // 画面镜像显示时才需要翻转横向坐标才能压住码
+                mirrorX: isCamera.value && cameraMirrored.value,
             });
             // 多条结果只留蓝点, 点哪条再出哪条的通知
             await notifyPickedResults(outcome.results);
@@ -104,6 +104,14 @@ function measurePreview(): ScanRect | undefined {
     if (element instanceof HTMLImageElement) return measureImageRect(element);
     return measureBlock(stageRef.value);
 }
+
+// 取景框跟着相机画面比例走: 手机上后置摄像头多是竖屏 3:4,
+// 固定 16:9 会把画面缩在中间, 两侧留出大片黑边
+const stageStyle = computed(() => (
+    isCamera.value && cameraRatio.value
+        ? { '--qr-camera-ratio': String(cameraRatio.value) }
+        : undefined
+));
 
 const stageRef = ref<HTMLElement | null>(null);
 const picker = ref<InstanceType<typeof ImagePicker> | null>(null);
@@ -188,6 +196,8 @@ const {
     active: cameraActive,
     starting: cameraStarting,
     previewUrl: cameraPreview,
+    aspectRatio: cameraRatio,
+    mirrored: cameraMirrored,
     start: startCamera,
     stop: stopCamera,
 } = useCameraScan({
@@ -358,16 +368,25 @@ onBeforeUnmount(() => {
                 <div
                     ref="stageRef"
                     class="qr-scan-stage"
+                    :class="{ 'qr-scan-stage--camera': isCamera }"
+                    :style="stageStyle"
                 >
                     <template v-if="isCamera">
                         <video
                             v-show="!cameraPreview"
                             ref="video"
                             class="qr-scan-media"
+                            :class="{ 'qr-scan-media--mirror': cameraMirrored }"
                             muted
                             playsinline
                         ></video>
-                        <img v-if="cameraPreview" class="qr-scan-media" :src="cameraPreview" alt="" />
+                        <img
+                            v-if="cameraPreview"
+                            class="qr-scan-media"
+                            :class="{ 'qr-scan-media--mirror': cameraMirrored }"
+                            :src="cameraPreview"
+                            alt=""
+                        />
                         <div v-if="cameraActive" class="qr-scan-frame" aria-hidden="true">
                             <span class="qr-scan-frame-corner qr-scan-frame-corner--tl"></span>
                             <span class="qr-scan-frame-corner qr-scan-frame-corner--tr"></span>
@@ -599,6 +618,28 @@ onBeforeUnmount(() => {
     background: #fff;
 }
 
+/* 摄像头取景框跟随画面比例, 高度封顶后再按同一比例收窄宽度,
+   竖屏手机画面才不会把面板撑出窗口 */
+.qr-scan-stage--camera {
+    --qr-camera-max-height: min(56vh, 520px);
+    width: min(100%, calc(var(--qr-camera-max-height) * var(--qr-camera-ratio, 1.7778)));
+    margin-inline: auto;
+    aspect-ratio: var(--qr-camera-ratio, 16 / 9);
+    /* 虚线不能再用 border: 1.5px 会占进盒子, 而 aspect-ratio 算的是含边框的尺寸,
+       内容盒因此比画面略宽, object-fit: contain 会在左右各留一道细缝 */
+    border: 0;
+}
+
+/* 虚线改由覆盖层画在边框原本的位置, 布局盒与画面比例完全一致 */
+.qr-scan-stage--camera::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1.5px dashed #cbd5e1;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
 /* 取图区占满取景框, 内容居中; 虚线边框正好充当取景提示 */
 .qr-scan-stage .qr-picker {
     height: 100%;
@@ -621,6 +662,10 @@ onBeforeUnmount(() => {
     height: 100%;
     border-radius: 10px;
     object-fit: contain;
+}
+
+/* 镜像只用在正对用户的摄像头上, 手机后置画面保持真实朝向 */
+.qr-scan-media--mirror {
     transform: scaleX(-1);
 }
 

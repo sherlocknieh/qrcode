@@ -23,6 +23,10 @@ export function useCameraScan(options: CameraScanOptions) {
     const starting = ref(false);
     // 命中后定格的画面, 停止摄像头后仍能看到扫描到的内容
     const previewUrl = ref('');
+    // 相机画面的宽高比, 交给取景框自适应; 0 表示还没拿到画面尺寸
+    const aspectRatio = ref(0);
+    // 是否镜像显示画面, 由摄像头朝向决定 (见 shouldMirror)
+    const mirrored = ref(false);
 
     let stream: MediaStream | null = null;
     let canvas: HTMLCanvasElement | null = null;
@@ -33,10 +37,34 @@ export function useCameraScan(options: CameraScanOptions) {
     // 每次 start/stop 递增: 用户中途取消或重开时, 丢弃上一轮迟到的 getUserMedia 结果
     let session = 0;
 
+    let boundVideo: HTMLVideoElement | null = null;
+
+    function handleVideoResize() {
+        if (boundVideo) syncAspectRatio(boundVideo);
+    }
+
     function stopStream() {
         stream?.getTracks().forEach((track) => track.stop());
         stream = null;
+        boundVideo?.removeEventListener('resize', handleVideoResize);
+        boundVideo = null;
         if (options.video.value) options.video.value.srcObject = null;
+    }
+
+    function syncAspectRatio(video: HTMLVideoElement) {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+            aspectRatio.value = video.videoWidth / video.videoHeight;
+        }
+    }
+
+    // 只有正对用户的画面才镜像: 手机扫码用的是后置摄像头,
+    // 镜像后画面里的文字和二维码都是反的, 用户照着屏幕去找实物会对不上
+    function shouldMirror(track?: MediaStreamTrack): boolean {
+        const facing = track?.getSettings?.().facingMode;
+        if (facing === 'environment') return false;
+        if (facing === 'user') return true;
+        // 未标注朝向的设备多半是桌面摄像头, 用指针类型兜底: 触屏设备按手机处理
+        return !window.matchMedia?.('(pointer: coarse)').matches;
     }
 
     // 停止扫描并关掉摄像头指示灯; 已定格的结果保留
@@ -150,6 +178,11 @@ export function useCameraScan(options: CameraScanOptions) {
             if (!video) throw new Error('Video element is not ready.');
             video.srcObject = media;
             await video.play();
+            boundVideo = video;
+            // 手机横竖屏切换后 videoWidth/Height 会变, 取景框跟着重算
+            video.addEventListener('resize', handleVideoResize);
+            mirrored.value = shouldMirror(media.getVideoTracks()[0]);
+            syncAspectRatio(video);
             active.value = true;
             attempt = 0;
             schedule();
@@ -170,5 +203,5 @@ export function useCameraScan(options: CameraScanOptions) {
         stop();
     });
 
-    return { active, starting, previewUrl, start, stop, resume };
+    return { active, starting, previewUrl, aspectRatio, mirrored, start, stop, resume };
 }
