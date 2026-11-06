@@ -52,7 +52,7 @@ const addContextMenus = () => new Promise<void>((resolve) => {
         // 粘贴/上传本地图片扫描
         browser.contextMenus.create({
             id: 'scanLocalImage',
-            title: setMenuTitle('scanLocalImage', '📋'),
+            title: setMenuTitle('scanLocalImage', '🖼️'),
             contexts: ['action', 'page_action'],
             ...setMenuIcon('image'),
         });
