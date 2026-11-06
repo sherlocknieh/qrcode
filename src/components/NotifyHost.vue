@@ -15,7 +15,7 @@ const props = defineProps<{ embedded?: boolean }>();
 const embedded = computed(() => props.embedded === true);
 
 const t = (
-    key: 'confirm' | 'closeBtn' | 'copied' | 'openLink' | 'copyItem' | 'copyAll' | 'showAll',
+    key: 'closeBtn' | 'copied' | 'openLink' | 'copyItem' | 'copyAll' | 'showAll',
     fallback: string,
 ) => browser.i18n.getMessage(key) || fallback;
 
@@ -27,10 +27,20 @@ const isToast = computed(() => options.value.toast === true && !expanded.value);
 const listItems = computed(() => options.value.items ?? []);
 const itemsCollapsed = computed(() => options.value.itemsCollapsed === true && !expanded.value);
 const listVisible = computed(() => listItems.value.length > 0 && !itemsCollapsed.value);
-// popup 内的 toast 只是过程提示, 不渲染操作按钮; 多结果列表使用自己的按钮
-const showActions = computed(() => !(embedded.value && isToast.value) && !listVisible.value);
+// popup 内的 toast 只是过程提示, 不渲染操作按钮; 多结果列表使用自己的按钮;
+// 通知靠关闭键收尾, 只有真实动作 (打开 / 复制 / 重试) 才铺操作区
+const showActions = computed(
+    () =>
+        !(embedded.value && isToast.value) &&
+        !listVisible.value &&
+        Boolean(
+            options.value.showCancelButton ||
+                options.value.confirmButtonText ||
+                options.value.onConfirm ||
+                options.value.extraButtonText,
+        ),
+);
 const icon = computed(() => options.value.icon ?? 'info');
-const confirmText = computed(() => options.value.confirmButtonText || t('confirm', 'OK'));
 const cancelText = computed(() => options.value.cancelButtonText || 'Cancel');
 const copiedText = computed(() => t('copied', 'Copied'));
 
@@ -81,7 +91,7 @@ function openItem(text: string) {
 }
 
 const confirmLabel = computed(() =>
-    copiedButton.value === 'confirm' ? copiedText.value : confirmText.value,
+    copiedButton.value === 'confirm' ? copiedText.value : options.value.confirmButtonText ?? '',
 );
 const cancelLabel = computed(() =>
     copiedButton.value === 'cancel' ? copiedText.value : cancelText.value,
@@ -285,7 +295,7 @@ onBeforeUnmount(() => {
                                 {{ cancelLabel }}
                             </button>
                             <button
-                                v-if="options.showConfirmButton !== false"
+                                v-if="options.confirmButtonText || options.onConfirm"
                                 type="button"
                                 class="qr-notify-btn"
                                 :class="{ 'qr-notify-btn--primary': !options.extraButtonText }"

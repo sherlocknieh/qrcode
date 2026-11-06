@@ -18,7 +18,7 @@ export function warningNotice(title: string, text?: string): PopupNoticePayload 
     };
 }
 
-// 通用错误提示
+// 通用错误提示: 只有说明与关闭键, 关掉通知即可继续
 export function errorNotice(title: string, text?: string): PopupNoticePayload {
     return {
         options: {
@@ -26,16 +26,13 @@ export function errorNotice(title: string, text?: string): PopupNoticePayload {
             icon: 'error',
             title,
             text,
-            confirmButtonText: t('confirm'),
             showCloseButton: true,
         },
     };
 }
 
 // 图片读取失败 (典型是跨域图片污染 canvas 导致无法取像素):
-// 按钮要直接说明退路是"截图后再框选": 只说"框选扫描"会让用户以为还要在页面里找到原图,
-// 不知道扩展会先截一张视口图
-// 这里不给整屏扫描: 扫不中图片时用户要的是框住页面上那张图, 整屏再扫一遍大概率还是同样的结果
+// 通知用户可以"截图框选扫描"
 export function errorNoticeWithScreenshot(
     title: string,
     text?: string,
@@ -46,7 +43,6 @@ export function errorNoticeWithScreenshot(
             icon: 'error',
             title,
             text,
-            confirmButtonText: t('confirm'),
             extraButtonText: t('frameScanScreenshot'),
             showCloseButton: true,
         },
@@ -65,7 +61,6 @@ export function fetchTimeoutNotice(): PopupNoticePayload {
             icon: 'warning',
             title: t('fetchTimeout'),
             text: t('fetchTimeoutHint'),
-            confirmButtonText: t('confirm'),
             extraButtonText: t('scanScreenRetry'),
             showCloseButton: true,
         },
@@ -118,17 +113,15 @@ function retryLabel(action?: PopupNoticeAction): string | undefined {
     return undefined;
 }
 
-// 未扫描到任何码
-// hideConfirm: 整页扫描没扫到时不留"确定"按钮, 只给「框选更小区域」;
+// 未扫描到任何码: 关掉通知就是放弃这次扫描, 只留重试入口「框选 / 扫描屏幕」
 // 要不要退出扫描由用户的手势决定 (单击画面即退出, 拖框则继续框)
-function noResultNotice(retry?: PopupNoticeAction, hideConfirm = false): PopupNoticePayload {
+function noResultNotice(retry?: PopupNoticeAction): PopupNoticePayload {
     return {
         options: {
             toast: false,
             icon: 'info',
             title: t('recognitionFailed'),
             text: t('recognitionFailedMsg'),
-            showConfirmButton: !hideConfirm,
             extraButtonText: retryLabel(retry),
             showCloseButton: true,
         },
@@ -218,15 +211,13 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 // 按结果数量选择对应的通知。
 // retry: 未扫到码时提供的重试方式, 传 false 表示当前入口无法再试
 // (独立扫描页里截图只会截到自己); 缺省为整屏重扫
-// hideConfirm: 没扫到时不留"确定" (整页扫描用), 见 noResultNotice
 export function resultNotice(
     results: DecodeResult[],
-    options: { retry?: PopupNoticeAction | false; hideConfirm?: boolean } = {},
+    options: { retry?: PopupNoticeAction | false } = {},
 ): PopupNoticePayload {
     if (!results.length) {
         return noResultNotice(
             options.retry === false ? undefined : options.retry ?? { kind: 'screenScan' },
-            options.hideConfirm,
         );
     }
     if (results.length > 1) return multiResultNotice(results);

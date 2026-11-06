@@ -117,7 +117,6 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         const action: PopupNoticeAction = frameScanOnly ? { kind: 'frameScan' } : { kind: retry };
         return deliver(resultNotice([], {
             retry: showRetry ? action : false,
-            hideConfirm: frameScanOnly,
         }), onRetry);
     }
 

@@ -261,7 +261,7 @@
   },
   "scanScreenRetry": {
     "message": "扫描屏幕",
-    "description": "图片读取失败时改用扫描屏幕的按钮"
+    "description": "图片读取失败时提醒用户改用屏幕扫描的按钮"
   },
   "frameScanScreenshot": {
     "message": "截图框选扫描",

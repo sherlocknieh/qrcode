@@ -20,8 +20,7 @@ export interface NotifyOptions {
     itemsCollapsed?: boolean;
     showCloseButton?: boolean;
     showCancelButton?: boolean;
-    // 不给"确定"按钮时只显示额外操作 (整页扫描没扫到: 关通知即退出, 旁边只留框选入口)
-    showConfirmButton?: boolean;
+    // 主按钮: 只承载真实动作 (打开链接 / 复制内容), 不写文案就不放这个按钮
     confirmButtonText?: string;
     cancelButtonText?: string;
     // 额外操作按钮, 点击后以 dismiss: 'extra' 结束通知

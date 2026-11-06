@@ -268,7 +268,7 @@
     "description": "Button offered when an image cannot be read; captures the visible page and lets the user drag a region to scan"
   },
   "frameScanRetry": {
-    "message": "Select a Smaller Region",
+    "message": "Try Region Scan",
     "description": "Button that lets the user drag a smaller region on the full-screen screenshot when a full-screen scan finds no code"
   },
   "screenshotFailed": {
