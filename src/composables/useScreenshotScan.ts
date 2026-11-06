@@ -30,41 +30,17 @@ type ScreenshotScanOptions = {
     onClose?(): void;
     // 单击 (没拖出选区) 视为退出, 通知还开着时由宿主忽略
     onBlank?(): void;
-    // 结果变化, 通知结束时据此判断要不要收起截图:
-    // count 是画面上还能点的结果数, picked 表示这次变化来自点选, ok 表示本次扫描是否成功
-    onResultsChanged?(state: { count: number; picked: boolean; ok: boolean }): void;
 };
 
 export function useScreenshotScan(options: ScreenshotScanOptions) {
     const { startScreenshot } = useScreenshot();
     let session: ScreenshotSession | null = null;
-    // 本轮结果与"是否已点开"逐项对齐: 点过的码只摘掉圆点, 绿框继续留在截图上
+    // 本轮结果: 点选按下标取结果时, 与画面上那份绿框列表保持同一顺序
     let results: DecodeResult[] = [];
-    let pickedFlags: boolean[] = [];
     // 框选轮次: 前一轮异步结果不能覆盖后一轮画面
     let seq = 0;
     // 每次打开截图会话递增: 上一张截图里的异步结果不再影响新画面
     let epoch = 0;
-
-    // 通知宿主结果集合的变化: count 是画面上还能点的码数
-    function publish(picked: boolean, ok = true) {
-        options.onResultsChanged?.({
-            count: pickedFlags.filter((flag) => !flag).length,
-            picked,
-            ok,
-        });
-    }
-
-    function setResults(next: DecodeResult[], picked: boolean, ok = true) {
-        results = next;
-        pickedFlags = next.map(() => false);
-        publish(picked, ok);
-    }
-
-    function resetResults() {
-        results = [];
-        pickedFlags = [];
-    }
 
     // 对截图上的一块 (整屏也走这里) 解码并把结果标回画面
     async function scan(capture: ScreenshotScanCapture) {
@@ -72,7 +48,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         if (!current) return;
         const currentEpoch = epoch;
         const currentSeq = ++seq;
-        resetResults();
+        results = [];
         const outcome = await options.decode(capture, {
             // 扫描动画在页面上按视口定位, 浮窗模式下要把选区换算出去
             rect: current.toViewportRect(capture.rect),
@@ -83,7 +59,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
             // 没扫到或出错: 留住截图, 并保留这次的挖空范围 (整屏扫描就是整个画面),
             // 用户能看清刚才扫的是哪一块, 接着框选重扫
             current.clearResults(capture.rect);
-            setResults([], false, false);
+            results = [];
             return;
         }
         // 绿框只标可定位的码, 点选按下标取结果时两边要保持同一份列表
@@ -96,7 +72,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
             followScroll: false,
             clip: capture.rect,
         }));
-        setResults(located, false);
+        results = located;
         await options.notifyResults(outcome.results);
     }
 
@@ -107,7 +83,6 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     } = {}): Promise<boolean> {
         close();
         const currentEpoch = epoch;
-        resetResults();
         try {
             const opened = await startScreenshot({
                 src: params.src,
@@ -116,13 +91,9 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                 onBlank: () => options.onBlank?.(),
                 onPick: (index) => {
                     const result = results[index];
-                    if (!result || pickedFlags[index]) return;
-                    // 先标记已点开 (宿主据此决定关通知时是否收尾), 再投递这一条结果
-                    pickedFlags = pickedFlags.map((flag, flagIndex) => (
-                        flagIndex === index ? true : flag
-                    ));
+                    if (!result) return;
+                    // 摘掉这个码的圆点 (绿框留着标出已经看过), 再投递这一条结果
                     session?.markPicked(index);
-                    publish(true);
                     void options.notifyPicked(result);
                 },
                 onCapture: (capture) => void scan(capture),
@@ -132,7 +103,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                     if (currentEpoch !== epoch) return;
                     epoch++;
                     seq++;
-                    resetResults();
+                    results = [];
                     session = null;
                     options.onClose?.();
                 },
@@ -153,13 +124,10 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     function close() {
         epoch++;
         seq++;
-        resetResults();
+        results = [];
         session?.close();
         session = null;
     }
 
-    // 画面上还没点过的结果数: 通知结束时用它判断是否要收起截图
-    const remaining = () => pickedFlags.filter((flag) => !flag).length;
-
-    return { open, close, remaining };
+    return { open, close };
 }

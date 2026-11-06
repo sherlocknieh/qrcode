@@ -35,16 +35,10 @@ const screenshotScan = useScreenshotScan({
     notifyResults: (results) => notifyPickedResults(results),
     notifyPicked: (result) => notifyResults([result]),
     onError: () => notifyScreenshotError({ type: 'failed' }),
-    onResultsChanged: ({ count, picked, ok }) => {
-        // 单码结果的通知就是这次展示, 关掉即收起截图; 多码等最后一个绿点被点掉;
-        // 没扫到时留着截图, 用户可以直接拖下一块重扫, 单击才收起
-        closeShotOnNotice = ok && (picked ? count === 0 : count === 1);
-    },
     onBlank: async () => {
         // 截图层没有关闭按钮, 单击空白就是退出: 通知还开着时这一下多半是去关通知,
         // 留到下一次点击再收
         if (await isNoticeVisible()) return;
-        closeShotOnNotice = false;
         screenshotScan.close();
     },
 });
@@ -65,16 +59,14 @@ const pickMark = picker.pick;
 const clearMarks = picker.clear;
 
 // 结果通知结束: 画面上还有多个码没点时, 这条通知要么只是多码提示, 要么只是看完了其中一个,
-// 绿框都要留着继续点; 全点完才清标记并收起该收的截图浮层
+// 绿框都要留着继续点; 全点完才清网页图片上的标记。
+// 截图浮层不跟通知走: 扫完之后还能接着拖框重扫, 单击才收起
 function onNoticeDone() {
-    const pending = picker.remaining.value + screenshotScan.remaining();
+    const pending = picker.remaining.value;
     const keepOpen = pending > 1 || (pickedNotice && pending > 0);
     pickedNotice = false;
     if (keepOpen) return;
     clearActiveMarks();
-    if (!closeShotOnNotice) return;
-    closeShotOnNotice = false;
-    screenshotScan.close();
 }
 
 // 码都在图标实际显示的区域里定位: 可定位的码叠绿点, 多条结果只留绿点, 点哪条出哪条的通知
@@ -98,7 +90,6 @@ const mainProcess = (
     if (message.action !== undefined) {
         screenshotEpoch++;
         pickedNotice = false;
-        closeShotOnNotice = false;
         screenshotScan.close();
     }
     if (message.action === 'scanWebImage' && message.imageUrl) {
@@ -234,9 +225,6 @@ async function handleImageUrl(imageUrl: string) {
 
 // 每轮扫描开始都会递增, 用于判断上一轮的结果是否已过期
 let screenshotEpoch = 0;
-// 全屏扫描的截图是否随结果通知一起收起:
-// 单码的通知就是结果展示; 多码要等最后一个绿点被点掉, 关闭那条通知后才收起
-let closeShotOnNotice = false;
 clearActiveMarks = clearMarks;
 
 // 截图流程的失败提示: 用户取消是静默的, 其余情况提示失败原因

@@ -23,8 +23,8 @@ const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 // ?frame=1 由"框选扫描"打开: 同一张视口图不自动整屏扫, 直接交给用户框一块
 const frameOnly = new URLSearchParams(location.search).get('frame') === '1';
 
-// 关闭本页的时机: 多码点选时要等用户点完所有绿点, 由最后一条通知收尾;
-// 还有绿点没点时关掉通知只回到截图上继续点; 没扫到码时页面留着继续框选, 单击才关
+// 关闭本页的时机: 有截图之后通知结束都不关页——扫完还能接着框选、点选,
+// 由单击 / Esc 退出; 只有"没图可看"的失败提示 (取图失败、图片读不出来) 结束时才收掉这一页
 let closeOnNoticeDone = true;
 const noticeOptions = {
     closeOriginTab: () => closeOnNoticeDone,
@@ -40,13 +40,12 @@ const screenshotScan = useScreenshotScan({
     decode: decodeCapture,
     notifyResults: (results) => notifyPickedResults(results),
     notifyPicked: (result) => notifyResults([result]),
-    onError: () => void notifyScreenshotError(),
-    onClose: () => closeTab(),
-    onResultsChanged: ({ count, picked, ok }) => {
-        // 单码结果的通知就是这次展示, 关掉即关页; 多码等最后一个绿点被点掉;
-        // 没扫到码时留着这一页继续框选, 单击才关
-        closeOnNoticeDone = ok && (picked ? count === 0 : count === 1);
+    onError: () => {
+        // 图片读不出来就没有可框选的东西, 提示结束直接收掉这一页
+        closeOnNoticeDone = true;
+        void notifyScreenshotError();
     },
+    onClose: () => closeTab(),
     onBlank: async () => {
         // 通知还开着时这一下多半是去关通知, 留到下一次点击再收摊
         if (await isNoticeVisible()) return;
@@ -129,6 +128,8 @@ onMounted(async () => {
             return;
         }
         shotSrc = stored;
+        // 已经有可框选的截图了, 通知结束不再关页 (单击 / Esc 才退出)
+        closeOnNoticeDone = false;
         // 截图交给截图容器承载: 扫描结果、绿点与后续框选都标在这张静止的截图上;
         // 框选入口只等用户框一块, 整屏扫描则先自动扫一次整个画面, 之后同样能接着框选
         await screenshotScan.open(frameOnly
