@@ -8,7 +8,7 @@
     "description": "简称"
   },
   "appDescription": {
-    "message": "极简却全能 - 解决涉及二维码的所有问题",
+    "message": "极简界面，功能齐全：从文字生成二维码，从图片、截图或摄像头识别二维码与条形码。",
     "description": "应用描述"
   },
   "selectionToQR": {
@@ -156,11 +156,11 @@
     "description": "工具栏图标右键菜单项：隐藏地址栏图标"
   },
   "fetchingImage": {
-    "message": "正在获取图片...",
+    "message": "正在获取图片…",
     "description": "获取图片时的加载提示"
   },
   "fetchingImageHint": {
-    "message": "由于浏览器限制, 跨域图片需从源头下载\n首次加载可能会稍慢, 请耐心等待",
+    "message": "由于浏览器限制，跨域图片需要从源头下载，首次加载可能稍慢，请耐心等待",
     "description": "获取图片较慢时的说明文字"
   },
   "fetchTimeout": {
@@ -212,7 +212,7 @@
     "description": "扫到多个码时, 提示用户在画面上点选其中一个查看内容"
   },
   "pickCodeHint": {
-    "message": "点击查看扫描结果",
+    "message": "点击绿点查看该码的内容",
     "description": "全屏扫描命中多个码时, 提示用户在画面上点选其中一个"
   },
   "copyItem": {
@@ -228,11 +228,11 @@
     "description": "图片加载失败错误标题"
   },
   "errorHintFileAccess": {
-    "message": "扩展还没有访问本地文件的权限。请在扩展详情页开启「允许访问文件网址」后重试，或改用“上传图片扫描”功能。",
+    "message": "扩展还没有访问本地文件的权限。请在扩展详情页开启“允许访问文件网址”后重试，或改用“上传图片扫描”功能。",
     "description": "浏览器拒绝扩展访问 file:// 页面时的错误提示"
   },
   "errorHintCrossOrigin": {
-    "message": "图片来自其他网站或受保护，浏览器不允许扩展读取它的像素，可改用扫描屏幕识别。",
+    "message": "图片来自其他网站或受保护，浏览器不允许扩展读取它的像素，可改用框选扫描识别。",
     "description": "跨域图片无法读取像素时的错误提示"
   },
   "errorHintNetwork": {
@@ -264,7 +264,7 @@
     "description": "图片读取失败时改用扫描屏幕的按钮"
   },
   "frameScanRetry": {
-    "message": "框选扫描",
+    "message": "尝试框选扫描",
     "description": "图片读取失败或全屏扫描未找到码时, 改为在截图上框选一块重扫的按钮"
   },
   "screenshotFailed": {
@@ -337,18 +337,18 @@
   },
   "qrActionCopy": {
     "message": "复制",
-    "description": "二维码面板：复制按钮下方的文字"
+    "description": "二维码面板：复制按钮图标下方的文字"
   },
   "qrActionCamera": {
-    "message": "相机扫描",
-    "description": "二维码面板：相机扫码按钮下方的文字"
+    "message": "相机",
+    "description": "二维码面板：相机扫码按钮图标下方的文字"
   },
   "qrActionScreen": {
-    "message": "屏幕扫描",
-    "description": "二维码面板：屏幕扫描按钮下方的文字"
+    "message": "屏幕",
+    "description": "二维码面板：屏幕扫描按钮图标下方的文字"
   },
   "qrActionImage": {
-    "message": "图片扫描",
-    "description": "二维码面板：图片扫描按钮下方的文字"
+    "message": "图片",
+    "description": "二维码面板：图片扫描按钮图标下方的文字"
   }
 }

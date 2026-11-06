@@ -204,7 +204,7 @@
     "description": "Title shown when several codes are recognized at once and all of them are barcodes"
   },
   "showAll": {
-    "message": "Show all",
+    "message": "Show All",
     "description": "Button that expands every scanned result in the multi-code notice"
   },
   "multiScanHint": {
@@ -232,7 +232,7 @@
     "description": "Shown when the browser blocks the extension from accessing a file:// page"
   },
   "errorHintCrossOrigin": {
-    "message": "This image comes from another site or is protected, so the browser won't let the extension read its pixels. Try scanning the screen instead.",
+    "message": "This image comes from another site or is protected, so the browser won't let the extension read its pixels. Try scanning a selection of the screen instead.",
     "description": "Shown when a cross-origin image cannot be read from the canvas"
   },
   "errorHintNetwork": {
@@ -264,7 +264,7 @@
     "description": "Button that scans the screen when the image cannot be read"
   },
   "frameScanRetry": {
-    "message": "Scan Selection",
+    "message": "Try Selection Scan",
     "description": "Button that lets the user drag a region on the screenshot when the image cannot be read or a full-screen scan finds no code"
   },
   "screenshotFailed": {
@@ -284,7 +284,7 @@
     "description": "Floating window layout toggle: switch to the expanded layout"
   },
   "screenshotCopyFailed": {
-    "message": "Copy failed",
+    "message": "Copy Failed",
     "description": "Message shown when copying the screenshot fails"
   },
   "confirm": {
@@ -337,18 +337,18 @@
   },
   "qrActionCopy": {
     "message": "Copy",
-    "description": "二维码面板：复制按钮下方的文字"
+    "description": "Label under the copy icon in the QR code panel"
   },
   "qrActionCamera": {
-    "message": "Scan Camera",
-    "description": "二维码面板：相机扫码按钮下方的文字"
+    "message": "Camera",
+    "description": "Label under the camera icon in the QR code panel"
   },
   "qrActionScreen": {
-    "message": "Scan Screen",
-    "description": "二维码面板：屏幕扫描按钮下方的文字"
+    "message": "Screen",
+    "description": "Label under the screen scan icon in the QR code panel"
   },
   "qrActionImage": {
-    "message": "Scan Image",
-    "description": "二维码面板：图片扫描按钮下方的文字"
+    "message": "Image",
+    "description": "Label under the image scan icon in the QR code panel"
   }
 }
