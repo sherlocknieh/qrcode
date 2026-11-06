@@ -204,7 +204,7 @@
     "description": "一次扫描到多个码, 且全是条形码时的标题"
   },
   "multiResultDeduped": {
-    "message": "已合并重复内容，以下为去重后的结果",
+    "message": "已合并重复内容",
     "description": "一次扫描到内容相同的多个码时, 通知里说明列表已去重"
   },
   "showAll": {

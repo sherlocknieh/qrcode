@@ -204,7 +204,7 @@
     "description": "Title shown when several codes are recognized at once and all of them are barcodes"
   },
   "multiResultDeduped": {
-    "message": "Duplicate contents merged; showing deduplicated results",
+    "message": "Duplicate contents merged",
     "description": "Shown in the multi-code notice when several codes share the same content, so the list is deduplicated"
   },
   "showAll": {
