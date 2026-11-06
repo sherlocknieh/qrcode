@@ -43,7 +43,7 @@ Agent 调试时用户大概率已经打开 pnpm dev ， Agent 直接复用该 de
 | [src/entrypoints/popup/](./src/entrypoints/popup/) | 工具栏弹窗：生成二维码、展示通知、扫描图片 |
 | [src/entrypoints/upload/](./src/entrypoints/upload/) | `upload.html`：`?camera=1` 以摄像头模式开 `ScanPanel`；内容脚本注入不了时的兜底页 |
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：截视口后直出扫描（PDF、SVG 等注入不了内容脚本的页面兜底） |
-| [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 截图容器：承载截图扫描的结果（冻结截图 + 绿框绿点），结果画面上仍可拖框另选一块重扫；只有拖框与确认按钮，点空白或 Esc 退出；浏览器窗口变化时整层自动收成右下角画中画（pip），尺寸/位置带 0.34s 过渡（`qr-shot--transitioning`，只在进入浮窗与切换形态时短暂开启）；右上角还有试验用的布局按钮，在“撑开（fit）”与“画中画（pip）”之间切换（仅可框选层显示） |
+| [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 截图容器：承载截图扫描的结果（冻结截图 + 绿框绿点），结果画面上仍可拖框另选一块重扫；拖框的选框与手柄用蓝色（`SELECTION_COLOR`，与结果绿框区分），只有拖框与确认按钮，点空白或 Esc 退出；浏览器窗口变化时整层自动收成右下角画中画（pip），尺寸/位置带 0.34s 过渡（`qr-shot--transitioning`，只在进入浮窗与切换形态时短暂开启）；右上角还有试验用的布局按钮，在“撑开（fit）”与“画中画（pip）”之间切换（仅可框选层显示） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域，不拦截交互）；图片区域按 [overlayHost.ts](./src/services/overlayHost.ts) 挂进图片所在容器并排在图片之后，只压住图片而不越过后加入的页面浮层 |
 | [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 命中后在码上标绿框，多码时才叠可点绿点（单码只留绿框、整块框不接收点击，结果通知已经展示过）；`picked` 记录点开过的码，这些只留绿框、摘掉圆点也不再接收点击；网页图片传 `anchor` 跟随图片所在层（同 [overlayHost.ts](./src/services/overlayHost.ts)），截图容器里则铺在其结果层内 |
 | [src/services/overlayHost.ts](./src/services/overlayHost.ts) | 扫码叠加层（扫描动画、命中绿框）的挂载策略：优先挂进图片容器只压住图片；祖先改掉 `fixed` 参照时退回 `body` 保持最高层 |
@@ -149,7 +149,7 @@ flowchart LR
 
 - **大图扫描阻塞 UI**：先播扫描动画（`beforeNotice` 等首帧），再 `await new Promise(r => setTimeout(r, 50))` 后解码；扫描期间没有单独的通知，靠动画表示“正在扫描”。
 - **提示分两段，动画在取图之后**：网络取图慢于 150ms 才提示“正在获取图片...”（`notifyFetching`），图就绪后由扫描动画接替（`beforeNotice`）；本地图 / 截图不需要 `notifyFetching`。这条提示超过 `FETCH_TIMEOUT_MS`（5 秒）还没取到图，就换成建议改用扫描屏幕的通知，图片之后到达仍继续扫描。
-- **跨域 / 防盗链图片**：直接 fetch 常失败，失败提示里保留“改用扫描屏幕”出口；不要再加“跨域可能稍慢”通知，与“正在获取图片...”重复。
+- **跨域 / 防盗链图片**：直接 fetch 常失败，失败提示里保留“框选扫描”出口（用户框住页面上那张图，比整屏再扫一遍更容易命中）；不要再加“跨域可能稍慢”通知，与“正在获取图片...”重复。
 - **同源重定向到 CDN**：如 GitHub 的 `/owner/repo/raw/...` 302 到 `raw.githubusercontent.com`，`isSameOrigin` 只看跳转前地址，Chrome 因此判 canvas 被污染。`loadImageDataFromUrl` 捕获污染错误后自动改走后台代理，这层兜底不能删；`fetchViaProxy` 也别改回只在跨域时传。
 - **`file://` 页面**：Firefox 扩展页/后台无法 fetch，但内容脚本能读已渲染图片画到 canvas，失败再回退截取视口。
 - **通知竞态与清理**：后台 `popupHost`（[popupHost.ts](./src/services/popupHost.ts)）打开窗口期间用 `opening` / `POPUP_OPEN_GRACE` 防丢通知，靠自增 `id` 做 `clearIfCurrent`；popup 断开连接时后台删 `qrNotification`，避免下次重复弹出。`finish` 用 `lastFinishedId` 去重：popup 点完通知立刻关窗，断开事件可能早于它发来的 `notificationResolved`，同一条通知会收尾两次，把点选后剩下的绿框一起清掉。都不要简化。

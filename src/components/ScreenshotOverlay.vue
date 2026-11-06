@@ -46,7 +46,8 @@ const HANDLE_HIT_SIZE = 9;
 // 确认按钮与选区、画面边缘之间的间距
 const TOOLBAR_GAP = 8;
 const TOOLBAR_MARGIN = 8;
-const ACCENT_COLOR = '#22C55E';
+// 拖框时的选框与手柄用蓝色, 与扫描结果的绿框区分开: 蓝框是用户正在画的范围, 绿框是已经命中的码
+const SELECTION_COLOR = '#2CABFF';
 // 与整屏扫描扫描动画的遮罩保持一致
 const MASK_COLOR = 'rgba(8, 12, 20, 0.22)';
 
@@ -340,12 +341,12 @@ const draw = () => {
     context.fillStyle = MASK_COLOR;
     context.fill('evenodd');
 
-    // 冻结后选区只负责在遮罩上挖空: 绿色选框与手柄都退场, 让结果绿框成为唯一焦点;
+    // 冻结后选区只负责在遮罩上挖空: 蓝色选框与手柄都退场, 让结果绿框成为唯一焦点;
     // 识别结束时选区本身也会被清空, 高亮块随之一起消失
     if (frozen.value) return;
 
     if (rect) {
-        context.strokeStyle = ACCENT_COLOR;
+        context.strokeStyle = SELECTION_COLOR;
         context.lineWidth = 1;
         context.strokeRect(
             rect.x + 0.5,
@@ -354,7 +355,7 @@ const draw = () => {
             Math.max(0, rect.height - 1),
         );
 
-        context.fillStyle = ACCENT_COLOR;
+        context.fillStyle = SELECTION_COLOR;
         context.strokeStyle = '#fff';
         for (const [, pointX, pointY] of getHandlePoints(rect)) {
             context.beginPath();

@@ -72,7 +72,7 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         return false;
     }
 
-    // 只提示, 不需要用户选择的通知; onRetry 对应通知里的"改用扫描屏幕"按钮
+    // 只提示, 不需要用户选择的通知; onRetry 对应通知里的"框选扫描"按钮
     function notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<boolean> {
         return deliver(payload, onRetry);
     }

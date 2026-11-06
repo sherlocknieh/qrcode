@@ -265,7 +265,7 @@
   },
   "frameScanRetry": {
     "message": "框选扫描",
-    "description": "全屏扫描未找到码时, 改为在截图上框选一块重扫的按钮"
+    "description": "图片读取失败或全屏扫描未找到码时, 改为在截图上框选一块重扫的按钮"
   },
   "screenshotFailed": {
     "message": "截图失败",

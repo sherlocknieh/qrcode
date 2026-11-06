@@ -33,7 +33,8 @@ export function errorNotice(title: string, text?: string): PopupNoticePayload {
 }
 
 // 图片读取失败 (典型是跨域图片污染 canvas 导致无法取像素):
-// 除确认外提供"改用扫描屏幕", 由 popup 或页面内兜底通知执行
+// 除确认外提供"框选扫描", 由 popup 或页面内兜底通知执行。
+// 这里不给整屏扫描: 扫不中图片时用户要的是框住页面上那张图, 整屏再扫一遍大概率还是同样的结果
 export function errorNoticeWithScreenshot(
     title: string,
     text?: string,
@@ -45,10 +46,10 @@ export function errorNoticeWithScreenshot(
             title,
             text,
             confirmButtonText: t('confirm'),
-            extraButtonText: t('scanScreenRetry'),
+            extraButtonText: t('frameScanRetry'),
             showCloseButton: true,
         },
-        extraAction: { kind: 'screenScan' },
+        extraAction: { kind: 'frameScan' },
     };
 }
 

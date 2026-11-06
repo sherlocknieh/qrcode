@@ -68,7 +68,8 @@ export const handleBackgroundMessage = (
             .catch(() => sendResponse({ success: false }));
         return true;
     }
-    // popup 通知里点"框选扫描": 全屏扫描没扫到码, 由内容脚本打开框选浮层让用户自己选一块
+    // popup 通知里点"框选扫描": 图片扫描失败或全屏扫描没扫到码,
+    // 由内容脚本打开框选浮层让用户自己选一块
     if (request.action === 'requestFrameScan') {
         resolveActiveTabId()
             .then(tabId => sendTabAction(tabId, 'frameScan'))

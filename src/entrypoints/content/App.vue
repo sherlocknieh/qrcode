@@ -110,6 +110,8 @@ const mainProcess = (
         imagePasteOverlay.open();
     }
     if (message.action === 'frameScan') {
+        // 框选要对页面截图: 先收起取图浮层, 否则截到的是浮层自己
+        imagePasteOverlay.close();
         void openFrameScan();
     }
     // 立即回执: 后台以"是否收到回应"判断内容脚本是否可用, 不回应会被当成不可用而回退到新标签页
@@ -158,7 +160,7 @@ function measureVisibleImage(image: HTMLImageElement | undefined): ScanRect | un
 // 网页图片处理流程
 async function handleImageUrl(imageUrl: string) {
     const origin = window.location.origin;
-    // 记录当前扫描轮次: 用户改用扫描屏幕后, 本次图片扫描的后续通知全部丢弃
+    // 记录当前扫描轮次: 用户改用框选扫描后, 本次图片扫描的后续通知全部丢弃
     const epoch = screenshotEpoch;
     const isStale = () => epoch !== screenshotEpoch;
 
@@ -171,8 +173,9 @@ async function handleImageUrl(imageUrl: string) {
         {
             isStale,
             errorTitle: t('imageFetchFailed'),
-            // 图片读不出像素时直接改用扫描屏幕
-            onRetry: () => void handleScreenScan(),
+            // 图片读不出像素时改用框选扫描: 由用户框住页面上那张图, 比整屏再扫一遍更容易命中
+            onRetry: () => void openFrameScan(),
+            noResultRetry: 'frameScan',
             // 网页图片需要先下载/取像素: 取图期间提示"正在获取图片"
             notifyFetching,
             // 图片取到后, 在网页上的图片区域播放扫描动画

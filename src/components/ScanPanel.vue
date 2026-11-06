@@ -11,7 +11,7 @@ import { useScanAnimation } from '@/composables/useScanAnimation';
 import { errorNotice } from '@/services/decodeResultNotice';
 import { measureImageRect } from '@/services/imageRect';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
-import { recognizeImage } from '@/services/recognize';
+import { recognizeImage, type RetryKind } from '@/services/recognize';
 import { t } from '@/services/i18n';
 import { trySendMessage } from '@/services/messaging';
 
@@ -56,7 +56,7 @@ const pickMark = codePicker.pick;
 
 async function runScan(
     loader: () => Promise<ImageData>,
-    options: { errorTitle?: string; onRetry?: () => void } = {},
+    options: { errorTitle?: string; onRetry?: () => void; noResultRetry?: RetryKind } = {},
 ) {
     if (recognizing.value) return;
     recognizing.value = true;
@@ -68,6 +68,7 @@ async function runScan(
             beforeNotice: playScanAnimation,
             afterDecode: () => scanAnimation.stop(),
             onRetry: options.onRetry,
+            noResultRetry: options.noResultRetry,
             // 结果通知与绿点同时给出, 由这里统一处理
             deferResults: true,
         });
@@ -178,14 +179,15 @@ function scanLocalImage() {
         () => getImageDataFromDataUrl(previewUrl.value),
         {
             errorTitle: t('imageFetchFailed'),
-            // 浮层可以真的去截当前页: 先收起浮层再截屏, 否则扫到的是浮层自己;
+            // 浮层可以真的去截当前页再让用户框选: 先收起浮层再截屏, 否则截到的是浮层自己;
             // 独立扫描页截图只会截到自己, 不给这个出口
             onRetry: overlay
                 ? () => {
                     emit('close');
-                    void trySendMessage('requestScreenScan');
+                    void trySendMessage('requestFrameScan');
                 }
                 : undefined,
+            noResultRetry: overlay ? 'frameScan' : undefined,
         },
     );
 }

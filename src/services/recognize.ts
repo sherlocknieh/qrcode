@@ -6,7 +6,7 @@ import { t } from '@/services/i18n';
 // 扫描流程需要的能力: 只描述"怎么提示", 不关心提示显示在哪里。
 // 页面内实现见 useNoticeFallback, 其它宿主按需实现即可。
 export type RecognizeHost = {
-    // onRetry: 通知里的"改用扫描屏幕"被点击时, 在无法由 popup 执行动作时于本进程内回调
+    // onRetry: 通知里的"框选扫描"被点击时, 在无法由 popup 执行动作时于本进程内回调
     notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<unknown>;
     notifyResults(results: DecodeResult[]): Promise<boolean>;
     // retry: 未扫到码时的重试方式, 与 onRetry 一一对应 (本地兜底执行 onRetry,
@@ -143,7 +143,7 @@ async function loadWithFetchNotice(
     }
 }
 
-// 取图或解码失败: 停止动画并提示; 有重试出口时顺带提供"改用扫描屏幕"
+// 取图或解码失败: 停止动画并提示; 有重试出口时顺带提供"框选扫描"
 async function notifyFailure(options: RecognizeOptions, error: unknown): Promise<void> {
     await options.afterDecode?.();
     const title = options.errorTitle ?? t('imageFetchFailed');
