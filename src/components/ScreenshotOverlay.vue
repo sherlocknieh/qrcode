@@ -2,8 +2,8 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import ScanMarks from '@/components/ScanMarks.vue';
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import ScanResultMarks from '@/components/ScanResultMarks.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 import { setScreenshotIntroEnabled } from '@/services/screenshotSettings';
 
 const props = withDefaults(
@@ -797,7 +797,7 @@ defineExpose({
             v-if="frozen && resultMarks.length"
             class="qr-shot-marks"
             :style="marksLayerStyle">
-            <ScanMarks
+            <ScanResultMarks
                 :rects="resultMarks"
                 :picked="pickedMarks"
                 @pick="emit('pick', $event)"

@@ -11,7 +11,7 @@
 ## 架构
 
 - 入口：background（注册事件与右键菜单）、content（全站注入 UI）、popup、upload（`?camera=1` 摄像头）、capture（截视口扫描，`?frame=1` 框选）。后台能力拆在 `services/background/`，其余共用逻辑在 `services/`，UI 在 `components/`，流程在 `composables/`。
-- 唯一入口不要分叉：扫描只走 `recognizeImage`，截图扫描只走 `useScreenshotScan`，扫描面板只有 `ScanPanel`，二维码 SVG 只由 `qrCode.ts` 生成。新增输入方式只实现一个“产出图像”的源。
+- 唯一入口不要分叉：扫描只走 `recognizeImage`，截图扫描只走 `useScreenshotScan`，扫描面板只有 `LocalScanPanel`，二维码 SVG 只由 `qrCode.ts` 生成。新增输入方式只实现一个“产出图像”的源。
 
 ## 降级链（内容脚本优先，逐级退到扩展页）
 

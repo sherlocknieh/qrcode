@@ -1,10 +1,10 @@
 ---
-description: "内容脚本注入与绿框点选：独立 SVG/XML 文档的能力检查、页面 CSS 泄漏隔离、anchor/measureRect 锚点、deferResults 与多码点选规则。Use when: 改 content 入口、useCodePicker、ScanMarks、overlayHost、imageRect，或排查注入报错、绿框错位、点选提前收起。"
+description: "内容脚本注入与绿框点选：独立 SVG/XML 文档的能力检查、页面 CSS 泄漏隔离、anchor/measureRect 锚点、deferResults 与多码点选规则。Use when: 改 content 入口、useCodePicker、ScanResultMarks、overlayHost、imageRect，或排查注入报错、绿框错位、点选提前收起。"
 applyTo:
   - "src/entrypoints/content/**"
   - "src/composables/useCodePicker.ts"
-  - "src/components/ScanMarks.vue"
-  - "src/components/ScanOverlay.vue"
+  - "src/components/ScanResultMarks.vue"
+  - "src/components/ScanAnimation.vue"
   - "src/services/overlayHost.ts"
   - "src/services/imageRect.ts"
 ---

@@ -1,6 +1,6 @@
 import { createApp, type App } from 'vue';
 import ScreenshotOverlay from '@/components/ScreenshotOverlay.vue';
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 import { getScreenshotIntroEnabled } from '@/services/screenshotSettings';
 
 // 截图结果带上选区在浮层显示区域中的位置与截图时的视口尺寸;

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import ScanPanel from '@/components/ScanPanel.vue';
+import LocalScanPanel from '@/components/LocalScanPanel.vue';
 import NotifyHost from '@/components/NotifyHost.vue';
 import { t } from '@/services/i18n';
 
@@ -10,7 +10,7 @@ document.title = t('scanCamera');
 
 <template>
     <main class="upload-page">
-        <ScanPanel />
+        <LocalScanPanel />
         <NotifyHost />
     </main>
 </template>

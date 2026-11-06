@@ -1,10 +1,10 @@
 import { createApp, h, reactive, type App } from 'vue';
-import ScanOverlay, { type ScanRect } from '@/components/ScanOverlay.vue';
+import ScanAnimation, { type ScanRect } from '@/components/ScanAnimation.vue';
 import { overlayMountPoint, overlayZIndex } from '@/services/overlayHost';
 
-// 扫过动画默认时长; 与 ScanOverlay 的 CSS 变量保持一致
+// 扫过动画默认时长; 与 ScanAnimation 的 CSS 变量保持一致
 const DEFAULT_SWEEP_DURATION = 700;
-// 与 ScanOverlay 的淡出动画时长保持一致
+// 与 ScanAnimation 的淡出动画时长保持一致
 const FADE_OUT_DURATION = 200;
 // 光带启动延迟 (CSS animation-delay)
 const SWEEP_DELAY = 80;
@@ -61,7 +61,7 @@ export function useScanAnimation() {
         mount.appendChild(host);
         const state = reactive<ScanState>({ ...options, leaving: false });
         const app = createApp({
-            render: () => h(ScanOverlay, {
+            render: () => h(ScanAnimation, {
                 rect: state.rect ?? null,
                 duration: state.duration ?? duration,
                 zIndex,

@@ -5,7 +5,7 @@ import type { PopupNoticePayload } from '@/services/popupNotice';
 import { t } from '@/services/i18n';
 
 // 图片取图源: 只负责把用户选择/粘贴/拖入的图片变成预览,
-// 扫描统一交给 ScanPanel 的 recognizeImage 流水线, 与摄像头源保持同构。
+// 扫描统一交给 LocalScanPanel 的 recognizeImage 流水线, 与摄像头源保持同构。
 type ImageSourceOptions = {
     // 取图阶段 (Blob → DataURL) 失败时的提示
     notify: (payload: PopupNoticePayload) => Promise<unknown>;

@@ -1,7 +1,7 @@
 import { connectExtensionPage, returnToOrigin } from '@/services/background/extensionTabs';
 import { handleBackgroundMessage } from '@/services/background/messages';
 import { addPageActionMenuItem, handlePageActionClick, showPageAction } from '@/services/background/pageAction';
-import { openScanPanel, requestWebImageScan } from '@/services/background/scanEntry';
+import { openLocalScanPanel, requestWebImageScan } from '@/services/background/scanEntry';
 import { requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { popupHost } from '@/services/popupHost';
@@ -79,7 +79,7 @@ const handleContextMenuClick = (
 
     // 打开扫码面板: 相机与上传图片在面板内切换
     if (info.menuItemId === 'scanCamera') {
-        void openScanPanel(tab?.id);
+        void openLocalScanPanel(tab?.id);
         return;
     }
 

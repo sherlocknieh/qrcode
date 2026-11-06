@@ -7,7 +7,7 @@ import { t } from '@/services/i18n';
 
 // 取图区: 只负责拿到图片 (粘贴 / 拖放 / 选择文件)。
 // 空态用"图标 + 主提示 + 格式说明 + 选择按钮"分层说明入口, 整块区域仍可点选;
-// 选中后只显示预览图, 主提示、扫描与结果展示都交给 ScanPanel 统一处理。
+// 选中后只显示预览图, 主提示、扫描与结果展示都交给 LocalScanPanel 统一处理。
 const props = withDefaults(
     defineProps<{
         // 选择后的预览图

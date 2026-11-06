@@ -1,4 +1,4 @@
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 import { toMarkRects } from '@/composables/useCodePicker';
 import { useScreenshot, type ScreenshotCapture, type ScreenshotSession } from '@/composables/useScreenshot';
 import type { DecodeOutcome } from '@/services/recognize';

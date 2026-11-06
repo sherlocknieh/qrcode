@@ -1,4 +1,4 @@
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 
 // <img> 在页面上真正画出来的区域: object-fit 会让图片只占元素盒子的一部分,
 // 标出码的位置必须落在实际绘制的区域里, 否则框会盖到留白或相邻内容上

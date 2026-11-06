@@ -28,7 +28,7 @@ import { useCodePicker } from '@/composables/useCodePicker';
 import type { PopupNoticeRecord } from '@/services/popupNotice';
 import NotifyHost from '@/components/NotifyHost.vue';
 import QrCodePanel from '@/components/QrCodePanel.vue';
-import ScanMarks from '@/components/ScanMarks.vue';
+import ScanResultMarks from '@/components/ScanResultMarks.vue';
 
 // 入口在挂载前读完存储的待展示通知: 首帧就要渲染它, 窗口才能直接按通知高度成型
 const props = defineProps<{ pendingNotice?: PopupNoticeRecord }>();
@@ -328,7 +328,7 @@ function prepareScanView() {
 // popup 失焦即关闭且会挡住页面浮层, 因此拿到后台成功回执后主动收起 popup;
 // 失败时保留窗口, 让后台给出的错误通知还能被看到
 async function startPanelScan(entry: 'screen' | 'camera') {
-  const action = entry === 'screen' ? 'requestScreenScan' : 'openScanPanel';
+  const action = entry === 'screen' ? 'requestScreenScan' : 'openLocalScanPanel';
   const response = await trySendMessage(action);
   if (response?.success) window.close();
 }
@@ -446,7 +446,7 @@ onBeforeUnmount(() => {
   </div>
 
   <!-- 多条结果时在预览图上叠绿点, 点哪条就展示哪条的通知 -->
-  <ScanMarks v-if="!notifyState.open" :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
+  <ScanResultMarks v-if="!notifyState.open" :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
 
   <!-- 通知弹窗 -->
   <NotifyHost embedded />

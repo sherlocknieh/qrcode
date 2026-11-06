@@ -1,5 +1,5 @@
 import { closeTabAndReturn } from '@/services/background/extensionTabs';
-import { openScanPanel } from '@/services/background/scanEntry';
+import { openLocalScanPanel } from '@/services/background/scanEntry';
 import { captureVisibleTab, requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { popupHost } from '@/services/popupHost';
 
@@ -78,8 +78,8 @@ export const handleBackgroundMessage = (
     }
     // popup 展开面板里的"相机": 扫码面板只能在扩展页运行, 由后台打开 upload.html,
     // 并记录来源页以便关闭后切回; 图片上传在面板内切换, 不再单独开页面
-    if (request.action === 'openScanPanel') {
-        openScanPanel(sender.tab?.id)
+    if (request.action === 'openLocalScanPanel') {
+        openLocalScanPanel(sender.tab?.id)
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;

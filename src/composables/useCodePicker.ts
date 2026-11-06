@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 import type { DecodeResult } from '@/services/qrScanner';
 import { intersectRect } from '@/services/imageRect';
 import { sendMessage } from '@/services/messaging';

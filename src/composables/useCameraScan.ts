@@ -2,7 +2,7 @@ import { onBeforeUnmount, ref, type Ref } from 'vue';
 import { decodeCameraFrame } from '@/services/qrScanner';
 
 // 摄像头取图源: 只负责媒体流与逐帧轻量解码, 命中后交出一帧画面,
-// 扫描与结果展示统一交给 ScanPanel 的 recognizeImage 流水线。
+// 扫描与结果展示统一交给 LocalScanPanel 的 recognizeImage 流水线。
 type CameraScanOptions = {
     video: Ref<HTMLVideoElement | null>;
     // 命中一帧后回调, 摄像头此时已停止; 返回 Promise 时会等扫描结束

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 import { overlayMountPoint, overlayZIndex } from '@/services/overlayHost';
 import { t } from '@/services/i18n';
 

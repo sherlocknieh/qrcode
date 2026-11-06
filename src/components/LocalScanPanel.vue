@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ImagePicker from '@/components/ImagePicker.vue';
-import ScanMarks from '@/components/ScanMarks.vue';
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import ScanResultMarks from '@/components/ScanResultMarks.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 import { useCameraScan } from '@/composables/useCameraScan';
 import { useCodePicker } from '@/composables/useCodePicker';
 import { useImageSource } from '@/composables/useImageSource';
@@ -449,7 +449,7 @@ onBeforeUnmount(() => {
         </div>
     </section>
 
-    <ScanMarks :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
+    <ScanResultMarks :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
 </template>
 
 <style scoped>

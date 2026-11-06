@@ -11,14 +11,14 @@ import { measureImageRect } from '@/services/imageRect';
 
 // UI组件
 import NotifyHost from '@/components/NotifyHost.vue';
-import ScanMarks from '@/components/ScanMarks.vue';
+import ScanResultMarks from '@/components/ScanResultMarks.vue';
 
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useCodePicker, type PickAnchor } from '@/composables/useCodePicker';
 import { useScreenshotScan, type ScreenshotScanCapture, type ScreenshotScanContext } from '@/composables/useScreenshotScan';
 import type { ScreenshotResult } from '@/composables/useScreenshot';
-import type { ScanRect } from '@/components/ScanOverlay.vue';
+import type { ScanRect } from '@/components/ScanAnimation.vue';
 
 let clearActiveMarks = () => {};
 const { notify, notifyFetching, notifyPickedResults, notifyResults, host } = useNoticeFallback({
@@ -334,6 +334,6 @@ async function fetchImageViaProxy(url: string): Promise<string> {
 <template>
     <div class="qr-content-root">
         <NotifyHost />
-        <ScanMarks :rects="marks" :anchor="marksAnchor" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
+        <ScanResultMarks :rects="marks" :anchor="marksAnchor" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
     </div>
 </template>
