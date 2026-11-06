@@ -15,7 +15,6 @@ import ScanMarks from '@/components/ScanMarks.vue';
 
 import { useScanAnimation } from '@/composables/useScanAnimation';
 import { useNoticeFallback } from '@/composables/useNoticeFallback';
-import { useImagePasteOverlay } from '@/composables/useImagePasteOverlay';
 import { useCodePicker, type PickAnchor } from '@/composables/useCodePicker';
 import { useScreenshotScan, type ScreenshotScanCapture, type ScreenshotScanContext } from '@/composables/useScreenshotScan';
 import type { ScreenshotResult } from '@/composables/useScreenshot';
@@ -26,7 +25,6 @@ const { notify, notifyFetching, notifyPickedResults, notifyResults, host } = use
     onLocalNoticeDone: () => onNoticeDone(),
 });
 const scanAnimation = useScanAnimation();
-const imagePasteOverlay = useImagePasteOverlay();
 
 // 全屏扫描就是"对整屏自动框选一次": 与手动框选共用截图扫描流程
 const screenshotScan = useScreenshotScan({
@@ -94,12 +92,7 @@ const mainProcess = (
     if (message.action === 'scanScreen') {
         handleScreenScan();
     }
-    if (message.action === 'scanLocalImage') {
-        imagePasteOverlay.open();
-    }
     if (message.action === 'frameScan') {
-        // 框选要对页面截图: 先收起取图浮层, 否则截到的是浮层自己
-        imagePasteOverlay.close();
         void openFrameScan();
     }
     // 立即回执: 后台以"是否收到回应"判断内容脚本是否可用, 不回应会被当成不可用而回退到新标签页
@@ -118,7 +111,6 @@ onBeforeUnmount(() => {
     void scanAnimation.stop();
     clearMarks();
     screenshotScan.close();
-    imagePasteOverlay.close();
 });
 
 // 找到右键扫描的图片元素; 背景图等找不到元素时返回 undefined

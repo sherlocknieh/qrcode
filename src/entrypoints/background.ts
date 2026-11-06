@@ -1,7 +1,7 @@
 import { connectExtensionPage, returnToOrigin } from '@/services/background/extensionTabs';
 import { handleBackgroundMessage } from '@/services/background/messages';
 import { addPageActionMenuItem, handlePageActionClick, showPageAction } from '@/services/background/pageAction';
-import { openCameraScan, requestLocalImageScan, requestWebImageScan } from '@/services/background/scanEntry';
+import { openScanPanel, requestWebImageScan } from '@/services/background/scanEntry';
 import { requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { popupHost } from '@/services/popupHost';
@@ -12,7 +12,7 @@ const IS_FIREFOX = import.meta.env.FIREFOX;
 // Firefox 内置支持图标设置
 const setMenuIcon = (name: MenuIconName) => IS_FIREFOX ? { icons: { 16: getMenuIcon(name) } } : {};
 // Chrome 只能通过在标题前添加 emoji 来充当图标
-type MenuMessageKey = 'selectionToQR' | 'scanWebImage' | 'scanScreen' | 'scanRegion' | 'scanLocalImage' | 'scanCamera';
+type MenuMessageKey = 'selectionToQR' | 'scanWebImage' | 'scanScreen' | 'scanRegion' | 'scanCamera';
 const setMenuTitle = (key: MenuMessageKey, emoji?: string) => {
     const title = browser.i18n.getMessage(key);
     return IS_FIREFOX || !emoji ? title : `${emoji} ${title}`;
@@ -49,14 +49,7 @@ const addContextMenus = () => new Promise<void>((resolve) => {
             contexts: ['action', 'page_action'],
             ...setMenuIcon('scanRegion'),
         });
-        // 粘贴/上传本地图片扫描
-        browser.contextMenus.create({
-            id: 'scanLocalImage',
-            title: setMenuTitle('scanLocalImage', '🖼️'),
-            contexts: ['action', 'page_action'],
-            ...setMenuIcon('image'),
-        });
-        // 打开摄像头扫描
+        // 扫码面板: 进入后可选打开相机或上传图片, 不再单列上传入口
         browser.contextMenus.create({
             id: 'scanCamera',
             title: setMenuTitle('scanCamera', '📷'),
@@ -84,16 +77,12 @@ const handleContextMenuClick = (
         return;
     }
 
-    // 粘贴/上传本地图片扫描
-    if (info.menuItemId === 'scanLocalImage') {
-        void requestLocalImageScan(tab?.id);
-        return;
-    }
-    // 打开摄像头扫码
+    // 打开扫码面板: 相机与上传图片在面板内切换
     if (info.menuItemId === 'scanCamera') {
-        void openCameraScan(tab?.id);
+        void openScanPanel(tab?.id);
         return;
     }
+
     // 扫描当前页面视口: 独立 SVG 由 requestScreenScan 内部跳过内容脚本
     if (info.menuItemId === 'scanScreen') {
         void requestScreenScan(tab?.id, tab?.windowId, tab?.url);

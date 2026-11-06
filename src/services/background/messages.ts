@@ -1,5 +1,5 @@
 import { closeTabAndReturn } from '@/services/background/extensionTabs';
-import { openCameraScan, requestLocalImageScan } from '@/services/background/scanEntry';
+import { openScanPanel } from '@/services/background/scanEntry';
 import { captureVisibleTab, requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { popupHost } from '@/services/popupHost';
 
@@ -76,18 +76,10 @@ export const handleBackgroundMessage = (
             .catch(() => sendResponse({ success: false }));
         return true;
     }
-    // popup 展开面板里的"扫描图片": 与右键菜单共用同一套分发,
-    // 优先在当前页开扫描浮层, 内容脚本不可注入时再打开独立扫描页
-    if (request.action === 'openImageScan') {
-        requestLocalImageScan(sender.tab?.id)
-            .then(success => sendResponse({ success }))
-            .catch(() => sendResponse({ success: false }));
-        return true;
-    }
-    // 图片扫描浮层里点"从摄像头取图": 摄像头只能在扩展页运行,
-    // 由后台打开 upload.html?camera=1, 并记录来源页以便关闭后切回
-    if (request.action === 'openCameraScan') {
-        openCameraScan(sender.tab?.id)
+    // popup 展开面板里的"相机": 扫码面板只能在扩展页运行, 由后台打开 upload.html,
+    // 并记录来源页以便关闭后切回; 图片上传在面板内切换, 不再单独开页面
+    if (request.action === 'openScanPanel') {
+        openScanPanel(sender.tab?.id)
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;

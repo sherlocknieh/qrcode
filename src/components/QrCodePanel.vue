@@ -19,7 +19,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     (event: 'update:modelValue', value: string): void;
     // 扫码入口只负责发出意图, 具体分发交给宿主 (popup 交给后台)
-    (event: 'scan', entry: 'image' | 'screen' | 'camera'): void;
+    (event: 'scan', entry: 'screen' | 'camera'): void;
 }>();
 
 const text = computed({
@@ -231,15 +231,6 @@ onBeforeUnmount(() => {
                             >
                                 <span class="qr-panel-action-label">{{ t('qrActionScreen') }}</span>
                             </button>
-                            <button
-                                class="qr-panel-action qr-panel-action--image"
-                                type="button"
-                                :aria-label="t('scanLocalImage')"
-                                :title="t('scanLocalImage')"
-                                @click="emit('scan', 'image')"
-                            >
-                                <span class="qr-panel-action-label">{{ t('qrActionImage') }}</span>
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -254,8 +245,7 @@ onBeforeUnmount(() => {
     --qr-copy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5.5' y='5.5' width='8' height='8' rx='1.5'/%3E%3Cpath d='M10.5 3.5h-6A1.5 1.5 0 0 0 3 5v6'/%3E%3C/svg%3E");
     --qr-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2.5v7'/%3E%3Cpath d='m5 6.5 3 3 3-3'/%3E%3Cpath d='M3 12.5h10'/%3E%3C/svg%3E");
     --qr-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-7'/%3E%3C/svg%3E");
-    /* 扫码入口图标: 图片 / 屏幕 / 摄像头, 画成单色由 currentColor 上色 */
-    --qr-scan-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='2.5' width='12' height='11' rx='1.5'/%3E%3Ccircle cx='5.5' cy='6' r='1'/%3E%3Cpath d='m2.5 11.5 3.2-3.2 2.4 2.4 2-2 3.4 3.4'/%3E%3C/svg%3E");
+    /* 扫码入口图标: 屏幕 / 摄像头, 画成单色由 currentColor 上色 */
     --qr-scan-screen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1.5' y='2.5' width='13' height='9' rx='1.5'/%3E%3Cpath d='M8 11.5v2'/%3E%3Cpath d='M5.5 14h5'/%3E%3Cpath d='M4.5 7h7'/%3E%3C/svg%3E");
     --qr-scan-camera: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4.5 7 3h2l1 1.5h2.5A1.5 1.5 0 0 1 14 6v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12V6a1.5 1.5 0 0 1 1.5-1.5z'/%3E%3Ccircle cx='8' cy='9' r='2.4'/%3E%3C/svg%3E");
     position: relative;
@@ -443,10 +433,6 @@ onBeforeUnmount(() => {
     line-height: 1.2;
     text-align: center;
     overflow-wrap: anywhere;
-}
-
-.qr-panel-action--image {
-    --qr-action-icon: var(--qr-scan-image);
 }
 
 .qr-panel-action--screen {

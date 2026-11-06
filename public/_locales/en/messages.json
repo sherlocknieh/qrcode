@@ -59,13 +59,13 @@
     "message": "Scan Region",
     "description": "Context menu item for selecting an area of the page and scanning only that area"
   },
-  "scanLocalImage": {
-    "message": "Scan Local Image",
-    "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image"
-  },
   "scanCamera": {
     "message": "Scan with Camera",
     "description": "Title of the camera scanning page"
+  },
+  "scanSource": {
+    "message": "Choose Image Source",
+    "description": "Group label for the camera / image switcher"
   },
   "cameraHint": {
     "message": "Point the camera at a QR code or barcode",
@@ -128,7 +128,7 @@
     "description": "Main hint in the image picker"
   },
   "pickerFormats": {
-    "message": "PNG, JPG, WebP and more · or press Ctrl+V to paste",
+    "message": "or press Ctrl+V to paste",
     "description": "Supporting line under the main hint in the image picker"
   },
   "previewHint": {
@@ -345,6 +345,6 @@
   },
   "qrActionImage": {
     "message": "Image",
-    "description": "Label under the image scan icon in the QR code panel"
+    "description": "Source switcher label for the image source"
   }
 }

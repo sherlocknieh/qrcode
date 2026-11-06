@@ -33,14 +33,7 @@ export const requestWebImageScan = async (
     return sendImageToPopup(imageUrl).catch(() => false);
 };
 
-// 上传/粘贴图片: 与扫描屏幕的降级策略一致, 内容脚本不可用时退回 upload.html 自主取图
-export const requestLocalImageScan = async (tabId?: number): Promise<boolean> => {
-    const targetTabId = await resolveActiveTabId(tabId);
-    if (await sendTabAction(targetTabId, 'scanLocalImage')) return true;
-    return openExtensionPage('/upload.html', targetTabId);
-};
-
-// 摄像头只在扩展页里可用: popup 失焦即关闭, 内容脚本又受页面自身摄像头权限约束,
-// 因此复用 upload.html 的扫描页, 用 ?camera=1 让页面直接进入摄像头模式
-export const openCameraScan = async (originTabId?: number) =>
-    openExtensionPage('/upload.html?camera=1', await resolveActiveTabId(originTabId));
+// 扫码面板只在扩展页里可用: popup 失焦即关闭, 内容脚本又受页面自身摄像头权限约束。
+// 相机与上传图片都在同一个面板里, 由面板内的源切换决定, 入口只有这一个
+export const openScanPanel = async (originTabId?: number) =>
+    openExtensionPage('/upload.html', await resolveActiveTabId(originTabId));

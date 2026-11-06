@@ -63,9 +63,9 @@
     "message": "打开相机扫描",
     "description": "相机扫描页面的标题"
   },
-  "scanLocalImage": {
-    "message": "上传图片扫描",
-    "description": "工具栏图标右键菜单项：在当前页面打开扫描面板，上传或粘贴图片"
+  "scanSource": {
+    "message": "选择取图方式",
+    "description": "相机与图片切换的分组名称"
   },
   "cameraHint": {
     "message": "将二维码或条形码对准相机",
@@ -345,6 +345,6 @@
   },
   "qrActionImage": {
     "message": "图片",
-    "description": "二维码面板：图片扫描按钮图标下方的文字"
+    "description": "扫码面板: 图片源切换的文字"
   }
 }
