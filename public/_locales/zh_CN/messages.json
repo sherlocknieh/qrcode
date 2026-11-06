@@ -207,10 +207,6 @@
     "message": "显示全部",
     "description": "多码提示里展开全部扫描结果的按钮"
   },
-  "multiScanHint": {
-    "message": "画面上的每个码都能点开查看",
-    "description": "扫到多个码时, 提示用户在画面上点选其中一个查看内容"
-  },
   "pickCodeHint": {
     "message": "点击绿点查看该码的内容",
     "description": "全屏扫描命中多个码时, 提示用户在画面上点选其中一个"
@@ -274,14 +270,6 @@
   "screenshotFailedMsg": {
     "message": "无法完成截图，请确认当前页面是普通网页后重试。",
     "description": "截图失败的提示信息"
-  },
-  "screenshotLayoutPip": {
-    "message": "画中画布局",
-    "description": "浮窗形态的布局切换按钮：切到右下角画中画"
-  },
-  "screenshotLayoutFit": {
-    "message": "撑开显示",
-    "description": "浮窗形态的布局切换按钮：切到尽量撑开"
   },
   "screenshotCopyFailed": {
     "message": "复制失败",

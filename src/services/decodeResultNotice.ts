@@ -162,7 +162,6 @@ export function multiFoundNotice(results: DecodeResult[]): PopupNoticePayload {
             toast: true,
             icon: 'success',
             title: multiResultTitle(results),
-            text: t('multiScanHint'),
             items: toNoticeItems(results),
             itemsCollapsed: true,
             showCloseButton: true,

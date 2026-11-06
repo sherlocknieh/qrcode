@@ -31,15 +31,10 @@ const emit = defineEmits<{
 const t = (key: Parameters<typeof browser.i18n.getMessage>[0], fallback: string) =>
     browser.i18n.getMessage(key) || fallback;
 
-const FLOATING_MAX_WIDTH = 1200;
-const FLOATING_MAX_HEIGHT = 800;
-const FLOATING_VIEWPORT_WIDTH_RATIO = 0.9;
-const FLOATING_VIEWPORT_HEIGHT_RATIO = 0.8;
-// 画中画形态: 缩到右下角的小窗, 像播放器的画中画
-const FLOATING_MARGIN = 16;
-const PIP_MAX_WIDTH = 360;
-const PIP_VIEWPORT_WIDTH_RATIO = 0.4;
-const PIP_VIEWPORT_HEIGHT_RATIO = 0.45;
+const FLOATING_MAX_WIDTH = 1600;
+const FLOATING_MAX_HEIGHT = 1100;
+const FLOATING_VIEWPORT_WIDTH_RATIO = 0.95;
+const FLOATING_VIEWPORT_HEIGHT_RATIO = 0.9;
 const MIN_SELECTION = 8;
 const HANDLE_SIZE = 6;
 const HANDLE_HIT_SIZE = 9;
@@ -113,11 +108,9 @@ const selection = ref<Rect | null>(null);
 const toolbarPosition = ref({ left: 0, top: 0 });
 const cursor = ref(props.selectable ? 'crosshair' : 'default');
 
-// 每次截图默认铺满视口; 窗口尺寸变化后自动切为浮窗
+// 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中大浮窗
 const floatingMode = ref(false);
-// 浮窗形态: fit 尽量撑开占满可用宽高, pip 缩到右下角 (试验用按钮切换)
-const floatingLayout = ref<'fit' | 'pip'>('fit');
-// 只在进入浮窗/切换形态时短暂开启尺寸过渡: 拖拽框选时不能带过渡
+// 只在进入浮窗时短暂开启尺寸过渡: 拖拽框选时不能带过渡
 const allowLayoutTransition = ref(false);
 let layoutTransitionTimer: number | undefined;
 
@@ -167,27 +160,6 @@ const layout = computed(() => {
     const aspect = imageSize.value.width > 0 && imageSize.value.height > 0
         ? imageSize.value.width / imageSize.value.height
         : 1;
-    if (floatingLayout.value === 'pip') {
-        let width = Math.min(
-            PIP_MAX_WIDTH,
-            Math.floor(viewport.value.width * PIP_VIEWPORT_WIDTH_RATIO),
-        );
-        let height = Math.round(width / aspect);
-        const maxHeight = Math.max(1, Math.floor(viewport.value.height * PIP_VIEWPORT_HEIGHT_RATIO));
-        if (height > maxHeight) {
-            height = maxHeight;
-            width = Math.round(height * aspect);
-        }
-        width = Math.max(1, width);
-        height = Math.max(1, height);
-        // 贴右下角, 像播放器的画中画
-        return {
-            width,
-            height,
-            left: Math.max(FLOATING_MARGIN, viewport.value.width - width - FLOATING_MARGIN),
-            top: Math.max(FLOATING_MARGIN, viewport.value.height - height - FLOATING_MARGIN),
-        };
-    }
     const maxWidth = Math.min(
         FLOATING_MAX_WIDTH,
         Math.floor(viewport.value.width * FLOATING_VIEWPORT_WIDTH_RATIO),
@@ -240,15 +212,6 @@ const canvasStyle = computed(() => ({
 const busy = computed(
     () => canAnimateIntro.value && (phase.value === 'cover' || settling.value),
 );
-
-// 试验用: 在"撑开"与"画中画"两种浮窗形态之间切换
-const toggleFloatingLayout = () => {
-    beginLayoutTransition(360);
-    // 先让过渡用的 class 上屏, 下一帧再改布局, 浏览器才会把它当成尺寸变化来补间
-    window.requestAnimationFrame(() => {
-        floatingLayout.value = floatingLayout.value === 'fit' ? 'pip' : 'fit';
-    });
-};
 
 const hasSelection = computed(() => {
     const rect = selection.value;
@@ -655,10 +618,9 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
 const handleWindowResize = () => {
     if (loaded.value && !floatingMode.value && !busy.value) {
-        // 窗口一变就从铺满收成右下角画中画, 尺寸与位置带过渡, 不做硬切
+        // 窗口一变就从铺满收成居中大浮窗, 尺寸与位置带过渡, 不做硬切
         beginLayoutTransition(420);
         window.requestAnimationFrame(() => {
-            floatingLayout.value = 'pip';
             floatingMode.value = true;
             void setScreenshotIntroEnabled(true).catch(() => {});
         });
@@ -804,48 +766,6 @@ defineExpose({
             :style="marksLayerStyle">
             <ScanMarks :rects="resultMarks" :picked="pickedMarks" @pick="emit('pick', $event)" />
         </div>
-        <!-- 试验用布局切换: 只在浮窗形态出现, 切"撑开"与"画中画" -->
-        <button
-            v-if="selectable && floatingMode && !busy"
-            class="qr-shot-layout-toggle"
-            type="button"
-            :aria-label="floatingLayout === 'fit'
-                ? t('screenshotLayoutPip', 'Picture-in-picture')
-                : t('screenshotLayoutFit', 'Fit to screen')"
-            :title="floatingLayout === 'fit'
-                ? t('screenshotLayoutPip', 'Picture-in-picture')
-                : t('screenshotLayoutFit', 'Fit to screen')"
-            @click.stop="toggleFloatingLayout"
-        >
-            <!-- 当前是撑开: 点击切到画中画 -->
-            <svg v-if="floatingLayout === 'fit'" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <rect
-                    x="3.5"
-                    y="5"
-                    width="17"
-                    height="14"
-                    rx="2"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.7"
-                />
-                <rect x="12.5" y="12" width="6.5" height="5.5" rx="1.2" fill="currentColor" />
-            </svg>
-            <!-- 当前是画中画: 点击切回撑开 -->
-            <svg v-else viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <rect
-                    x="4.5"
-                    y="4.5"
-                    width="15"
-                    height="15"
-                    rx="2.2"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.7"
-                />
-            </svg>
-        </button>
-
         <!-- 截图闪光效果容器 -->
         <div v-if="flashing" class="qr-shot-flash" aria-hidden="true">
             <span class="qr-shot-flash-edge edge-top" />
@@ -1083,7 +1003,7 @@ defineExpose({
 
 
 
-/* 进入浮窗 / 切换形态时的过渡: 只在这段时间生效, 拖拽框选不受影响 */
+/* 进入浮窗时的过渡: 只在这段时间生效, 拖拽框选不受影响 */
 .qr-shot--transitioning {
     transition:
         left 0.34s ease,
@@ -1102,33 +1022,4 @@ defineExpose({
     transition: transform 0.34s ease;
 }
 
-.qr-shot-layout-toggle {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 3;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.72);
-    border-radius: 50%;
-    background: rgba(25, 25, 25, 0.5);
-    color: #fff;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-    transition: background-color 120ms ease;
-}
-
-.qr-shot-layout-toggle:hover {
-    background: rgba(60, 60, 60, 0.92);
-}
-
-.qr-shot-layout-toggle svg {
-    display: block;
-    width: 16px;
-    height: 16px;
-}
 </style>

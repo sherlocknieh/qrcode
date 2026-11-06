@@ -207,10 +207,6 @@
     "message": "Show All",
     "description": "Button that expands every scanned result in the multi-code notice"
   },
-  "multiScanHint": {
-    "message": "Tap any code on the screen to view it",
-    "description": "Shown when several codes are found, telling the user to pick one on screen"
-  },
   "pickCodeHint": {
     "message": "Click a green dot to choose a code",
     "description": "Shown when a full-screen scan finds several codes and the user picks one"
@@ -275,14 +271,6 @@
     "message": "The screenshot could not be captured. Make sure the page is a regular web page and try again.",
     "description": "Message shown when screenshot scan fails"
   },
-  "screenshotLayoutPip": {
-    "message": "Picture-in-picture",
-    "description": "Floating window layout toggle: switch to the bottom-right picture-in-picture"
-  },
-  "screenshotLayoutFit": {
-    "message": "Fit to screen",
-    "description": "Floating window layout toggle: switch to the expanded layout"
-  },
   "screenshotCopyFailed": {
     "message": "Copy Failed",
     "description": "Message shown when copying the screenshot fails"
@@ -300,11 +288,11 @@
     "description": "Copy button text"
   },
   "recognitionFailedMsg": {
-    "message": "Unsupported Code Perhaps.",
+    "message": "No Valid Code Found",
     "description": "Message shown when screenshot scan fails"
   },
   "recognitionFailed": {
-    "message": "No Valid Code Found",
+    "message": "Scan Failed",
     "description": "Error title after recognition fails"
   },
   "clearImage": {
