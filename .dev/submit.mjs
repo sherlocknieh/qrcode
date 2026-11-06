@@ -2,13 +2,26 @@
 // 跨平台提交脚本：清理旧包 -> 构建 ZIP -> 提交到商店
 // 用法: node .dev/submit.mjs [chrome|edge|firefox|all] [--dry-run ...]
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, unlinkSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const outputDir = join(root, '.output');
 const wxtBin = join(root, 'node_modules', 'wxt', 'bin', 'wxt.mjs');
+
+// 凭据放仓库根的 .env.submit (已 gitignore), 已有环境变量优先, 脚本只补缺失项;
+// 私钥在文件里是单行字面量 \n, 不还原成换行 OpenSSL 会报 DECODER routines::unsupported
+const envFile = join(root, '.env.submit');
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
+    if (!match || process.env[match[1]] !== undefined) continue;
+    const quoted = /^(["']).*\1$/.test(match[2].trim());
+    const value = quoted ? match[2].trim().slice(1, -1) : match[2].trim();
+    process.env[match[1]] = value.replace(/\\n/g, '\n');
+  }
+}
 
 const STORES = ['chrome', 'edge', 'firefox'];
 const argv = process.argv.slice(2);
