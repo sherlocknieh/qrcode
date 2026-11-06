@@ -135,10 +135,6 @@
     "message": "Click the preview to choose another image",
     "description": "Hint shown after an image has been selected"
   },
-  "chooseImage": {
-    "message": "Choose Image",
-    "description": "Button for choosing a local image file"
-  },
   "notImageFile": {
     "message": "Please Choose an Image File",
     "description": "Title shown when a non-image file is dropped"

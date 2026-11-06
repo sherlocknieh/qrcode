@@ -135,10 +135,6 @@
     "message": "点击方框可更换图片",
     "description": "已选择图片后提示用户可点击更换"
   },
-  "chooseImage": {
-    "message": "选择图片",
-    "description": "选择本地图片文件按钮"
-  },
   "notImageFile": {
     "message": "请选择图片文件",
     "description": "拖入非图片文件时的提示标题"

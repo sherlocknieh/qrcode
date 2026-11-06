@@ -105,9 +105,6 @@ onBeforeUnmount(() => {
     window.removeEventListener('dragover', preventPageDrop);
     window.removeEventListener('drop', preventPageDrop);
 });
-
-// 面板的"选择图片"按钮复用同一个文件选择框
-defineExpose({ pickFile });
 </script>
 
 <template>
@@ -146,14 +143,6 @@ defineExpose({ pickFile });
             </span>
             <p class="qr-picker-title">{{ t('pickerHint') }}</p>
             <p class="qr-picker-sub">{{ t('pickerFormats') }}</p>
-            <button class="qr-picker-cta" type="button" :disabled="busy" @click.stop="pickFile">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-                    <path d="M12 15.6V8.6" />
-                    <path d="m8.8 11.6 3.2-3 3.2 3" />
-                </svg>
-                {{ t('chooseImage') }}
-            </button>
         </template>
 
         <input ref="fileInput" class="qr-picker-input" type="file" accept="image/*" @change="onFileChange" />
@@ -245,62 +234,6 @@ defineExpose({ pickFile });
     line-height: 1.5;
     color: #94a3b8;
     text-align: center;
-}
-
-/* 按钮化入口: 空态里唯一实心元素, 让"点哪里开始"不需要猜 */
-.qr-picker-cta {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    height: 32px;
-    margin: 12px 0 0;
-    padding: 0 14px;
-    /* 注入到网页里时会吃到页面全局的按钮样式, 这里把会影响观感的属性写全 */
-    border: 0;
-    border-radius: 9px;
-    background-color: #2563eb;
-    background-image: none;
-    box-shadow: 0 6px 14px -8px rgba(37, 99, 235, 0.9);
-    opacity: 1;
-    color: #fff;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    cursor: pointer;
-    transition: background-color 120ms ease, transform 120ms ease;
-}
-
-.qr-picker-cta:hover:not(:disabled) {
-    background: #1d4ed8;
-}
-
-.qr-picker-cta:active:not(:disabled) {
-    transform: translateY(1px);
-}
-
-.qr-picker-cta:focus-visible {
-    outline: 2px solid rgba(37, 99, 235, 0.45);
-    outline-offset: 2px;
-}
-
-.qr-picker-cta:disabled {
-    cursor: progress;
-}
-
-.qr-picker-cta svg {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    opacity: 1;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
 }
 
 .qr-picker-figure {
