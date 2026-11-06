@@ -324,15 +324,15 @@
     "description": "Default file name of the downloaded QR code"
   },
   "qrActionCamera": {
-    "message": "Camera",
+    "message": "Scan Camera",
     "description": "Label under the camera icon in the QR code panel"
   },
   "qrActionScreen": {
-    "message": "Screen",
+    "message": "Scan Screen",
     "description": "Label under the screen scan icon in the QR code panel"
   },
   "qrActionImage": {
-    "message": "Image",
+    "message": "Scan Image",
     "description": "Source switcher label for the image source"
   }
 }

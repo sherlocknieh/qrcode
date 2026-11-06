@@ -143,19 +143,16 @@ function downloadQrCode() {
                         ></textarea>
 
                         <!-- 操作按钮: 下载/扫描 -->
-                        <div v-if="dataUrl" class="qr-panel-actions">
-                            <button
-                                class="qr-panel-action qr-panel-action--format"
-                                type="button"
-                                :aria-label="t('qrDownloadSvg')"
-                                :title="t('qrDownloadSvg')"
-                                @click="downloadQrCode"
-                            >
-                                <span class="qr-panel-action-label">SVG</span>
-                            </button>
-                        </div>
-
                         <div class="qr-panel-actions">
+                            <button
+                                class="qr-panel-action qr-panel-action--screen"
+                                type="button"
+                                :aria-label="t('scanScreen')"
+                                :title="t('scanScreen')"
+                                @click="emit('scan', 'screen')"
+                            >
+                                <span class="qr-panel-action-label">{{ t('qrActionScreen') }}</span>
+                            </button>
                             <button
                                 class="qr-panel-action qr-panel-action--camera"
                                 type="button"
@@ -166,13 +163,13 @@ function downloadQrCode() {
                                 <span class="qr-panel-action-label">{{ t('qrActionCamera') }}</span>
                             </button>
                             <button
-                                class="qr-panel-action qr-panel-action--screen"
+                                class="qr-panel-action qr-panel-action--format"
                                 type="button"
-                                :aria-label="t('scanScreen')"
-                                :title="t('scanScreen')"
-                                @click="emit('scan', 'screen')"
+                                :aria-label="t('qrDownloadSvg')"
+                                :title="t('qrDownloadSvg')"
+                                @click="downloadQrCode"
                             >
-                                <span class="qr-panel-action-label">{{ t('qrActionScreen') }}</span>
+                                <span class="qr-panel-action-label">SVG</span>
                             </button>
                         </div>
                     </div>

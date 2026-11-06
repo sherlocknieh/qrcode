@@ -324,15 +324,15 @@
     "description": "下载二维码时的默认文件名"
   },
   "qrActionCamera": {
-    "message": "相机",
+    "message": "相机扫描",
     "description": "二维码面板：相机扫码按钮图标下方的文字"
   },
   "qrActionScreen": {
-    "message": "屏幕",
+    "message": "屏幕扫描",
     "description": "二维码面板：屏幕扫描按钮图标下方的文字"
   },
   "qrActionImage": {
-    "message": "图片",
+    "message": "图片扫描",
     "description": "扫码面板: 图片源切换的文字"
   }
 }
