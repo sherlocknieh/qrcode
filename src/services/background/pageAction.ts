@@ -17,14 +17,8 @@ const menuOptions = (visible: boolean) => ({
 });
 
 
-// 为指定标签页添加地址栏图标
-export const addPageAction = async (tabId: number) => {
-    if (!(await isVisible())) return;
-    browser.pageAction.show(tabId);
-};
-
 // 为所有已打开的标签页添加/隐藏地址栏图标
-const addAllPageActions = async (visible: boolean) => {
+const syncPageActions = async (visible: boolean) => {
     const pageAction = browser.pageAction;
     if (!pageAction) return;
     const tabs = await browser.tabs.query({});
@@ -36,26 +30,41 @@ const addAllPageActions = async (visible: boolean) => {
 
 // 查询图标显隐状态
 const isVisible = async () => {
+    // 优先从内存缓存中读取, 避免频繁访问 storage
     if (pageActionVisible !== undefined) return pageActionVisible;
-    pageActionVisiblePromise ??= browser.storage.local.get(PAGE_ACTION_KEY).then((stored) => {
-        pageActionVisible = stored[PAGE_ACTION_KEY] !== false;
+    // 从 storage 中读取, 并缓存结果
+    pageActionVisiblePromise ??= browser.storage.local.get(PAGE_ACTION_KEY)
+    .then((data) => {
+        pageActionVisible = data[PAGE_ACTION_KEY] !== false;
+        // 返回缓存结果
         return pageActionVisible;
+    })
+    .catch((error) => {
+        pageActionVisiblePromise = undefined;
+        throw error;
     });
+    // 异步返回 Promise, 避免阻塞调用方
     return pageActionVisiblePromise;
 };
+
 // 切换图标显隐状态
 const toggle = async () => {
     if (!IS_FIREFOX) return;
     const visible = !(await isVisible());
     await browser.storage.local.set({ [PAGE_ACTION_KEY]: visible });
     pageActionVisible = visible;
-    await addAllPageActions(visible);
+    await syncPageActions(visible);
     browser.contextMenus.update(TOGGLE_MENU_ID, menuOptions(visible)).catch(() => {});
 };
 
+// 为新增的标签页添加地址栏图标
+export const addPageAction = async (tabId: number) => {
+    if (!(await isVisible())) return;
+    browser.pageAction.show(tabId);
+};
 
-// Chrome 没有地址栏图标开关, 这项菜单只在 Firefox 建。
-// 必须等右键菜单重建完成后再建, 否则会被 removeAll 一并清掉
+
+// 添加"地址栏图标开关"右键菜单项
 export const addPageActionMenuItem = async () => {
     if (!IS_FIREFOX) return;
     browser.contextMenus.create({
@@ -65,7 +74,7 @@ export const addPageActionMenuItem = async () => {
     });
 };
 
-// 命中自己的开关项就执行并返回 true, 调用方据此决定要不要继续分发
+// 处理地址栏图标开关菜单项点击事件
 export const handlePageActionClick = (menuItemId: string | number) => {
     if (menuItemId !== TOGGLE_MENU_ID) return false;
     void toggle();
