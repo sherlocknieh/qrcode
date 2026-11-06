@@ -105,12 +105,11 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                     session?.markPicked(index);
                     void options.notifyPicked(result);
                 },
-                onDismiss: (index) => {
-                    if (!results[index]) return;
-                    // 收掉一块绿框: 画面上删掉的那块, 结果列表里也要同步删掉,
-                    // 否则后面按同样的下标点选会取到别的码
-                    results = results.filter((_, resultIndex) => resultIndex !== index);
-                    session?.removeResult(index);
+                onDismiss: () => {
+                    // 点已经看过的灰框 / 单码框就是"看完了": 与点空白同一条收尾,
+                    // 直接收起截图层 (独立扫描页由 onClose 关掉标签页)
+                    close();
+                    options.onClose?.();
                 },
                 onCapture: (capture) => void scan(capture),
                 onError: () => options.onError?.(),

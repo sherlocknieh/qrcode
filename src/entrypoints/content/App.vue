@@ -56,7 +56,6 @@ const marks = picker.marks;
 const marksAnchor = picker.anchorElement;
 const pickedFlags = picker.pickedFlags;
 const pickMark = picker.pick;
-const dismissMark = picker.removeMark;
 const clearMarks = picker.clear;
 
 // 结果通知结束: 画面上还有多个码没点时, 这条通知要么只是多码提示, 要么只是看完了其中一个,
@@ -344,6 +343,6 @@ async function fetchImageViaProxy(url: string): Promise<string> {
 <template>
     <div class="qr-content-root">
         <NotifyHost />
-        <ScanMarks :rects="marks" :anchor="marksAnchor" :picked="pickedFlags" @pick="pickMark" @dismiss="dismissMark" />
+        <ScanMarks :rects="marks" :anchor="marksAnchor" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
     </div>
 </template>

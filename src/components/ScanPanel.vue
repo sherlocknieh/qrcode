@@ -51,7 +51,7 @@ const codePicker = useCodePicker({ notifyResults });
 const marks = codePicker.marks;
 const pickedFlags = codePicker.pickedFlags;
 const pickMark = codePicker.pick;
-const dismissMark = codePicker.removeMark;
+const clearMarks = codePicker.clear;
 
 // ---------------------------- 共用扫描流水线 ----------------------------
 
@@ -441,7 +441,7 @@ onBeforeUnmount(() => {
                 </div>
             </section>
         </div>
-        <ScanMarks :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="dismissMark" />
+        <ScanMarks :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
     </Teleport>
 </template>
 

@@ -92,7 +92,7 @@ const codePicker = useCodePicker({
 const marks = codePicker.marks;
 const pickedFlags = codePicker.pickedFlags;
 const pickMark = codePicker.pick;
-const dismissMark = codePicker.removeMark;
+const clearMarks = codePicker.clear;
 
 // 收起扫描动画与预览图: 动画先淡出再取走图片, 免得图片先消失、光带还在飞
 async function stopPreview() {
@@ -450,7 +450,7 @@ onBeforeUnmount(() => {
   </div>
 
   <!-- 多条结果时在预览图上叠绿点, 点哪条就展示哪条的通知 -->
-  <ScanMarks v-if="!notifyState.open" :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="dismissMark" />
+  <ScanMarks v-if="!notifyState.open" :rects="marks" :picked="pickedFlags" @pick="pickMark" @dismiss="clearMarks" />
 
   <!-- 通知弹窗 -->
   <NotifyHost embedded />
