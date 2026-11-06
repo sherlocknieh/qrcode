@@ -46,7 +46,8 @@ const screenshotScan = useScreenshotScan({
         void notifyScreenshotError();
     },
     onClose: () => closeTab(),
-    // 单击 (没拖出选区) 就是退出: 通知是否还开着都一样; 拖框选了一块则继续扫, 不关页
+    // 单击 (没拖出选区) 就是退出: 通知是否还开着都一样; 拖框选了一块则继续扫, 不关页;
+    // 多码还没点完时浮层不发这个事件
     onBlank: () => closeTab(),
 });
 

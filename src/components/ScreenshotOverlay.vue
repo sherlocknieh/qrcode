@@ -130,6 +130,10 @@ const frozen = ref(false);
 const resultMarks = ref<ScanRect[]>([]);
 // 与绿框对齐: 标出已经点开过的码, 这些只留绿框、不再显示圆点
 const pickedMarks = ref<boolean[]>([]);
+// 多码还没点完: 画面上的绿框正等着用户继续挑
+const awaitingPick = computed(
+    () => resultMarks.value.length > 1 && pickedMarks.value.some((flag) => !flag),
+);
 // 在结果画面上重新框选时暂存上一轮绿框与选区, 用户放弃这次框选就恢复
 let archivedMarks: ScanRect[] | null = null;
 let archivedPicked: boolean[] | null = null;
@@ -612,10 +616,12 @@ const handlePointerUp = (event: PointerEvent) => {
     pendingArchive = null;
     if (selection.value && !hasSelection.value) {
         selection.value = null;
-        // 单击 (没拖出选区) 就是退出: 交给宿主收摊, 通知还开着时宿主会忽略, 画面保持原样
+        // 单击 (没拖出选区) 就是退出: 交给宿主收摊
         if (mode === 'create') {
             restoreArchived();
-            emit('blank');
+            // 多码还没点完时这一下只当是在消通知: 绿框留着让用户接着点,
+            // 退出交给点已看过的灰框
+            if (!awaitingPick.value) emit('blank');
         }
     }
 };
@@ -627,6 +633,8 @@ const handleOutsidePointerDown = (event: PointerEvent) => {
     // 页面内兜底通知叠在截图层之上 (通知宿主挂在 body 上, 不在截图容器内):
     // 点它是去关通知, 不算点外部, 否则关通知的同时会把截图一起收掉, 没法接着框选
     if (target instanceof Element && target.closest('.qr-notify-root')) return;
+    // 多码还没点完时, 点页面这一下只是去消通知: 浮窗留着让用户接着点
+    if (awaitingPick.value) return;
     cancel();
 };
 

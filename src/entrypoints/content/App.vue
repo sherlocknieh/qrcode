@@ -33,7 +33,7 @@ const screenshotScan = useScreenshotScan({
     notifyPicked: (result) => notifyResults([result]),
     onError: () => notifyScreenshotError({ type: 'failed' }),
     // 单击 (没拖出选区) 就是退出: 通知是否还开着都一样, 这一下点哪算哪;
-    // 拖框选了一块则走 capture 继续扫, 不退出
+    // 拖框选了一块则走 capture 继续扫, 不退出; 多码还没点完时浮层不发这个事件
     onBlank: () => screenshotScan.close(),
 });
 
