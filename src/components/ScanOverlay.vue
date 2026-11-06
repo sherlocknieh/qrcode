@@ -11,9 +11,11 @@ const props = withDefaults(
         duration?: number;
         // 图片区域扫描时压在图片之上所需的层级; 不传则用兜底的最大值
         zIndex?: number | null;
+        // 自带的压暗遮罩: 截图容器上播放时关掉, 它自己已经整屏压暗, 两层叠起来会明显发黑
+        mask?: boolean;
         leaving?: boolean;
     }>(),
-    { rect: null, duration: 700, zIndex: null, leaving: false },
+    { rect: null, duration: 700, zIndex: null, mask: true, leaving: false },
 );
 
 const region = computed(() => props.rect !== null);
@@ -46,7 +48,7 @@ const rootStyle = computed(() => {
         :style="rootStyle"
         aria-hidden="true"
     >
-        <div class="qr-scan-mask" />
+        <div v-if="props.mask" class="qr-scan-mask" />
         <div class="qr-scan-beam" />
         <template v-if="!region">
             <span class="qr-scan-corner corner-tl" />

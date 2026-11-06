@@ -19,6 +19,8 @@ type ScanOptions = {
     anchor?: Element | null;
     // 盖在截图容器上播放时指定: 截图容器用的是最高层级, 光带要压过它才看得见
     zIndex?: number;
+    // 是否保留动画自带的压暗遮罩: 截图容器上播放时传 false, 免得和它的整屏压暗叠成一片黑
+    mask?: boolean;
 };
 
 type ScanState = ScanOptions & { leaving: boolean };
@@ -63,6 +65,7 @@ export function useScanAnimation() {
                 rect: state.rect ?? null,
                 duration: state.duration ?? duration,
                 zIndex,
+                mask: state.mask ?? true,
                 leaving: state.leaving,
             }),
         });

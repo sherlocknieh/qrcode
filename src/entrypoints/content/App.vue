@@ -267,6 +267,8 @@ function decodeScreenshotCapture(
         beforeNotice: () => scanAnimation.play({
             rect: context.rect,
             zIndex: SCAN_OVER_SHOT_Z_INDEX,
+            // 截图层已经整屏压暗, 动画不再自带遮罩, 否则两层叠起来发黑
+            mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
         deferResults: true,
