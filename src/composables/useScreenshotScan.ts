@@ -6,7 +6,7 @@ import type { DecodeResult } from '@/services/qrScanner';
 
 // 截图扫描: 一张截图 + 框选/整屏 → 解码 → 在冻结的截图上标绿点, 点选逐条出结果。
 // 全屏扫描就是"自动对整屏框选一次", 与用户手动框选共用同一条流程,
-// 扫完还能接着拖框重扫, 单击 (没拖出选区) 才退出;
+// 扫完还能接着拖框重扫, 单击 (没拖出选区) 才退出; 只有一个结果时没有别的码可挑, 单击即退出;
 // 内容脚本与独立扫描页都走这里, 不再各写一套截图承载逻辑。
 export type ScreenshotScanCapture = ScreenshotCapture;
 
@@ -30,7 +30,7 @@ type ScreenshotScanOptions = {
     onError?(): void;
     // 用户主动收起截图 (单击 / ESC / 点外部)
     onClose?(): void;
-    // 单击 (没拖出选区) 视为退出, 通知还开着时由宿主忽略
+    // 多码时单击 (没拖出选区) 视为退出, 通知还开着时由宿主忽略
     onBlank?(): void;
 };
 
@@ -39,6 +39,8 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     let session: ScreenshotSession | null = null;
     // 本轮结果: 点选按下标取结果时, 与画面上那份绿框列表保持同一顺序
     let results: DecodeResult[] = [];
+    // 本轮只解出一个结果: 没有别的码要接着挑, 点空白 / 单码框直接退出
+    let singleResult = false;
     // 框选轮次: 前一轮异步结果不能覆盖后一轮画面
     let seq = 0;
     // 每次打开截图会话递增: 上一张截图里的异步结果不再影响新画面
@@ -53,6 +55,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         const currentEpoch = epoch;
         const currentSeq = ++seq;
         results = [];
+        singleResult = false;
         const outcome = await options.decode(capture, {
             // 扫描动画在页面上按视口定位, 浮窗模式下要把选区换算出去
             rect: current.toViewportRect(capture.rect),
@@ -66,6 +69,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
             // 让他看清刚才扫的是哪一块, 接着拖下一块
             current.clearResults(fullScreen ? undefined : capture.rect);
             results = [];
+            singleResult = false;
             return;
         }
         // 绿框只标可定位的码, 点选按下标取结果时两边要保持同一份列表
@@ -79,7 +83,19 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
             clip: capture.rect,
         }));
         results = located;
+        singleResult = outcome.results.length === 1;
         await options.notifyResults(outcome.results);
+    }
+
+    // 点空白与点单码框同一条收尾: 只有一个结果时没什么可接着挑, 直接退出 (通知随这一下关掉);
+    // 多码时这一下往往只是在消通知, 交给宿主判断, 绿框留着让用户接着点
+    function blankOrDismiss() {
+        if (singleResult) {
+            close();
+            options.onClose?.();
+            return;
+        }
+        options.onBlank?.();
     }
 
     // 打开截图扫描: src 复用已截好的视口图; autoCapture 表示打开后立即整屏扫描
@@ -97,7 +113,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                 src: params.src,
                 // 整屏自动扫描不播入场动画, 否则收缩动画会和扫描光带叠在一起
                 intro: params.intro ?? (params.autoCapture ? false : undefined),
-                onBlank: () => options.onBlank?.(),
+                onBlank: blankOrDismiss,
                 onPick: (index) => {
                     const result = results[index];
                     if (!result) return;
@@ -106,9 +122,8 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                     void options.notifyPicked(result);
                 },
                 onDismiss: () => {
-                    // 点已经看过的灰框 / 单码框与点空白同一条收尾: 由宿主判断
-                    // 这一下是消通知还是收起截图层 (独立扫描页则关掉标签页)
-                    options.onBlank?.();
+                    // 点已经看过的灰框 / 单码框与点空白同一条收尾
+                    blankOrDismiss();
                 },
                 onCapture: (capture) => void scan(capture),
                 onError: () => options.onError?.(),
@@ -118,6 +133,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                     epoch++;
                     seq++;
                     results = [];
+                    singleResult = false;
                     session = null;
                     options.onClose?.();
                 },
@@ -150,6 +166,7 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         epoch++;
         seq++;
         results = [];
+        singleResult = false;
         session?.close();
         session = null;
     }

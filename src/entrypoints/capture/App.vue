@@ -47,8 +47,8 @@ const screenshotScan = useScreenshotScan({
         void notifyScreenshotError();
     },
     onClose: () => closeTab(),
-    // 单击 (没拖出选区) 就是退出: 通知还开着时这一下是去消通知的, 不关页;
-    // 通知消掉后再点空白才收起
+    // 多码还没点完时的单击 (没拖出选区): 通知还开着的话这一下是去消通知的, 不关页;
+    // 通知消掉后再点空白才收起 (单结果由扫描层直接收起)
     onBlank: async () => {
         if (await isNoticeShowing()) return;
         closeTab();

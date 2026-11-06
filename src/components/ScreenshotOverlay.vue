@@ -612,7 +612,8 @@ const handlePointerUp = (event: PointerEvent) => {
     pendingArchive = null;
     if (selection.value && !hasSelection.value) {
         selection.value = null;
-        // 单击 (没拖出选区) 就是退出: 交给宿主收摊, 通知还开着时宿主会忽略, 画面保持原样
+        // 单击 (没拖出选区) 就是退出: 交给宿主收摊, 只有一个结果时直接收起,
+    // 多码时通知还开着的话宿主会忽略这一下, 画面保持原样
         if (mode === 'create') {
             restoreArchived();
             emit('blank');
