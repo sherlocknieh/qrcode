@@ -40,7 +40,7 @@ const storeViewportCapture = async (windowId?: number): Promise<boolean> => {
 // originTabId 用于关闭 capture 页时切回来源页面, 否则浏览器会切到相邻标签
 export const showScreenScan = async (originTabId?: number, windowId?: number): Promise<boolean> => {
     if (!await storeViewportCapture(windowId)) return false;
-    // capture 页只做整图扫描, 不再提供框选
+    // capture 页先整屏扫一次, 扫完还能在截图上接着框选
     return openExtensionPage('/capture.html', originTabId);
 };
 
@@ -69,9 +69,9 @@ const resolveScanTarget = async (
     return { tabId: tab.id, windowId: tab.windowId, url: tab.url };
 };
 
-// 扫描屏幕: 不做框选, 由内容脚本直接截取视口并扫描整图;
+// 扫描屏幕: 先由内容脚本截取视口并扫描整图 (截图上还能继续框选);
 // 内容脚本不可用时 (独立 SVG、Firefox 内置 PDF 阅读器) 由后台截取视口后
-// 在新标签页 (capture.html) 直接扫描整图。
+// 在新标签页 (capture.html) 走同一条流程。
 // 内容脚本必须在收到消息时立即回执, 否则浏览器会以"消息端口关闭"拒绝, 被误判为不可用
 export const requestScreenScan = async (
     tabId?: number,

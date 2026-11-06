@@ -24,15 +24,12 @@ const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 const frameOnly = new URLSearchParams(location.search).get('frame') === '1';
 
 // 关闭本页的时机: 多码点选时要等用户点完所有绿点, 由最后一条通知收尾;
-// 还有绿点没点时关掉通知只回到截图上继续点
+// 还有绿点没点时关掉通知只回到截图上继续点; 没扫到码时页面留着继续框选, 单击才关
 let closeOnNoticeDone = true;
-// 通知里的"框选扫描"要留在这一页继续扫, 这条通知收尾不能把页面关掉
-let keepOnNoticeDone = false;
-const shouldCloseOnNotice = () => closeOnNoticeDone && !keepOnNoticeDone;
 const noticeOptions = {
-    closeOriginTab: shouldCloseOnNotice,
+    closeOriginTab: () => closeOnNoticeDone,
     onLocalNoticeDone: () => {
-        if (shouldCloseOnNotice()) closeTab();
+        if (closeOnNoticeDone) closeTab();
     },
 };
 const { host, notify, notifyPickedResults, notifyResults } = useNoticeFallback(noticeOptions);
@@ -45,11 +42,10 @@ const screenshotScan = useScreenshotScan({
     notifyPicked: (result) => notifyResults([result]),
     onError: () => void notifyScreenshotError(),
     onClose: () => closeTab(),
-    onResultsChanged: ({ count, picked, ok, selectable }) => {
+    onResultsChanged: ({ count, picked, ok }) => {
         // 单码结果的通知就是这次展示, 关掉即关页; 多码等最后一个绿点被点掉;
-        // 没扫到码时: 可框选层留着继续框, 只读结果层没有框选入口, 关掉通知就关页
-        keepOnNoticeDone = false;
-        closeOnNoticeDone = ok ? (picked ? count === 0 : count === 1) : !selectable;
+        // 没扫到码时留着这一页继续框选, 单击才关
+        closeOnNoticeDone = ok && (picked ? count === 0 : count === 1);
     },
     onBlank: async () => {
         // 通知还开着时这一下多半是去关通知, 留到下一次点击再收摊
@@ -91,9 +87,6 @@ function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanCo
             zIndex: SCAN_OVER_SHOT_Z_INDEX,
         }),
         afterDecode: () => scanAnimation.stop(),
-        // 只读结果层没扫到码时给出"框选扫描", 换成可框选的工具在同一张截图上继续扫
-        noResultRetry: context.selectable ? undefined : 'frameScan',
-        onRetry: context.selectable ? undefined : () => void switchToFrameScan(),
         deferResults: true,
     });
 }
@@ -101,11 +94,12 @@ function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanCo
 // 这次扫的视口图: 换到框选工具时要复用同一张, 重新截屏只会截到本页自己
 let shotSrc = '';
 
-// 通知里点"框选扫描": 同一张截图切成可框选的一层, 不重新截屏
+// 通知里点"框选扫描": 同一张截图切成可框选的一层, 不重新截屏;
+// 这条通知收尾时不能把页面关掉, 否则刚打开的框选层会跟着消失
 async function switchToFrameScan() {
     if (!shotSrc) return;
-    keepOnNoticeDone = true;
-    await screenshotScan.open({ src: shotSrc, selectable: true });
+    closeOnNoticeDone = false;
+    await screenshotScan.open({ src: shotSrc });
 }
 
 // 扩展页收不到内容脚本那套 tabs.sendMessage: 自己连一个端口,
@@ -136,9 +130,9 @@ onMounted(async () => {
         }
         shotSrc = stored;
         // 截图交给截图容器承载: 扫描结果、绿点与后续框选都标在这张静止的截图上;
-        // 框选入口只要可框选的一层, 整屏扫描则再自动扫一次整个画面
+        // 框选入口只等用户框一块, 整屏扫描则先自动扫一次整个画面, 之后同样能接着框选
         await screenshotScan.open(frameOnly
-            ? { src: stored, selectable: true }
+            ? { src: stored }
             : { src: stored, autoCapture: fullScreenCapture(stored) });
     } catch (error) {
         await notifyScreenshotError(error);

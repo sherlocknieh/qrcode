@@ -68,7 +68,8 @@ export const handleBackgroundMessage = (
             .catch(() => sendResponse({ success: false }));
         return true;
     }
-    // 通知里的"框选扫描": 图片扫描失败或全屏扫描没扫到码, 由页面打开框选工具让用户自己选一块。
+    // 通知里的"框选扫描": 图片扫描失败, 由页面打开框选工具让用户自己选一块
+    // (截图扫描自己的结果层就能继续框选, 不再需要这个入口)。
     // 内容脚本优先; 扩展页 (capture.html) 收不到 tabs.sendMessage, 走它自己连上来的端口;
     // 都够不着 (扩展商店、独立 SVG 等注入不了脚本的页面) 就截张视口图开可框选的截图页
     if (request.action === 'requestFrameScan') {

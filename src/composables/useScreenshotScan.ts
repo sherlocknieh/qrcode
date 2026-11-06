@@ -5,15 +5,14 @@ import type { DecodeOutcome } from '@/services/recognize';
 import type { DecodeResult } from '@/services/qrScanner';
 
 // 截图扫描: 一张截图 + 框选/整屏 → 解码 → 在冻结的截图上标绿点, 点选逐条出结果。
-// 全屏扫描就是"自动对整屏框选一次", 与用户手动框选共用同一条流程;
+// 全屏扫描就是"自动对整屏框选一次", 与用户手动框选共用同一条流程,
+// 扫完还能接着拖框重扫, 单击 (没拖出选区) 才退出;
 // 内容脚本与独立扫描页都走这里, 不再各写一套截图承载逻辑。
 export type ScreenshotScanCapture = ScreenshotCapture;
 
 export type ScreenshotScanContext = {
     // 选区在视口中的位置: 浮层可能缩成浮窗, 扫描动画按视口定位
     rect: ScanRect;
-    // 这次是不是只读结果层 (全屏扫描): 没扫到码时要给出"框选扫描"入口
-    selectable: boolean;
     // 本次扫描是否已被新的框选/新一轮扫描取代
     isStale(): boolean;
 };
@@ -27,14 +26,13 @@ type ScreenshotScanOptions = {
     notifyPicked(result: DecodeResult): Promise<unknown>;
     // 截图读取失败
     onError?(): void;
-    // 用户主动收起截图 (关闭按钮 / ESC / 点外部)
+    // 用户主动收起截图 (单击 / ESC / 点外部)
     onClose?(): void;
-    // 只读结果层点了空白处
+    // 单击 (没拖出选区) 视为退出, 通知还开着时由宿主忽略
     onBlank?(): void;
     // 结果变化, 通知结束时据此判断要不要收起截图:
-    // count 是画面上还能点的结果数, picked 表示这次变化来自点选, ok 表示本次扫描是否成功,
-    // selectable 表示这次是不是可框选的截图工具 (只读结果层失败后没有继续框选的入口)
-    onResultsChanged?(state: { count: number; picked: boolean; ok: boolean; selectable: boolean }): void;
+    // count 是画面上还能点的结果数, picked 表示这次变化来自点选, ok 表示本次扫描是否成功
+    onResultsChanged?(state: { count: number; picked: boolean; ok: boolean }): void;
 };
 
 export function useScreenshotScan(options: ScreenshotScanOptions) {
@@ -47,8 +45,6 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     let seq = 0;
     // 每次打开截图会话递增: 上一张截图里的异步结果不再影响新画面
     let epoch = 0;
-    // 当前这层是可框选的截图工具, 还是只展示结果的只读层
-    let selectable = true;
 
     // 通知宿主结果集合的变化: count 是画面上还能点的码数
     function publish(picked: boolean, ok = true) {
@@ -56,7 +52,6 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
             count: pickedFlags.filter((flag) => !flag).length,
             picked,
             ok,
-            selectable,
         });
     }
 
@@ -81,7 +76,6 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         const outcome = await options.decode(capture, {
             // 扫描动画在页面上按视口定位, 浮窗模式下要把选区换算出去
             rect: current.toViewportRect(capture.rect),
-            selectable,
             isStale: () => currentEpoch !== epoch || currentSeq !== seq,
         });
         if (currentEpoch !== epoch || currentSeq !== seq || session !== current) return;
@@ -110,19 +104,15 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     async function open(params: {
         src?: string;
         autoCapture?: ScreenshotScanCapture;
-        selectable?: boolean;
     } = {}): Promise<boolean> {
         close();
         const currentEpoch = epoch;
         resetResults();
-        // 全屏扫描只需要结果展示, 默认不给框选与工具按钮; 手动框选入口保留完整截图工具
-        selectable = params.selectable ?? !params.autoCapture;
         try {
             const opened = await startScreenshot({
                 src: params.src,
                 // 整屏自动扫描不播入场动画, 否则收缩动画会和扫描光带叠在一起
                 intro: params.autoCapture ? false : undefined,
-                selectable,
                 onBlank: () => options.onBlank?.(),
                 onPick: (index) => {
                     const result = results[index];

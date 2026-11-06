@@ -11,10 +11,8 @@ const props = withDefaults(
         src: string;
         // 是否播放"全屏闪光 -> 收缩到居中窗口"的入场动画
         intro?: boolean;
-        // 只读结果层: 只展示截图与结果绿点, 不允许框选, 也不显示工具按钮
-        selectable?: boolean;
     }>(),
-    { intro: false, selectable: true },
+    { intro: false },
 );
 
 const emit = defineEmits<{
@@ -22,7 +20,7 @@ const emit = defineEmits<{
     (event: 'confirm', payload: { dataUrl: string; rect: Rect; viewport: { width: number; height: number } }): void;
     // 点中结果绿点: 宿主把通知切到该码
     (event: 'pick', index: number): void;
-    // 只读结果层上点了空白处: 宿主确认没有通知在显示后收起这层
+    // 单击 (没拖出选区) 视为退出: 宿主确认没有通知在显示后收起这层
     (event: 'blank'): void;
     (event: 'cancel'): void;
     (event: 'error'): void;
@@ -106,7 +104,7 @@ const imageSize = ref({ width: 0, height: 0 });
 const loaded = ref(false);
 const selection = ref<Rect | null>(null);
 const toolbarPosition = ref({ left: 0, top: 0 });
-const cursor = ref(props.selectable ? 'crosshair' : 'default');
+const cursor = ref('crosshair');
 
 // 每次截图默认铺满视口; 窗口尺寸变化后自动切为居中大浮窗
 const floatingMode = ref(false);
@@ -134,6 +132,9 @@ const pickedMarks = ref<boolean[]>([]);
 let archivedMarks: ScanRect[] | null = null;
 let archivedPicked: boolean[] | null = null;
 let archivedSelection: Rect | null = null;
+// 冻结画面上的按下既可能是单击 (退出) 也可能是要拖框: 先只记快照,
+// 真拖出选区才撤下绿框; 按下就清空的话, 松手前会渲染出一帧没有绿框的画面 (框会闪一下)
+let pendingArchive: { marks: ScanRect[]; picked: boolean[]; selection: Rect | null } | null = null;
 const sourceViewport = ref<{ width: number; height: number } | null>(null);
 // 仅在浮窗模式且未要求减少动态效果时才播放入场动画
 const canAnimateIntro = computed(() => floatingMode.value && !prefersReducedMotion);
@@ -457,19 +458,36 @@ function startIntro() {
     }, INTRO_FLASH_DURATION);
 }
 
+// 真的开始拖框时才撤下上一轮绿框: 快照先放着, 拖出选区再落到 archived*
+function archivePending() {
+    if (!pendingArchive) return;
+    archivedMarks = pendingArchive.marks;
+    archivedPicked = pendingArchive.picked;
+    archivedSelection = pendingArchive.selection;
+    pendingArchive = null;
+    resultMarks.value = [];
+    pickedMarks.value = [];
+    frozen.value = false;
+}
+
+// 放弃这次框选: 把上一轮绿框与选区原样放回来
+function restoreArchived(): boolean {
+    if (archivedMarks === null) return false;
+    resultMarks.value = archivedMarks;
+    pickedMarks.value = archivedPicked ?? archivedMarks.map(() => false);
+    selection.value = archivedSelection;
+    archivedMarks = null;
+    archivedPicked = null;
+    archivedSelection = null;
+    frozen.value = true;
+    return true;
+}
+
 // 取消: 在结果画面上重新框选时只撤回这次框选, 其余情况收起浮层
 const cancel = () => {
     if (busy.value) return;
-    if (archivedMarks !== null) {
-        resultMarks.value = archivedMarks;
-        pickedMarks.value = archivedPicked ?? archivedMarks.map(() => false);
-        selection.value = archivedSelection;
-        archivedMarks = null;
-        archivedPicked = null;
-        archivedSelection = null;
-        frozen.value = true;
-        return;
-    }
+    pendingArchive = null;
+    if (restoreArchived()) return;
     emit('cancel');
 };
 
@@ -502,23 +520,16 @@ const handleWheel = (event: WheelEvent) => {
     event.preventDefault();
 };
 
-// 只读结果层没有工具栏: 点画面空白处交给宿主收起 (通知还开着时由宿主忽略)
-const handleCanvasClick = () => {
-    if (props.selectable) return;
-    emit('blank');
-};
-
+// 结果画面上继续框选: 拖出选区后照常确认、扫描新区域;
+// 没拖出选区就松开的行为在 pointerup 里处理
 const handlePointerDown = (event: PointerEvent) => {
-    if (!props.selectable || busy.value || event.button !== 0) return;
-    // 结果画面上继续框选: 先收起上一轮绿框, 拖出选区后照常确认、扫描新区域
+    if (busy.value || event.button !== 0) return;
     if (frozen.value) {
-        archivedMarks = resultMarks.value;
-        archivedPicked = pickedMarks.value;
-        archivedSelection = selection.value;
-        resultMarks.value = [];
-        pickedMarks.value = [];
-        selection.value = null;
-        frozen.value = false;
+        pendingArchive = {
+            marks: resultMarks.value,
+            picked: pickedMarks.value,
+            selection: selection.value,
+        };
     }
     event.preventDefault();
     // 捕获指针, 保证在窗口外松开鼠标时也能收到 pointerup
@@ -539,13 +550,20 @@ const handlePointerDown = (event: PointerEvent) => {
 };
 
 const handlePointerMove = (event: PointerEvent) => {
-    if (!props.selectable || busy.value) return;
+    if (busy.value) return;
     const { x, y } = getPointerPosition(event);
     if (!drag) {
         updateCursor(x, y);
         return;
     }
     event.preventDefault();
+    // 按下后真的拖开了才撤下绿框, 单击只清光标不动画面
+    if (
+        pendingArchive
+        && (Math.abs(x - drag.startX) >= MIN_SELECTION || Math.abs(y - drag.startY) >= MIN_SELECTION)
+    ) {
+        archivePending();
+    }
 
     if (drag.mode === 'create') {
         selection.value = {
@@ -585,23 +603,30 @@ const handlePointerUp = (event: PointerEvent) => {
     if (!drag) return;
     const mode = drag.mode;
     drag = null;
+    // 单击时快照直接丢掉: 画面本来就没被动过, 不必清空再恢复
+    pendingArchive = null;
     if (selection.value && !hasSelection.value) {
         selection.value = null;
-        // 没有工具栏关闭按钮了: 单击空白 (没拖出选区) 就收起框选层
-        if (mode === 'create') emit('cancel');
+        // 单击 (没拖出选区) 就是退出: 交给宿主收摊, 通知还开着时宿主会忽略, 画面保持原样
+        if (mode === 'create') {
+            restoreArchived();
+            emit('blank');
+        }
     }
 };
 
 const handleOutsidePointerDown = (event: PointerEvent) => {
-    if (!props.selectable) return;
     const target = event.target;
     if (!loaded.value || busy.value) return;
     if (target instanceof Node && rootRef.value?.contains(target)) return;
+    // 页面内兜底通知叠在截图层之上 (通知宿主挂在 body 上, 不在截图容器内):
+    // 点它是去关通知, 不算点外部, 否则关通知的同时会把截图一起收掉, 没法接着框选
+    if (target instanceof Element && target.closest('.qr-notify-root')) return;
     cancel();
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-    if (!props.selectable || !loaded.value || busy.value) return;
+    if (!loaded.value || busy.value) return;
     if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -701,6 +726,7 @@ defineExpose({
         frozen.value = true;
         archivedMarks = null;
         archivedSelection = null;
+        pendingArchive = null;
         // 识别完成即收起这次选区: 遮罩恢复整片压暗, 只留结果绿框;
         // 否则高亮块会一直挂在画面上, 看着像还在扫这一块
         selection.value = null;
@@ -717,6 +743,7 @@ defineExpose({
         frozen.value = true;
         archivedMarks = null;
         archivedSelection = null;
+        pendingArchive = null;
         if (rect) selection.value = rect;
         resultMarks.value = [];
         pickedMarks.value = [];
@@ -757,8 +784,7 @@ defineExpose({
             :width="pixelWidth"
             :height="pixelHeight"
             :style="canvasStyle"
-            @pointerdown="handlePointerDown"
-            @click="handleCanvasClick" />
+            @pointerdown="handlePointerDown" />
         <!-- 扫描结果直接标在冻结的截图上: 绿框按截图时的视口坐标换算到浮层当前显示区域 -->
         <div
             v-if="frozen && resultMarks.length"

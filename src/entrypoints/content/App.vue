@@ -35,13 +35,14 @@ const screenshotScan = useScreenshotScan({
     notifyResults: (results) => notifyPickedResults(results),
     notifyPicked: (result) => notifyResults([result]),
     onError: () => notifyScreenshotError({ type: 'failed' }),
-    onResultsChanged: ({ count, picked, ok, selectable }) => {
+    onResultsChanged: ({ count, picked, ok }) => {
         // 单码结果的通知就是这次展示, 关掉即收起截图; 多码等最后一个绿点被点掉;
-        // 只读结果层没扫到也没有框选入口, 关掉通知就收起
-        closeShotOnNotice = ok ? (picked ? count === 0 : count === 1) : !selectable;
+        // 没扫到时留着截图, 用户可以直接拖下一块重扫, 单击才收起
+        closeShotOnNotice = ok && (picked ? count === 0 : count === 1);
     },
     onBlank: async () => {
-        // 只读结果层没有关闭按钮: 通知还开着时这一下多半是去关通知, 留到下一次点击再收
+        // 截图层没有关闭按钮, 单击空白就是退出: 通知还开着时这一下多半是去关通知,
+        // 留到下一次点击再收
         if (await isNoticeVisible()) return;
         closeShotOnNotice = false;
         screenshotScan.close();
@@ -280,10 +281,6 @@ function decodeScreenshotCapture(
         }),
         afterDecode: () => scanAnimation.stop(),
         deferResults: true,
-        // 全屏扫描没扫到码时给出"框选扫描"入口, 换到可框选的截图工具继续扫;
-        // 已经是框选层就不必再给
-        noResultRetry: context.selectable ? undefined : 'frameScan',
-        onRetry: context.selectable ? undefined : () => void openFrameScan(),
     });
 }
 

@@ -43,9 +43,7 @@ type StartOptions = {
     src?: string;
     // 是否播放入场动画, 缺省读用户设置
     intro?: boolean;
-    // 只读结果层: 不允许框选, 也不显示工具按钮 (全屏扫描用)
-    selectable?: boolean;
-    // 只读结果层点了空白处
+    // 单击画面空白处 (没拖出选区): 视为退出, 宿主确认通知已收起后再收掉这层
     onBlank?(): void;
 };
 
@@ -96,7 +94,6 @@ export function useScreenshot() {
             app = createApp(ScreenshotOverlay, {
                 src,
                 intro,
-                selectable: options.selectable ?? true,
                 onBlank: () => options.onBlank?.(),
                 onConfirm: (payload: ScreenshotCapture) => options.onCapture(payload),
                 onPick: (index: number) => options.onPick?.(index),
