@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
 import { overlayMountPoint, overlayZIndex } from '@/services/overlayHost';
 import { t } from '@/services/i18n';
@@ -24,10 +24,18 @@ function pick(index: number) {
 
 const pickHint = t('pickCodeHint');
 
-const anchored = computed(() => (props.anchor ? overlayMountPoint(props.anchor) : null));
+// 修复绿框消失时连闪几下: 清标记的同时锚点也会变成空, Teleport 的挂载点当场从图片容器切回原位,
+// Vue 只好重建整个标记层, 绿框的入场动画与整层的退场淡出都从第一帧重放, 看上去就是闪了好几次。
+// 因此只在拿到锚点时更新它, 收起阶段继续挂在上一次的锚点里, 让退场在原地安静淡出
+const lastAnchor = ref<Element | null>(null);
+watch(() => props.anchor, (anchor) => {
+    if (anchor) lastAnchor.value = anchor;
+}, { immediate: true });
+
+const anchored = computed(() => (lastAnchor.value ? overlayMountPoint(lastAnchor.value) : null));
 // 只有真的挂进了图片所在容器才交给页面层级; 退回 body 时仍需覆盖视口的最高层, 否则会被页面浮层盖住
 const inPageLayer = computed(() => anchored.value !== null && anchored.value !== document.body);
-const rootStyle = computed(() => (inPageLayer.value ? { zIndex: overlayZIndex(props.anchor) ?? 'auto' } : undefined));
+const rootStyle = computed(() => (inPageLayer.value ? { zIndex: overlayZIndex(lastAnchor.value) ?? 'auto' } : undefined));
 
 const rectStyle = (rect: ScanRect) => ({
     left: `${rect.x}px`,
