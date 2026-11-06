@@ -96,6 +96,13 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                     session?.markPicked(index);
                     void options.notifyPicked(result);
                 },
+                onDismiss: (index) => {
+                    if (!results[index]) return;
+                    // 收掉一块绿框: 画面上删掉的那块, 结果列表里也要同步删掉,
+                    // 否则后面按同样的下标点选会取到别的码
+                    results = results.filter((_, resultIndex) => resultIndex !== index);
+                    session?.removeResult(index);
+                },
                 onCapture: (capture) => void scan(capture),
                 onError: () => options.onError?.(),
                 onClose: () => {

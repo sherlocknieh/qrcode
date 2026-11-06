@@ -20,6 +20,8 @@ const emit = defineEmits<{
     (event: 'confirm', payload: { dataUrl: string; rect: Rect; viewport: { width: number; height: number } }): void;
     // 点中结果绿点: 宿主把通知切到该码
     (event: 'pick', index: number): void;
+    // 点一下已经看过的绿框 / 单码绿框: 宿主收掉这一块
+    (event: 'dismiss', index: number): void;
     // 单击 (没拖出选区) 视为退出: 宿主确认没有通知在显示后收起这层
     (event: 'blank'): void;
     (event: 'cancel'): void;
@@ -756,6 +758,12 @@ defineExpose({
             markIndex === index ? true : flag
         ));
     },
+    // 收掉一块绿框: 按下标从同两份列表里删, 与宿主那份结果列表保持同一顺序
+    removeResult(index: number) {
+        if (index < 0 || index >= resultMarks.value.length) return;
+        resultMarks.value = resultMarks.value.filter((_, markIndex) => markIndex !== index);
+        pickedMarks.value = pickedMarks.value.filter((_, markIndex) => markIndex !== index);
+    },
     // 浮层显示区域坐标 → 视口坐标: 扫描动画挂在页面上, 浮窗模式下要加上窗口偏移
     toViewportRect(rect: ScanRect): ScanRect {
         const { left, top } = layout.value;
@@ -790,7 +798,11 @@ defineExpose({
             v-if="frozen && resultMarks.length"
             class="qr-shot-marks"
             :style="marksLayerStyle">
-            <ScanMarks :rects="resultMarks" :picked="pickedMarks" @pick="emit('pick', $event)" />
+            <ScanMarks
+                :rects="resultMarks"
+                :picked="pickedMarks"
+                @pick="emit('pick', $event)"
+                @dismiss="emit('dismiss', $event)" />
         </div>
         <!-- 截图闪光效果容器 -->
         <div v-if="flashing" class="qr-shot-flash" aria-hidden="true">

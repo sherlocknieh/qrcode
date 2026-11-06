@@ -24,6 +24,8 @@ export type ScreenshotSession = {
     clearResults(rect?: ScanRect): void;
     // 点中一个绿点后只摘掉它的圆点, 绿框留着标出这个码已经看过
     markPicked(index: number): void;
+    // 收掉一块绿框 (点一下看过的框): 绿框与它的点选状态一起删掉
+    removeResult(index: number): void;
     // 把浮层显示区域里的坐标换算成视口坐标 (扫描动画按视口定位)
     toViewportRect(rect: ScanRect): ScanRect;
     // 收起浮层, 回到页面
@@ -35,6 +37,8 @@ type StartOptions = {
     onCapture(capture: ScreenshotCapture): void;
     // 点中绿框上的绿点: 由调用方把通知切到该码
     onPick?(index: number): void;
+    // 点一下已经看过的绿框: 由调用方把这块从结果里收掉
+    onDismiss?(index: number): void;
     // 截图读不出来, 由调用方提示失败
     onError?(): void;
     // 用户主动收起截图 (关闭按钮 / ESC / 点外部)
@@ -97,6 +101,7 @@ export function useScreenshot() {
                 onBlank: () => options.onBlank?.(),
                 onConfirm: (payload: ScreenshotCapture) => options.onCapture(payload),
                 onPick: (index: number) => options.onPick?.(index),
+                onDismiss: (index: number) => options.onDismiss?.(index),
                 onCancel: () => {
                     options.onClose?.();
                     dispose();
@@ -112,6 +117,7 @@ export function useScreenshot() {
                 showResults: (marks: ScanRect[]) => overlay?.showResults(marks),
                 clearResults: (rect?: ScanRect) => overlay?.clearResults(rect),
                 markPicked: (index: number) => overlay?.markPicked(index),
+                removeResult: (index: number) => overlay?.removeResult(index),
                 toViewportRect: (rect: ScanRect) => overlay?.toViewportRect(rect) ?? rect,
                 close: dispose,
             });

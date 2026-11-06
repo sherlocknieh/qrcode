@@ -129,6 +129,20 @@ export function useCodePicker(options: CodePickerOptions) {
         void options.notifyResults([result]);
     }
 
+    // 收掉单块绿框: 点开过的灰框与单码框都只标位置, 再点一下就不再留着,
+    // 顺着同一份结果列表删, 最后一个框收掉时整层随之消失
+    function removeMark(index: number) {
+        const current = picked.value;
+        if (!current || !current.results[index]) return;
+        const results = current.results.filter((_, i) => i !== index);
+        pickedFlags.value = pickedFlags.value.filter((_, i) => i !== index);
+        if (!results.length) {
+            clear();
+            return;
+        }
+        picked.value = { ...current, results };
+    }
+
     // 通知窗口是否还开着 (含刚被这次点击点掉的情况): 内容脚本发起的通知都落在 popup 里
     async function isNoticeWindowOpen(): Promise<boolean> {
         try {
@@ -193,5 +207,5 @@ export function useCodePicker(options: CodePickerOptions) {
         document.removeEventListener('click', onDocumentClick, true);
     });
 
-    return { marks, anchorElement, pickedFlags, remaining, show, clear, pick };
+    return { marks, anchorElement, pickedFlags, remaining, show, clear, pick, removeMark };
 }

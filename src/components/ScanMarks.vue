@@ -5,11 +5,11 @@ import { overlayMountPoint, overlayZIndex } from '@/services/overlayHost';
 import { t } from '@/services/i18n';
 
 // 扫描命中后标出码的位置: 每个码上叠可点击绿点, 由用户选用哪一个
-// picked 标出已经点开过的码: 这些码只留绿框做位置标记, 圆点摘掉也不再接收点击
+// picked 标出已经点开过的码: 这些码只留绿框做位置标记, 圆点摘掉
 // anchor 传图片元素时绿框跟随图片所在层, 只压住图片而不遮挡页面自己的浮层(如维基的下载面板);
 // 整屏截图等没有实体图片的场景不传, 仍覆盖整个视口
 const props = defineProps<{ rects: ScanRect[]; anchor?: Element | null; picked?: boolean[] }>();
-const emit = defineEmits<{ pick: [index: number] }>();
+const emit = defineEmits<{ pick: [index: number]; dismiss: [index: number] }>();
 
 // 绿点只用来在多个码之间做选择: 只有一个码时不需要它
 const showDots = computed(() => props.rects.length > 1);
@@ -20,6 +20,16 @@ const isPicked = (index: number) => props.picked?.[index] === true;
 function pick(index: number) {
     if (!showDots.value || isPicked(index)) return;
     emit('pick', index);
+}
+
+// 点框内的分工: 还没点过的码把通知切到它, 已经看过的灰框与单码框只标位置,
+// 再点一下就是"看过这一块了", 让宿主把这块收掉, 免得一直压在页面上
+function activate(index: number) {
+    if (showDots.value && !isPicked(index)) {
+        emit('pick', index);
+        return;
+    }
+    emit('dismiss', index);
 }
 
 const pickHint = t('pickCodeHint');
@@ -61,11 +71,11 @@ function dotStyle(rect: ScanRect) {
                     class="qr-marks-item"
                     :class="{ 'qr-marks-item--picked': isPicked(index) }"
                     :style="rectStyle(rect)"
-                    @click.stop.prevent="pick(index)"
+                    @click.stop.prevent="activate(index)"
                 >
                     <span class="qr-marks-box" />
                     <!-- 单个码不叠绿点: 绿点是给多码点选用的, 只有一个码时结果通知已经展示过,
-                         点还压在码中央会挡住内容; 这块框只标位置, 点击由外层就地吞掉 -->
+                         点还压在码中央会挡住内容; 这块框只标位置, 点一下就能收掉 -->
                     <button
                         v-if="showDots && !isPicked(index)"
                         type="button"
@@ -109,8 +119,7 @@ function dotStyle(rect: ScanRect) {
     opacity: 1;
     animation: qr-marks-pop 200ms ease both;
     /* 整个绿框区域都能点选: 不必非得点中中间的小绿点;
-       点过的码与单码不再响应点选, 但同样按这块区域接住点击(穿透会触发下层交互),
-       光标也统一保持手型, 让人一眼看出这块区域会吃掉点击 */
+       点过的码与单码点一下是收掉这块(也顺带挡住点击, 免得穿到网页触发下层交互) */
     pointer-events: auto;
     cursor: pointer;
 }
