@@ -100,7 +100,7 @@
     "description": "相机错误通知的标题"
   },
   "cameraPermissionDenied": {
-    "message": "相机权限被拒绝，请在浏览器设置中允许本扩展使用相机。",
+    "message": "相机权限被拒绝\n请在浏览器设置中允许本扩展使用相机。",
     "description": "相机权限被拒绝时的错误文案"
   },
   "cameraNotFound": {
@@ -108,7 +108,7 @@
     "description": "没有可用相机设备时的错误文案"
   },
   "cameraBusy": {
-    "message": "相机正被其他程序占用，请关闭占用程序后重试。",
+    "message": "相机正被其他程序占用\n请关闭占用程序后重试。",
     "description": "相机被占用时的错误文案"
   },
   "cameraIdle": {
@@ -160,7 +160,7 @@
     "description": "获取图片时的加载提示"
   },
   "fetchingImageHint": {
-    "message": "由于浏览器限制，跨域图片需要从源头下载，首次加载可能稍慢，请耐心等待",
+    "message": "由于浏览器限制，跨域图片需要从源头下载\n首次加载可能稍慢，请耐心等待",
     "description": "获取图片较慢时的说明文字"
   },
   "fetchTimeout": {
@@ -168,7 +168,7 @@
     "description": "图片迟迟没有下载完时的提示标题"
   },
   "fetchTimeoutHint": {
-    "message": "图片一直没能下载下来, 可以改用扫描屏幕: 直接截取当前画面识别其中的码。",
+    "message": "图片一直没能下载下来\n可以改用扫描屏幕: 直接截取当前画面识别其中的码。",
     "description": "图片获取超时时建议改用扫描屏幕的说明"
   },
   "qrcodeScanSuccess": {
@@ -224,31 +224,31 @@
     "description": "图片加载失败错误标题"
   },
   "errorHintFileAccess": {
-    "message": "扩展还没有访问本地文件的权限。请在扩展详情页开启“允许访问文件网址”后重试，或改用“上传图片扫描”功能。",
+    "message": "扩展还没有访问本地文件的权限\n请在扩展详情页开启“允许访问文件网址”后重试，或改用“上传图片扫描”功能。",
     "description": "浏览器拒绝扩展访问 file:// 页面时的错误提示"
   },
   "errorHintCrossOrigin": {
-    "message": "图片来自其他网站或受保护，浏览器不允许扩展读取它的像素，可改用框选扫描识别。",
+    "message": "图片来自其他网站或受保护，浏览器不允许扩展读取它的像素\n可改用框选扫描识别。",
     "description": "跨域图片无法读取像素时的错误提示"
   },
   "errorHintNetwork": {
-    "message": "图片下载失败，请检查网络，或确认图片地址仍然有效。",
+    "message": "图片下载失败\n请检查网络，或确认图片地址仍然有效。",
     "description": "图片请求失败时的错误提示"
   },
   "errorHintDecode": {
-    "message": "图片无法解码，可能格式不受支持或文件已损坏，也可能是链接返回的不是图片。",
+    "message": "图片无法解码\n可能格式不受支持或文件已损坏，也可能是链接返回的不是图片。",
     "description": "图片数据无法解码时的错误提示"
   },
   "errorHintLocalFile": {
-    "message": "读取本地文件失败，文件可能已被移动、删除或没有访问权限，请重新选择。",
+    "message": "读取本地文件失败\n文件可能已被移动、删除或没有访问权限，请重新选择。",
     "description": "读取本地图片文件失败时的错误提示"
   },
   "errorHintTooLarge": {
-    "message": "图片太大，内存不足，请换一张尺寸更小的图片。",
+    "message": "图片太大，内存不足\n请换一张尺寸更小的图片。",
     "description": "图片过大导致内存不足时的错误提示"
   },
   "errorHintEmptyImage": {
-    "message": "图片没有任何可显示的内容，请换一张图片。",
+    "message": "图片没有任何可显示的内容\n请换一张图片。",
     "description": "图片尺寸为 0 时的错误提示"
   },
   "error": {
@@ -268,7 +268,7 @@
     "description": "截图操作失败的提示标题"
   },
   "screenshotFailedMsg": {
-    "message": "无法完成截图，请确认当前页面是普通网页后重试。",
+    "message": "无法完成截图\n请确认当前页面是普通网页后重试。",
     "description": "截图失败的提示信息"
   },
   "screenshotCopyFailed": {

@@ -100,7 +100,7 @@
     "description": "Title of the camera error notice"
   },
   "cameraPermissionDenied": {
-    "message": "Camera access was denied. Allow camera access for this extension in your browser settings.",
+    "message": "Camera access was denied.\nAllow camera access for this extension in your browser settings.",
     "description": "Error text when camera permission is denied"
   },
   "cameraNotFound": {
@@ -108,7 +108,7 @@
     "description": "Error text when no camera device is available"
   },
   "cameraBusy": {
-    "message": "The camera is being used by another application. Close it and try again.",
+    "message": "The camera is being used by another application.\nClose it and try again.",
     "description": "Error text when the camera is occupied"
   },
   "cameraIdle": {
@@ -160,7 +160,7 @@
     "description": "Loading message when fetching image"
   },
   "fetchingImageHint": {
-    "message": "Cross-origin or CDN images are fetched via the extension; the first scan is slower.",
+    "message": "Cross-origin or CDN images are fetched via the extension.\nThe first scan is slower, so please wait.",
     "description": "Explanation shown when loading the image takes a while"
   },
   "fetchTimeout": {
@@ -168,7 +168,7 @@
     "description": "Title shown when fetching the image does not finish in time"
   },
   "fetchTimeoutHint": {
-    "message": "The image hasn't been downloaded yet. You can scan the screen instead: it captures the current view and reads the code from it.",
+    "message": "The image hasn't been downloaded yet.\nYou can scan the screen instead: it captures the current view and reads the code from it.",
     "description": "Suggestion shown when fetching the image times out"
   },
   "qrcodeScanSuccess": {
@@ -224,31 +224,31 @@
     "description": "Error dialog title for image loading failure"
   },
   "errorHintFileAccess": {
-    "message": "The extension isn't allowed to access local files yet. Turn on \"Allow access to file URLs\" in the extension's details page and try again, or save the image and scan it with the image picker.",
+    "message": "The extension isn't allowed to access local files yet.\nTurn on \"Allow access to file URLs\" in the extension's details page and try again, or save the image and scan it with the image picker.",
     "description": "Shown when the browser blocks the extension from accessing a file:// page"
   },
   "errorHintCrossOrigin": {
-    "message": "This image comes from another site or is protected, so the browser won't let the extension read its pixels. Try scanning a selection of the screen instead.",
+    "message": "This image comes from another site or is protected, so the browser won't let the extension read its pixels.\nTry scanning a selection of the screen instead.",
     "description": "Shown when a cross-origin image cannot be read from the canvas"
   },
   "errorHintNetwork": {
-    "message": "The image couldn't be downloaded. Check your connection, or make sure the image address is still valid.",
+    "message": "The image couldn't be downloaded.\nCheck your connection, or make sure the image address is still valid.",
     "description": "Shown when the image request fails"
   },
   "errorHintDecode": {
-    "message": "The image couldn't be decoded. The format may be unsupported, the file may be damaged, or the link may not point to an image.",
+    "message": "The image couldn't be decoded.\nThe format may be unsupported, the file may be damaged, or the link may not point to an image.",
     "description": "Shown when the image data cannot be decoded"
   },
   "errorHintLocalFile": {
-    "message": "The local file couldn't be read. It may have been moved, deleted, or made inaccessible. Please choose it again.",
+    "message": "The local file couldn't be read.\nIt may have been moved, deleted, or made inaccessible. Please choose it again.",
     "description": "Shown when reading a local image file fails"
   },
   "errorHintTooLarge": {
-    "message": "The image is too large to process in memory. Try a smaller image.",
+    "message": "The image is too large to process in memory.\nTry a smaller image.",
     "description": "Shown when the image is too large to load"
   },
   "errorHintEmptyImage": {
-    "message": "The image has nothing to display. Try another image.",
+    "message": "The image has nothing to display.\nTry another image.",
     "description": "Shown when the image has no size"
   },
   "error": {
@@ -268,7 +268,7 @@
     "description": "Error title for screenshot operation failure"
   },
   "screenshotFailedMsg": {
-    "message": "The screenshot could not be captured. Make sure the page is a regular web page and try again.",
+    "message": "The screenshot could not be captured.\nMake sure the page is a regular web page and try again.",
     "description": "Message shown when screenshot scan fails"
   },
   "screenshotCopyFailed": {
