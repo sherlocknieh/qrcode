@@ -45,14 +45,14 @@ const addContextMenus = () => new Promise<void>((resolve) => {
         // 框选页面上特定区域扫描
         browser.contextMenus.create({
             id: 'scanRegion',
-            title: setMenuTitle('scanRegion', '🔲'),
+            title: setMenuTitle('scanRegion', '🔲'),  //❇️
             contexts: ['action', 'page_action'],
             ...setMenuIcon('scanRegion'),
         });
         // 外部来源扫描: 相机/本地图片扫描
         browser.contextMenus.create({
             id: 'scanCamera',
-            title: setMenuTitle('scanCamera', '📷'),
+            title: setMenuTitle('scanCamera', '📷'),  //🏜️
             contexts: ['action', 'page_action'],
             ...setMenuIcon('camera'),
         });
