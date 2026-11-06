@@ -34,7 +34,7 @@ const screenshotScan = useScreenshotScan({
     notifyPicked: (result) => notifyResults([result]),
     onError: () => notifyScreenshotError({ type: 'failed' }),
     // 多码还没点完时的单击 (没拖出选区): 通知还开着的话这一下是去消通知的,
-    // 截图与绿框都留着; 通知消掉后再点空白才收起 (单结果由扫描层直接收起)
+    // 截图与绿框都留着; 通知消掉后再点空白才收起 (没扫到或只有一个码时由扫描层直接收起)
     onBlank: async () => {
         if (await isNoticeShowing()) return;
         screenshotScan.close();

@@ -16,7 +16,7 @@
     "description": "Context menu item for generating QR code from selected text"
   },
   "qrInputPlaceholder": {
-    "message": "Enter text to generate a QR code",
+    "message": "Enter text to generate QR code",
     "description": "Placeholder of the QR code input field"
   },
   "moreOptions": {
@@ -108,7 +108,7 @@
     "description": "Error text when the camera is occupied"
   },
   "cameraButtonHint": {
-    "message": "Camera is OFF, tap to turn it ON",
+    "message": "Camera is off, click to turn it on",
     "description": "Hint inside the viewfinder before the camera starts"
   },
   "cameraOffHint": {
