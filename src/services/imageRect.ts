@@ -38,6 +38,20 @@ export function measureImageRect(img: HTMLImageElement): ScanRect | undefined {
     return drawn;
 }
 
+// 等图片解码出固有尺寸后再量, data URL 在 DOM 更新后仍可能在解码
+export async function measureDecodedImage(img: HTMLImageElement): Promise<ScanRect | undefined> {
+    if (!img.complete) await img.decode().catch(() => undefined);
+    return measureImageRect(img);
+}
+
+// 普通块元素: 盒子本身就是绘制区域 (视频画面、取景框)
+export function measureElementBox(element: Element | null | undefined): ScanRect | undefined {
+    if (!element) return undefined;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return undefined;
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+}
+
 // 两个矩形的交集, 没有重叠时返回 undefined
 export function intersectRect(a: ScanRect, b: ScanRect): ScanRect | undefined {
     const x = Math.max(a.x, b.x);
