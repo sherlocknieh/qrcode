@@ -13,6 +13,8 @@ export type ScreenshotScanCapture = ScreenshotCapture;
 export type ScreenshotScanContext = {
     // 选区在视口中的位置: 浮层可能缩成浮窗, 扫描动画按视口定位
     rect: ScanRect;
+    // 这次是不是"打开后自动整屏扫一次": 没扫到时要退回纯框选态并给出重入口
+    fullScreen: boolean;
     // 本次扫描是否已被新的框选/新一轮扫描取代
     isStale(): boolean;
 };
@@ -41,9 +43,11 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     let seq = 0;
     // 每次打开截图会话递增: 上一张截图里的异步结果不再影响新画面
     let epoch = 0;
+    // 最近一次打开用的截好图: 通知里点"尝试框选扫描"时用它重开被收起的截图层
+    let lastSrc: string | undefined;
 
     // 对截图上的一块 (整屏也走这里) 解码并把结果标回画面
-    async function scan(capture: ScreenshotScanCapture) {
+    async function scan(capture: ScreenshotScanCapture, fullScreen = false) {
         const current = session;
         if (!current) return;
         const currentEpoch = epoch;
@@ -52,13 +56,15 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         const outcome = await options.decode(capture, {
             // 扫描动画在页面上按视口定位, 浮窗模式下要把选区换算出去
             rect: current.toViewportRect(capture.rect),
+            fullScreen,
             isStale: () => currentEpoch !== epoch || currentSeq !== seq,
         });
         if (currentEpoch !== epoch || currentSeq !== seq || session !== current) return;
         if (outcome.status !== 'ok') {
-            // 没扫到或出错: 留住截图, 并保留这次的挖空范围 (整屏扫描就是整个画面),
-            // 用户能看清刚才扫的是哪一块, 接着框选重扫
-            current.clearResults(capture.rect);
+            // 没扫到或出错: 留住截图, 直接进入框选态等用户拖一块重扫。
+            // 整屏扫描不留整屏选区 (否则拖哪都是在移动那块全覆盖的选区), 用户自己框的则留着,
+            // 让他看清刚才扫的是哪一块, 接着拖下一块
+            current.clearResults(fullScreen ? undefined : capture.rect);
             results = [];
             return;
         }
@@ -80,14 +86,17 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
     async function open(params: {
         src?: string;
         autoCapture?: ScreenshotScanCapture;
+        intro?: boolean;
     } = {}): Promise<boolean> {
         close();
         const currentEpoch = epoch;
+        // 记下这张图: 通知里点"尝试框选扫描"时若截图层已被收起, 用它原样重开
+        lastSrc = params.src;
         try {
             const opened = await startScreenshot({
                 src: params.src,
                 // 整屏自动扫描不播入场动画, 否则收缩动画会和扫描光带叠在一起
-                intro: params.autoCapture ? false : undefined,
+                intro: params.intro ?? (params.autoCapture ? false : undefined),
                 onBlank: () => options.onBlank?.(),
                 onPick: (index) => {
                     const result = results[index];
@@ -120,12 +129,23 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                 return false;
             }
             session = opened;
-            if (params.autoCapture) await scan(params.autoCapture);
+            if (params.autoCapture) await scan(params.autoCapture, true);
             return true;
         } catch {
             options.onError?.();
             return false;
         }
+    }
+
+    // 进入框选态: 现有截图层还开着就直接退回纯框选 (不重新截屏、不播入场动画);
+    // 用户已经把截图层收起时才用上那张图重开一层
+    async function frameScan(): Promise<boolean> {
+        if (session) {
+            session.clearResults();
+            return true;
+        }
+        if (lastSrc) return open({ src: lastSrc, intro: false });
+        return false;
     }
 
     function close() {
@@ -136,5 +156,5 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
         session = null;
     }
 
-    return { open, close };
+    return { open, close, frameScan };
 }

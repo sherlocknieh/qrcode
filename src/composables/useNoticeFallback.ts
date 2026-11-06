@@ -108,9 +108,11 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     }
 
     // 未扫描到码: 只有调用方真的能再试一次时才给出重试按钮,
-    // 按钮方式 (整屏重扫 / 框选) 由调用方决定
+    // 按钮方式 (整屏重扫 / 框选) 由调用方决定;
+    // dismiss 例外: 页面已经可以框选, 按钮只负责关通知, 因此不要求 onRetry
     function notifyNoResult(onRetry?: () => void, retry: RetryKind = 'screenScan'): Promise<boolean> {
-        return deliver(resultNotice([], { retry: onRetry ? { kind: retry } : false }), onRetry);
+        const showRetry = retry === 'dismiss' || Boolean(onRetry);
+        return deliver(resultNotice([], { retry: showRetry ? { kind: retry } : false }), onRetry);
     }
 
     // 供 recognizeImage 使用的宿主: 与上面的函数同一套实现

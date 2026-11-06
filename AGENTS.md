@@ -68,7 +68,7 @@ Agent 调试时用户大概率已经打开 pnpm dev ， Agent 直接复用该 de
 | [src/composables/useNotify.ts](./src/composables/useNotify.ts) | 全局单例通知状态与 `fire/close/showLoading` |
 | [src/composables/usePopupNoticeHost.ts](./src/composables/usePopupNoticeHost.ts) | popup 侧执行打开、复制、截图 |
 | [src/composables/useScreenshot.ts](./src/composables/useScreenshot.ts) | 截图容器的挂载与开合；`src` 复用已截好的图，`intro` 控制入场动画 |
-| [src/composables/useScreenshotScan.ts](./src/composables/useScreenshotScan.ts) | **截图扫描的唯一流程**：一张截图 + 框选/整屏 → 解码 → 在冻结截图上标绿点、点选逐条出结果；全屏扫描就是“自动对整屏框选一次”，内容脚本与 [capture/App.vue](./src/entrypoints/capture/App.vue) 共用 |
+| [src/composables/useScreenshotScan.ts](./src/composables/useScreenshotScan.ts) | **截图扫描的唯一流程**：一张截图 + 框选/整屏 → 解码 → 在冻结截图上标绿点、点选逐条出结果；全屏扫描就是“自动对整屏框选一次”，没扫到码时自动退回纯框选态（不留整屏选区，否则整屏选区铺满画面、拖哪都是"移动选区"）；此时通知里的「尝试框选扫描」只是 `dismiss`（关掉通知，不再重开一层），要重新进入框选才用 `frameScan()`（图层还在就就地退回，被收起则用同一张图重开）；内容脚本与 [capture/App.vue](./src/entrypoints/capture/App.vue) 共用 |
 | [src/services/qrCode.ts](./src/services/qrCode.ts) | 编码与 SVG 生成（预览 / 复制的 PNG 由同一份 SVG 光栅化） |
 | [src/services/qrScanner.ts](./src/services/qrScanner.ts) | 扫描核心（ZXing） |
 | [src/services/popupNotice.ts](./src/services/popupNotice.ts) | 跨进程通知协议 |

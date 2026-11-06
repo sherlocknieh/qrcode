@@ -113,7 +113,8 @@ export function describeImageError(error: unknown): string {
 // 重试方式决定按钮文案: 整屏重扫, 还是在刚截的视口图上自己框一块
 function retryLabel(action?: PopupNoticeAction): string | undefined {
     if (action?.kind === 'screenScan') return t('scanScreenRetry');
-    if (action?.kind === 'frameScan') return t('frameScanRetry');
+    // dismiss 不重试, 只是把通知关掉让用户直接在画面上框选, 文案沿用框选入口
+    if (action?.kind === 'frameScan' || action?.kind === 'dismiss') return t('frameScanRetry');
     return undefined;
 }
 

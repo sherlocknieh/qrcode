@@ -14,8 +14,8 @@ export type RecognizeHost = {
     notifyNoResult(onRetry?: () => void, retry?: RetryKind): Promise<boolean>;
 };
 
-// 未扫到码后的重试方式: 整屏重扫, 或在刚截的视口图上框选一块
-export type RetryKind = 'screenScan' | 'frameScan';
+// 未扫到码后的按钮: 整屏重扫、框选一块, 或什么都不做只关通知 (页面已经可以框选)
+export type RetryKind = 'screenScan' | 'frameScan' | 'dismiss';
 
 export type DecodeOutcome =
     // imageSize 是解码所用图像的像素尺寸, 用于把结果的 bounds 换算到画面上

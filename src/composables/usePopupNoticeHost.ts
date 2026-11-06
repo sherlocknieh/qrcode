@@ -25,6 +25,8 @@ export function usePopupNoticeHost(pending?: PopupNoticeRecord) {
 
     async function runAction(action?: PopupNoticeAction) {
         if (!action) return;
+        // dismiss: 页面自己已经在框选态了, 点这个按钮只关通知
+        if (action.kind === 'dismiss') return;
         if (action.kind === 'screenScan' || action.kind === 'frameScan') {
             // popup 随后会被关闭, 由后台转告内容脚本重新截屏扫描或打开框选浮层
             try {

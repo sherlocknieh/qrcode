@@ -88,19 +88,17 @@ function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanCo
             mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
+        // 整屏扫描没扫到码: 画面已自动退回框选态, 通知里留一句入口提示, 按钮只关掉通知
+        noResultRetry: context.fullScreen ? 'dismiss' : undefined,
         deferResults: true,
     });
 }
 
-// 这次扫的视口图: 换到框选工具时要复用同一张, 重新截屏只会截到本页自己
-let shotSrc = '';
-
-// 通知里点"框选扫描": 同一张截图切成可框选的一层, 不重新截屏;
+// 通知里点"尝试框选扫描": 现有截图层还在就退回纯框选态, 已被收起则用同一张图重开;
 // 这条通知收尾时不能把页面关掉, 否则刚打开的框选层会跟着消失
 async function switchToFrameScan() {
-    if (!shotSrc) return;
     closeOnNoticeDone = false;
-    await screenshotScan.open({ src: shotSrc });
+    await screenshotScan.frameScan();
 }
 
 // 扩展页收不到内容脚本那套 tabs.sendMessage: 自己连一个端口,
@@ -129,7 +127,6 @@ onMounted(async () => {
             await notifyScreenshotError();
             return;
         }
-        shotSrc = stored;
         // 已经有可框选的截图了, 通知结束不再关页 (单击 / Esc 才退出)
         closeOnNoticeDone = false;
         // 截图交给截图容器承载: 扫描结果、绿点与后续框选都标在这张静止的截图上;

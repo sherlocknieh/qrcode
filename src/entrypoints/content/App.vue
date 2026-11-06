@@ -271,6 +271,8 @@ function decodeScreenshotCapture(
             mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
+        // 整屏扫描没扫到码: 画面已自动退回框选态, 通知里留一句入口提示, 按钮只关掉通知
+        noResultRetry: context.fullScreen ? 'dismiss' : undefined,
         deferResults: true,
     });
 }

@@ -739,14 +739,16 @@ defineExpose({
         pickedMarks.value = marks.map(() => false);
         archivedPicked = null;
     },
-    // 没扫到码: 清掉绿框, 但留住截图与这次的挖空范围,
-    // 用户能看清刚才扫的是哪一块, 直接拖下一块重扫
+    // 没扫到码: 清掉绿框但留住截图。
+    // 传 rect (用户自己框的一块): 留住这次的挖空范围, 能看清刚才扫的是哪一块, 直接拖下一块重扫;
+    // 不传 (整屏扫描没扫到): 连选区一起撤掉退回纯框选态 —— 整屏选区会铺满画面,
+    // 拖哪都算"移动选区", 用户根本画不出新的框
     clearResults(rect?: ScanRect) {
-        frozen.value = true;
+        frozen.value = Boolean(rect);
         archivedMarks = null;
         archivedSelection = null;
         pendingArchive = null;
-        if (rect) selection.value = rect;
+        selection.value = rect ?? null;
         resultMarks.value = [];
         pickedMarks.value = [];
     },
