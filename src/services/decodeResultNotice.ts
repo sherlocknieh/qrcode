@@ -113,27 +113,25 @@ export function describeImageError(error: unknown): string {
 // 重试方式决定按钮文案: 整屏重扫, 还是在刚截的视口图上自己框一块
 function retryLabel(action?: PopupNoticeAction): string | undefined {
     if (action?.kind === 'screenScan') return t('scanScreenRetry');
-    // dismiss 不重试, 只是把通知关掉让用户直接在画面上框选, 文案沿用框选入口
-    if (action?.kind === 'frameScan' || action?.kind === 'dismiss') return t('frameScanRetry');
+    if (action?.kind === 'frameScan') return t('frameScanRetry');
     return undefined;
 }
 
 // 未扫描到任何码
-// exitOnDismiss: 整页扫描没扫到时, 关掉通知本身就是"不再扫了" ——
-// 不给"确定"按钮, 旁边只留「尝试框选扫描」让还想扫的用户接着框
-function noResultNotice(retry?: PopupNoticeAction, exitOnDismiss = false): PopupNoticePayload {
+// hideConfirm: 整页扫描没扫到时不留"确定"按钮, 只给「尝试框选扫描」;
+// 要不要退出扫描由用户的手势决定 (单击画面即退出, 拖框则继续框)
+function noResultNotice(retry?: PopupNoticeAction, hideConfirm = false): PopupNoticePayload {
     return {
         options: {
             toast: false,
             icon: 'info',
             title: t('recognitionFailed'),
             text: t('recognitionFailedMsg'),
-            showConfirmButton: !exitOnDismiss,
+            showConfirmButton: !hideConfirm,
             extraButtonText: retryLabel(retry),
             showCloseButton: true,
         },
         extraAction: retry,
-        exitOnDismiss,
     };
 }
 
@@ -219,15 +217,15 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 // 按结果数量选择对应的通知。
 // retry: 未扫到码时提供的重试方式, 传 false 表示当前入口无法再试
 // (独立扫描页里截图只会截到自己); 缺省为整屏重扫
-// exitOnDismiss: 没扫到时关掉通知是否表示退出扫描 (整页扫描用), 见 noResultNotice
+// hideConfirm: 没扫到时不留"确定" (整页扫描用), 见 noResultNotice
 export function resultNotice(
     results: DecodeResult[],
-    options: { retry?: PopupNoticeAction | false; exitOnDismiss?: boolean } = {},
+    options: { retry?: PopupNoticeAction | false; hideConfirm?: boolean } = {},
 ): PopupNoticePayload {
     if (!results.length) {
         return noResultNotice(
             options.retry === false ? undefined : options.retry ?? { kind: 'screenScan' },
-            options.exitOnDismiss,
+            options.hideConfirm,
         );
     }
     if (results.length > 1) return multiResultNotice(results);

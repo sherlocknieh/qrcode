@@ -39,14 +39,14 @@ const addContextMenus = () => new Promise<void>((resolve) => {
         browser.contextMenus.create({
             id: 'scanScreen',
             title: setMenuTitle('scanScreen', '🖥️'),
-            contexts: ['action', 'page_action'],
+            contexts: ['page', 'action', 'page_action'],
             ...setMenuIcon('scanScreen'),
         });
         // 框选页面一块区域扫描: 页面上任意位置与工具栏图标都能进
         browser.contextMenus.create({
             id: 'scanRegion',
             title: setMenuTitle('scanRegion', '🔲'),
-            contexts: ['page', 'action', 'page_action'],
+            contexts: ['action', 'page_action'],
             ...setMenuIcon('scanRegion'),
         });
         // 粘贴/上传本地图片扫描

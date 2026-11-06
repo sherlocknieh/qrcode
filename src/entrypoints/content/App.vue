@@ -18,15 +18,12 @@ import { useNoticeFallback } from '@/composables/useNoticeFallback';
 import { useImagePasteOverlay } from '@/composables/useImagePasteOverlay';
 import { useCodePicker, type PickAnchor } from '@/composables/useCodePicker';
 import { useScreenshotScan, type ScreenshotScanCapture, type ScreenshotScanContext } from '@/composables/useScreenshotScan';
-import { isNoticeVisible } from '@/services/noticeVisibility';
 import type { ScreenshotResult } from '@/composables/useScreenshot';
 import type { ScanRect } from '@/components/ScanOverlay.vue';
 
 let clearActiveMarks = () => {};
 const { notify, notifyFetching, notifyPickedResults, notifyResults, host } = useNoticeFallback({
     onLocalNoticeDone: () => onNoticeDone(),
-    // 页面内兜底通知被关掉 (popup 打不开时): 整页扫描的空结果同样按"退出扫描"处理
-    onExitScan: () => screenshotScan.close(),
 });
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
@@ -37,12 +34,9 @@ const screenshotScan = useScreenshotScan({
     notifyResults: (results) => notifyPickedResults(results),
     notifyPicked: (result) => notifyResults([result]),
     onError: () => notifyScreenshotError({ type: 'failed' }),
-    onBlank: async () => {
-        // 截图层没有关闭按钮, 单击空白就是退出: 通知还开着时这一下多半是去关通知,
-        // 留到下一次点击再收
-        if (await isNoticeVisible()) return;
-        screenshotScan.close();
-    },
+    // 单击 (没拖出选区) 就是退出: 通知是否还开着都一样, 这一下点哪算哪;
+    // 拖框选了一块则走 capture 继续扫, 不退出
+    onBlank: () => screenshotScan.close(),
 });
 
 // 命中码后统一在画面上叠绿点: 网页图片按图片实时位置定位; 整屏扫描改用截图容器承载结果
@@ -79,13 +73,11 @@ function showResults(outcome: Extract<DecodeOutcome, { status: 'ok' }>, anchor: 
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
 const mainProcess = (
-    message: { action?: string; imageUrl?: string; exitOnDismiss?: boolean },
+    message: { action?: string; imageUrl?: string },
     _sender: Browser.runtime.MessageSender,
     sendResponse: (response?: { success: boolean }) => void,
 ) => {
     if (message.action === 'notificationResolved') {
-        // 整页扫描没扫到的提示被关掉: 与单击空白、Esc 一样退出, 收起冻结的截图
-        if (message.exitOnDismiss) screenshotScan.close();
         onNoticeDone();
         sendResponse({ success: true });
         return false;
@@ -274,8 +266,8 @@ function decodeScreenshotCapture(
             mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
-        // 整页扫描没扫到: 通知里不留"确定", 关掉通知即退出扫描, 旁边只留框选入口
-        noResultRetry: context.fullScreen ? 'exit' : undefined,
+        // 整页扫描没扫到: 通知里不留"确定", 只给框选入口; 退出与否看用户是单击还是拖框
+        noResultRetry: context.fullScreen ? 'frameScanOnly' : undefined,
         onRetry: context.fullScreen ? () => void openFrameScan() : undefined,
         deferResults: true,
     });

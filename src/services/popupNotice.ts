@@ -3,14 +3,12 @@ import type { NotifyIcon, NotifyResultItem } from '@/composables/useNotify';
 // 页面通知统一转发给 popup 显示, 该键保存 popup 尚未展示的最新一条通知
 export const POPUP_NOTICE_KEY = 'qrNotification';
 
-// open/copy 由 popup 直接执行; screenScan / frameScan 需要 popup 通知当前页面
-// 重新截屏扫描 (整屏 / 框选); dismiss 只是关掉通知 (页面已经可以框选, 不必再做动作)
+// open/copy 由 popup 直接执行; screenScan / frameScan 需要 popup 通知当前页面重新截屏扫描 (整屏 / 框选)
 export type PopupNoticeAction =
     | { kind: 'open'; value: string }
     | { kind: 'copy'; value: string }
     | { kind: 'screenScan' }
-    | { kind: 'frameScan' }
-    | { kind: 'dismiss' };
+    | { kind: 'frameScan' };
 
 // 可跨进程传递的通知参数: didOpen 等函数无法序列化, 用 loading 标记加载状态
 export interface PopupNoticeOptions {
@@ -23,7 +21,7 @@ export interface PopupNoticeOptions {
     itemsCollapsed?: boolean;
     showCloseButton?: boolean;
     showCancelButton?: boolean;
-    // 整页扫描没扫到的提示不给"确定": 关掉通知本身就是"不再扫了"
+    // 不给"确定"按钮: 只留额外操作 (整页扫描没扫到时不问"是否重扫", 留着画面上框一块)
     showConfirmButton?: boolean;
     confirmButtonText?: string;
     cancelButtonText?: string;
@@ -37,9 +35,6 @@ export interface PopupNoticePayload {
     confirmAction?: PopupNoticeAction;
     cancelAction?: PopupNoticeAction;
     extraAction?: PopupNoticeAction;
-    // 关掉通知即"不再扫了": 整页扫描没扫到时, 页面据此收起冻结的截图 (capture 页关掉自己)。
-    // 用户选了「尝试框选扫描」时不算关掉, 那条路径由 keepTab / frameScan 收尾
-    exitOnDismiss?: boolean;
     // 独立扫描页 (capture.html) 使用: 通知结束后关闭发起它的标签页,
     // 符合"在临时标签页里扫描完就收摊"的预期
     closeOriginTab?: boolean;
