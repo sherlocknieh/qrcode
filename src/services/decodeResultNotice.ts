@@ -33,7 +33,8 @@ export function errorNotice(title: string, text?: string): PopupNoticePayload {
 }
 
 // 图片读取失败 (典型是跨域图片污染 canvas 导致无法取像素):
-// 除确认外提供"框选扫描", 由 popup 或页面内兜底通知执行。
+// 按钮要直接说明退路是"截图后再框选": 只说"框选扫描"会让用户以为还要在页面里找到原图,
+// 不知道扩展会先截一张视口图
 // 这里不给整屏扫描: 扫不中图片时用户要的是框住页面上那张图, 整屏再扫一遍大概率还是同样的结果
 export function errorNoticeWithScreenshot(
     title: string,
@@ -46,7 +47,7 @@ export function errorNoticeWithScreenshot(
             title,
             text,
             confirmButtonText: t('confirm'),
-            extraButtonText: t('frameScanRetry'),
+            extraButtonText: t('frameScanScreenshot'),
             showCloseButton: true,
         },
         extraAction: { kind: 'frameScan' },
@@ -118,7 +119,7 @@ function retryLabel(action?: PopupNoticeAction): string | undefined {
 }
 
 // 未扫描到任何码
-// hideConfirm: 整页扫描没扫到时不留"确定"按钮, 只给「尝试框选扫描」;
+// hideConfirm: 整页扫描没扫到时不留"确定"按钮, 只给「框选更小区域」;
 // 要不要退出扫描由用户的手势决定 (单击画面即退出, 拖框则继续框)
 function noResultNotice(retry?: PopupNoticeAction, hideConfirm = false): PopupNoticePayload {
     return {

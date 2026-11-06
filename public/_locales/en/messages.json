@@ -267,9 +267,13 @@
     "message": "Scan Screen",
     "description": "Button that scans the screen when the image cannot be read"
   },
+  "frameScanScreenshot": {
+    "message": "Scan via Screenshot",
+    "description": "Button offered when an image cannot be read; captures the visible page and lets the user drag a region to scan"
+  },
   "frameScanRetry": {
     "message": "Try a Smaller Region",
-    "description": "Button that lets the user drag a region on the screenshot when the image cannot be read or a full-screen scan finds no code"
+    "description": "Button that lets the user drag a smaller region on the full-screen screenshot when a full-screen scan finds no code"
   },
   "screenshotFailed": {
     "message": "Screenshot Failed",

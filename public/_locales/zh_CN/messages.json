@@ -267,9 +267,13 @@
     "message": "扫描屏幕",
     "description": "图片读取失败时改用扫描屏幕的按钮"
   },
+  "frameScanScreenshot": {
+    "message": "截图框选扫描",
+    "description": "图片读取失败时出现的按钮：先截取当前视口, 再让用户框选一块区域扫描"
+  },
   "frameScanRetry": {
-    "message": "尝试框选扫描",
-    "description": "图片读取失败或全屏扫描未找到码时, 改为在截图上框选一块重扫的按钮"
+    "message": "框选更小区域",
+    "description": "全屏扫描未找到码时, 在截图里框选更小一块重扫的按钮"
   },
   "screenshotFailed": {
     "message": "截图失败",
