@@ -8,7 +8,7 @@
     "description": "Short name used for the toolbar tooltip"
   },
   "appDescription": {
-    "message": "Minimalistic UI, Powerful features: generate QR codes from text, and scan QR codes or barcodes from images, screenshots, or the camera.",
+    "message": "Minimalistic UI, Powerful features: generate QR codes from text, scan QR codes or barcodes from images, screenshots or the camera.",
     "description": "Application description"
   },
   "selectionToQR": {
