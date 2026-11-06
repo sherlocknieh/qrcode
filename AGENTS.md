@@ -4,7 +4,7 @@
 
 **WXT + Vue 3 + TS** 跨浏览器二维码扩展（Chrome / Edge / Firefox）：生成二维码（当前页 / 选中文本），扫描二维码与一维条形码（网页图片 / 截图 / 本地图片 / 剪贴板），以及截图与框选重扫。
 
-改完跑 `pnpm compile`（`vue-tsc --noEmit`，无测试）。命令、端口、manifest、目录结构、样式细节以 [package.json](./package.json)、[wxt.config.ts](./wxt.config.ts)、[.dev/](./.dev/) 和源码注释为准，本文只记全局约定与架构不变量，按文件绑定的坑见「分文件的坑」。
+命令、端口、manifest、目录结构、样式细节以 [package.json](./package.json)、[wxt.config.ts](./wxt.config.ts)、[.dev/](./.dev/) 和源码注释为准;
 
 ## 架构
 
@@ -38,6 +38,13 @@
 - 平台差异用 `import.meta.env.FIREFOX`；`page_action` 只在 Firefox 声明；不要声明 `clipboardRead` / `clipboardWrite`。
 - 临时数据用 `storageArea()`（session 回退 local），`takeStored*` 读后即清；`qr*` 键改动时全局搜索。
 - 权限、manifest、图标只改 [wxt.config.ts](./wxt.config.ts)。
+
+## 开发
+
+对话过程中用户通常已经打开 pnpm dev, Agent 调试时可直接复用该 dev server;
+
+改完跑 `pnpm compile`（`vue-tsc --noEmit`，无测试）。
+
 
 ## 提交
 

@@ -69,15 +69,15 @@
   },
   "cameraHint": {
     "message": "将二维码或条形码对准相机",
-    "description": "相机预览下方的提示"
+    "description": "取景框内的提示"
   },
   "cameraStarting": {
     "message": "正在启动相机…",
     "description": "等待相机授权时的提示"
   },
   "cameraPausedHint": {
-    "message": "已扫描到内容，继续扫描请点击下方按钮",
-    "description": "扫描命中后相机已停止时的提示"
+    "message": "已扫描到内容，点右上角继续扫描",
+    "description": "取景框内的提示: 命中后相机已停止"
   },
   "cameraStop": {
     "message": "停止相机",
@@ -91,13 +91,9 @@
     "message": "开启相机",
     "description": "请求相机权限的按钮"
   },
-  "switchToImageScan": {
-    "message": "本地上传/粘贴图片",
-    "description": "切换到图片扫描面板的按钮"
-  },
-  "switchToCameraScan": {
-    "message": "从相机取图",
-    "description": "从图片扫描切换到相机扫描的按钮"
+  "switchCamera": {
+    "message": "翻转摄像头",
+    "description": "前后摄像头互切的按钮"
   },
   "cameraFailed": {
     "message": "相机不可用",
@@ -121,19 +117,19 @@
   },
   "cameraOffHint": {
     "message": "开启相机后对准二维码或条形码",
-    "description": "相机未启动时取景框下方的提示"
+    "description": "相机未启动时取景框内的提示"
   },
   "scanLocalImageTitle": {
     "message": "上传/粘贴图片扫码",
     "description": "本地图片扫描页面的标题"
   },
   "pickerHint": {
-    "message": "拖入图片或点击选择",
-    "description": "取图区图标下方的提示"
+    "message": "拖入图片开始扫描",
+    "description": "取图区主提示"
   },
-  "pasteImageHint": {
-    "message": "也可以按 Ctrl+V 粘贴图片",
-    "description": "图片取景框下方的提示"
+  "pickerFormats": {
+    "message": "支持 PNG、JPG、WebP 等格式，也可按 Ctrl+V 粘贴",
+    "description": "取图区主提示下方的辅助行"
   },
   "previewHint": {
     "message": "点击方框可更换图片",

@@ -69,15 +69,15 @@
   },
   "cameraHint": {
     "message": "Point the camera at a QR code or barcode",
-    "description": "Hint below the camera preview"
+    "description": "Hint inside the viewfinder"
   },
   "cameraStarting": {
     "message": "Starting camera…",
     "description": "Hint while waiting for camera permission"
   },
   "cameraPausedHint": {
-    "message": "Code detected. Click below to scan again.",
-    "description": "Hint after the camera stopped on a detected code"
+    "message": "Code detected. Tap the top-right button to scan again.",
+    "description": "Hint inside the viewfinder after the camera stopped on a detected code"
   },
   "cameraStop": {
     "message": "Stop Camera",
@@ -91,13 +91,9 @@
     "message": "Start Camera",
     "description": "Button that requests camera access"
   },
-  "switchToImageScan": {
-    "message": "Upload/Paste an Image",
-    "description": "Button that switches to the image scanning panel"
-  },
-  "switchToCameraScan": {
-    "message": "Use Camera",
-    "description": "Button that switches from image scanning to camera scanning"
+  "switchCamera": {
+    "message": "Flip Camera",
+    "description": "Button that switches between front and back cameras"
   },
   "cameraFailed": {
     "message": "Camera unavailable",
@@ -121,19 +117,19 @@
   },
   "cameraOffHint": {
     "message": "Turn on the camera and point it at a code",
-    "description": "Hint under the viewfinder while the camera is off"
+    "description": "Hint inside the viewfinder while the camera is off"
   },
   "scanLocalImageTitle": {
     "message": "Upload or Paste an Image to Scan",
     "description": "Title of the local image scanning page"
   },
   "pickerHint": {
-    "message": "Drop an image here or click to choose",
-    "description": "Hint under the icon in the image picker"
+    "message": "Drop an image here to scan",
+    "description": "Main hint in the image picker"
   },
-  "pasteImageHint": {
-    "message": "Or press Ctrl+V to paste an image",
-    "description": "Hint under the image viewfinder"
+  "pickerFormats": {
+    "message": "PNG, JPG, WebP and more · or press Ctrl+V to paste",
+    "description": "Supporting line under the main hint in the image picker"
   },
   "previewHint": {
     "message": "Click the preview to choose another image",

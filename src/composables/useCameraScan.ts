@@ -27,6 +27,10 @@ export function useCameraScan(options: CameraScanOptions) {
     const aspectRatio = ref(0);
     // 是否镜像显示画面, 由摄像头朝向决定 (见 shouldMirror)
     const mirrored = ref(false);
+    // 当前请求的朝向; 设备只有一个摄像头时翻转按钮不出现 (见 canFlip)
+    const facing = ref<'environment' | 'user'>('environment');
+    // 拿到授权后才能从 enumerateDevices 看出有几颗摄像头
+    const canFlip = ref(false);
 
     let stream: MediaStream | null = null;
     let canvas: HTMLCanvasElement | null = null;
@@ -138,23 +142,33 @@ export function useCameraScan(options: CameraScanOptions) {
 
     // 不指定尺寸时浏览器默认给 4:3 (常见 640x480), 与 16:9 取景框不匹配;
     // 这里用 ideal 请求 16:9, 设备不支持时浏览器会退回最接近的分辨率, 不会失败
-    const videoConstraints: MediaTrackConstraints = {
-        facingMode: 'environment',
+    const videoConstraints = (facingMode: 'environment' | 'user'): MediaTrackConstraints => ({
+        facingMode,
         width: { ideal: 1280 },
         height: { ideal: 720 },
         aspectRatio: { ideal: 16 / 9 },
-    };
+    });
 
     // 桌面浏览器没有后置摄像头, facingMode 失败时退回默认设备
     async function requestStream(): Promise<MediaStream> {
         try {
             return await navigator.mediaDevices.getUserMedia({
-                video: videoConstraints,
+                video: videoConstraints(facing.value),
                 audio: false,
             });
         } catch (error) {
             if (!(error instanceof DOMException) || error.name !== 'OverconstrainedError') throw error;
             return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+    }
+
+    // 单摄设备翻转过去也只是同一颗摄像头, 不给按钮; 读不到设备列表时按不可翻处理
+    async function syncCameraCount() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            canFlip.value = devices.filter((device) => device.kind === 'videoinput').length > 1;
+        } catch {
+            canFlip.value = false;
         }
     }
 
@@ -179,6 +193,7 @@ export function useCameraScan(options: CameraScanOptions) {
             video.srcObject = media;
             await video.play();
             boundVideo = video;
+            void syncCameraCount();
             // 手机横竖屏切换后 videoWidth/Height 会变, 取景框跟着重算
             video.addEventListener('resize', handleVideoResize);
             mirrored.value = shouldMirror(media.getVideoTracks()[0]);
@@ -198,10 +213,19 @@ export function useCameraScan(options: CameraScanOptions) {
     // 结果通知结束后由用户决定是否继续: 自动恢复会让同一个码反复弹窗
     const resume = () => start();
 
+    // 翻转前后摄像头: 相机未开时只记住朝向, 下次 start 直接按新朝向请求;
+    // 取景中改朝向只能重开媒体流, 运行中的轨道不接受切换 facingMode
+    async function flip() {
+        facing.value = facing.value === 'environment' ? 'user' : 'environment';
+        if (!active.value && !starting.value) return;
+        stop();
+        await start();
+    }
+
     onBeforeUnmount(() => {
         disposed = true;
         stop();
     });
 
-    return { active, starting, previewUrl, aspectRatio, mirrored, start, stop, resume };
+    return { active, starting, previewUrl, aspectRatio, mirrored, canFlip, start, stop, resume, flip };
 }

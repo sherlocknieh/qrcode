@@ -6,8 +6,8 @@ import { warningNotice } from '@/services/decodeResultNotice';
 import { t } from '@/services/i18n';
 
 // 取图区: 只负责拿到图片 (粘贴 / 拖放 / 选择文件)。
-// 空态是浅灰虚线取景框 + 图标与一行引导文字, 选中后只显示预览图;
-// 主提示、扫描与结果展示都交给 ScanPanel 统一处理。
+// 空态用"图标 + 主提示 + 格式说明 + 选择按钮"分层说明入口, 整块区域仍可点选;
+// 选中后只显示预览图, 主提示、扫描与结果展示都交给 ScanPanel 统一处理。
 const props = withDefaults(
     defineProps<{
         // 选择后的预览图
@@ -111,26 +111,31 @@ defineExpose({ pickFile });
 </script>
 
 <template>
+    <!-- 整块区域可点选, 键盘入口交给内部的真实按钮, 避免出现嵌套的可交互元素 -->
     <div
         class="qr-picker"
         :class="{
             'qr-picker--active': dragging,
             'qr-picker--busy': busy,
         }"
-        role="button"
-        tabindex="0"
         :aria-busy="busy"
         @click="pickFile"
-        @keydown.enter.prevent="pickFile"
-        @keydown.space.prevent="pickFile"
         @dragenter="onDragenter"
         @dragover="onDragover"
         @dragleave="onDragleave"
         @drop="onDrop"
     >
-        <div v-if="previewUrl" class="qr-picker-figure">
+        <!-- 预览态也用真实按钮承载, 键盘用户清空前仍能直接换图 -->
+        <button
+            v-if="previewUrl"
+            class="qr-picker-figure"
+            type="button"
+            :disabled="busy"
+            :aria-label="t('previewHint')"
+            @click.stop="pickFile"
+        >
             <img class="qr-picker-preview" :src="previewUrl" alt="" />
-        </div>
+        </button>
         <template v-else>
             <span class="qr-picker-badge">
                 <svg class="qr-picker-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -139,7 +144,16 @@ defineExpose({ pickFile });
                     <path d="m21 15-4.5-4.5L7 20" />
                 </svg>
             </span>
-            <p class="qr-picker-tip">{{ t('pickerHint') }}</p>
+            <p class="qr-picker-title">{{ t('pickerHint') }}</p>
+            <p class="qr-picker-sub">{{ t('pickerFormats') }}</p>
+            <button class="qr-picker-cta" type="button" :disabled="busy" @click.stop="pickFile">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+                    <path d="M12 15.6V8.6" />
+                    <path d="m8.8 11.6 3.2-3 3.2 3" />
+                </svg>
+                {{ t('chooseImage') }}
+            </button>
         </template>
 
         <input ref="fileInput" class="qr-picker-input" type="file" accept="image/*" @change="onFileChange" />
@@ -167,13 +181,15 @@ defineExpose({ pickFile });
     transition: border-color 150ms ease, background-color 150ms ease;
 }
 
-.qr-picker:hover,
-.qr-picker:focus-visible {
+.qr-picker:hover {
     background: #f8fafc;
-    outline: none;
 }
 
-/* 拖入时用品牌蓝实线高亮, 是面板里唯一的有彩色状态 */
+.qr-picker:focus-within {
+    background: #f8fafc;
+}
+
+/* 拖入时用品牌蓝浅底提示可以松手, 虚线框由取景框同步变色 */
 .qr-picker--active {
     border: 0;
     background: #eff6ff;
@@ -190,19 +206,20 @@ defineExpose({ pickFile });
     flex: none;
     align-items: center;
     justify-content: center;
-    width: 66px;
-    height: 66px;
+    width: 56px;
+    height: 56px;
     /* 完整声明外边距与透明度, 避免页面全局规则把图标顶偏 */
     margin: 0;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #dbeafe;
     border-radius: 50%;
-    background: #fff;
+    background: linear-gradient(180deg, #ffffff 0%, #f2f7ff 100%);
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.04);
     opacity: 1;
 }
 
 .qr-picker-icon {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     margin: 0;
     opacity: 1;
     fill: none;
@@ -212,12 +229,78 @@ defineExpose({ pickFile });
     stroke-linejoin: round;
 }
 
-.qr-picker-tip {
+/* 主提示说清楚"能做什么", 格式与粘贴入口降为辅助行 */
+.qr-picker-title {
     margin: 12px 0 0;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: #64748b;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #334155;
     text-align: center;
+}
+
+.qr-picker-sub {
+    margin: 4px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #94a3b8;
+    text-align: center;
+}
+
+/* 按钮化入口: 空态里唯一实心元素, 让"点哪里开始"不需要猜 */
+.qr-picker-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    margin: 12px 0 0;
+    padding: 0 14px;
+    /* 注入到网页里时会吃到页面全局的按钮样式, 这里把会影响观感的属性写全 */
+    border: 0;
+    border-radius: 9px;
+    background-color: #2563eb;
+    background-image: none;
+    box-shadow: 0 6px 14px -8px rgba(37, 99, 235, 0.9);
+    opacity: 1;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    cursor: pointer;
+    transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.qr-picker-cta:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+
+.qr-picker-cta:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.qr-picker-cta:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, 0.45);
+    outline-offset: 2px;
+}
+
+.qr-picker-cta:disabled {
+    cursor: progress;
+}
+
+.qr-picker-cta svg {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    opacity: 1;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .qr-picker-figure {
@@ -228,8 +311,20 @@ defineExpose({ pickFile });
     width: 100%;
     flex: 1 1 auto;
     min-height: 0;
+    /* 作为按钮使用时也不被页面全局样式改写外观 */
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    opacity: 1;
+    cursor: pointer;
     overflow: hidden;
     border-radius: 10px;
+}
+
+.qr-picker-figure:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, 0.45);
+    outline-offset: -2px;
 }
 
 .qr-picker-preview {

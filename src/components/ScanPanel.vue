@@ -18,6 +18,9 @@ import { trySendMessage } from '@/services/messaging';
 // 扫描面板: 图片与摄像头是同一个面板的两种输入源, 共享同一套
 // 取景框 / 提示 / 按钮布局, 以及同一条扫描流水线 (recognizeImage)。
 // 源只负责产出一张图像, 扫描、提示、重试与结果展示不再各写一套。
+// 源由宿主决定 (扫描页按 ?camera=1 进入), 面板内不再互相切换:
+// 面板只有标题栏与取景框。标题栏右侧只有当前源的主操作带文字,
+// 其余是图标按钮; 空态的选择入口与说明放在取图区里, 画面出现后提示压在取景框底部。
 type ScanMode = 'image' | 'camera';
 
 const props = withDefaults(
@@ -31,17 +34,12 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     (event: 'close'): void;
-    (event: 'update:mode', value: ScanMode): void;
     // 浮层里的摄像头受页面安全上下文与权限策略限制, 启动失败时交给宿主换扩展页重试
     (event: 'camera-unavailable'): void;
 }>();
 
 const overlay = props.variant === 'overlay';
-const mode = ref<ScanMode>(props.mode);
-watch(() => props.mode, (value) => {
-    if (value !== mode.value) mode.value = value;
-});
-const isCamera = computed(() => mode.value === 'camera');
+const isCamera = computed(() => props.mode === 'camera');
 
 const { host, notify, notifyPickedResults, notifyResults } = useNoticeFallback();
 const scanAnimation = useScanAnimation();
@@ -202,8 +200,10 @@ const {
     previewUrl: cameraPreview,
     aspectRatio: cameraRatio,
     mirrored: cameraMirrored,
+    canFlip: cameraCanFlip,
     start: startCamera,
     stop: stopCamera,
+    flip: flipCamera,
 } = useCameraScan({
     video,
     // 命中一帧就停: 这一帧交给共用流水线, 多码补全由 recognizeImage 完成
@@ -233,56 +233,53 @@ async function handleCameraError(error: unknown) {
 
 const title = computed(() => t(isCamera.value ? 'scanCamera' : 'scanLocalImageTitle'));
 
-// 提示始终占一行, 换源不改变面板高度
+// 提示压在取景框底部, 只用于"画面已经有了"的状态;
+// 空态自带主提示与按钮, 再压一条提示只会重复
 const hint = computed(() => {
     if (isCamera.value) {
         if (cameraPreview.value) return t('cameraPausedHint');
         if (!cameraActive.value && !cameraStarting.value) return t('cameraOffHint');
         return t('cameraHint');
     }
-    return previewUrl.value ? t('previewHint') : t('pasteImageHint');
+    return previewUrl.value ? t('previewHint') : '';
 });
 
-const switchLabel = computed(() => t(isCamera.value ? 'switchToImageScan' : 'switchToCameraScan'));
+// 面板里没有底部操作行, 所有功能按钮都在标题栏右侧, 用图标 + title/aria-label 说明
+type PanelAction = {
+    icon: 'stop' | 'resume' | 'camera' | 'scan';
+    label: string;
+    primary?: boolean;
+    disabled?: boolean;
+    run: () => void;
+};
 
-type PanelAction = { label: string; primary?: boolean; disabled?: boolean; run: () => void };
-
-// 按钮由当前源描述, 模板不再按模式分支
 const actions = computed<PanelAction[]>(() => {
     if (isCamera.value) {
-        if (cameraActive.value) return [{ label: t('cameraStop'), run: stopCamera }];
-        if (cameraPreview.value) return [{ label: t('cameraResume'), primary: true, run: startCamera }];
+        if (cameraActive.value) return [{ icon: 'stop', label: t('cameraStop'), run: stopCamera }];
+        if (cameraPreview.value) {
+            return [{ icon: 'resume', label: t('cameraResume'), primary: true, run: startCamera }];
+        }
         return [{
+            icon: 'camera',
             label: t('retryCamera'),
             primary: true,
             disabled: cameraStarting.value,
             run: startCamera,
         }];
     }
-    if (previewUrl.value) {
-        return [
-            {
-                label: t('clearImage'),
-                disabled: recognizing.value,
-                // 图片清掉后绿点没有可标的区域
-                run: () => { clear(); codePicker.clear(); },
-            },
-            { label: t('scanNow'), primary: true, disabled: recognizing.value, run: () => void scanLocalImage() },
-        ];
-    }
+    // 图片的取图与清除在同一个位置随状态切换, 扫描单独一个按钮
     return [{
-        label: t('chooseImage'),
+        icon: 'scan',
+        label: t('scanNow'),
         primary: true,
-        disabled: recognizing.value,
-        run: () => picker.value?.pickFile(),
+        disabled: !previewUrl.value || recognizing.value,
+        run: () => void scanLocalImage(),
     }];
 });
 
-function switchSource() {
-    const next: ScanMode = isCamera.value ? 'image' : 'camera';
-    mode.value = next;
-    emit('update:mode', next);
-    // 预览换成另一个源, 原来的绿点已经没有对应关系
+// 清掉预览图后绿点没有可标的区域
+function clearImage() {
+    clear();
     codePicker.clear();
 }
 
@@ -291,7 +288,7 @@ watch(cameraActive, (active) => {
     if (active) codePicker.clear();
 });
 
-// 切换源时同步摄像头: 离开立即释放, 进入时等 video 渲染出来再请求
+// 宿主改源时同步摄像头: 离开立即释放, 进入时等 video 渲染出来再请求
 watch(isCamera, (camera) => {
     if (camera) void startCamera();
     else stopCamera();
@@ -332,25 +329,72 @@ onBeforeUnmount(() => {
                     </component>
 
                     <div class="qr-scan-panel-tools">
-                        <!-- 切换源: 两种承载保持相同的文字按钮样式 -->
+                        <!-- 摄像头: 有第二颗摄像头时才能翻转; 图片: 没图时上传, 有图时清除 -->
                         <button
-                            class="qr-scan-tool qr-scan-tool--switch"
+                            v-if="isCamera && cameraCanFlip"
+                            class="qr-scan-tool"
                             type="button"
-                            :title="switchLabel"
-                            :aria-label="switchLabel"
-                            @click="switchSource"
+                            :title="t('switchCamera')"
+                            :aria-label="t('switchCamera')"
+                            :disabled="cameraStarting"
+                            @click="flipCamera"
                         >
-                            <svg v-if="isCamera" viewBox="0 0 24 24" aria-hidden="true">
-                                <rect x="3" y="3" width="18" height="18" rx="2" />
-                                <circle cx="8.5" cy="8.5" r="1.5" />
-                                <path d="m21 15-4.5-4.5L7 20" />
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M20.4 9A8.6 8.6 0 0 0 5.6 5.6L3.5 7.7" />
+                                <path d="M3.5 4.4v3.3h3.3" />
+                                <path d="M3.6 15a8.6 8.6 0 0 0 14.8 3.4l2.1-2.1" />
+                                <path d="M20.5 19.6v-3.3h-3.3" />
                             </svg>
-                            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                        </button>
+                        <button
+                            v-else-if="!isCamera && previewUrl"
+                            class="qr-scan-tool"
+                            type="button"
+                            :title="t('clearImage')"
+                            :aria-label="t('clearImage')"
+                            :disabled="recognizing"
+                            @click="clearImage"
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M4 7h16" />
+                                <path d="M9.6 7V5.4a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2V7" />
+                                <path d="m6.6 7 .8 11.6a1.2 1.2 0 0 0 1.2 1.1h6.8a1.2 1.2 0 0 0 1.2-1.1L17.4 7" />
+                                <path d="M10.6 10.8v5M13.4 10.8v5" />
+                            </svg>
+                        </button>
+
+                        <!-- 当前源的主要操作: 图片扫描, 相机的开启 / 停止 / 继续。
+                             只有主操作带文字, 与一排图标按钮拉开层级 -->
+                        <button
+                            v-for="action in actions"
+                            :key="action.icon"
+                            class="qr-scan-tool"
+                            :class="{ 'qr-scan-tool--primary': action.primary }"
+                            type="button"
+                            :title="action.label"
+                            :aria-label="action.label"
+                            :disabled="action.disabled"
+                            @click="action.run"
+                        >
+                            <svg v-if="action.icon === 'stop'" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="7" y="7" width="10" height="10" rx="1.8" />
+                            </svg>
+                            <svg v-else-if="action.icon === 'resume'" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M9 7.3v9.4l7.4-4.7z" />
+                            </svg>
+                            <svg v-else-if="action.icon === 'camera'" viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="M4.4 8.2 5.5 6.6A1 1 0 0 1 6.3 6h3.4a1 1 0 0 1 .8.6l1.1 1.6" />
                                 <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
                                 <circle cx="12" cy="14.1" r="3.4" />
                             </svg>
-                            <span class="qr-scan-tool-label">{{ switchLabel }}</span>
+                            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M4 9V6.6A2.6 2.6 0 0 1 6.6 4H9" />
+                                <path d="M15 4h2.4A2.6 2.6 0 0 1 20 6.6V9" />
+                                <path d="M20 15v2.4a2.6 2.6 0 0 1-2.6 2.6H15" />
+                                <path d="M9 20H6.6A2.6 2.6 0 0 1 4 17.4V15" />
+                                <path d="M4 12h16" />
+                            </svg>
+                            <span v-if="action.primary" class="qr-scan-tool-label">{{ action.label }}</span>
                         </button>
 
                         <button
@@ -423,21 +467,9 @@ onBeforeUnmount(() => {
                         :busy="recognizing"
                         @file="handleFile"
                     />
-                </div>
 
-                <!-- 提示与按钮始终占位, 换源时面板长宽不变 -->
-                <p class="qr-scan-hint">{{ hint }}</p>
-
-                <div class="qr-scan-panel-actions">
-                    <button
-                        v-for="action in actions"
-                        :key="action.label"
-                        type="button"
-                        class="qr-scan-panel-btn"
-                        :class="{ 'qr-scan-panel-btn--primary': action.primary }"
-                        :disabled="action.disabled"
-                        @click="action.run"
-                    >{{ action.label }}</button>
+                    <!-- 提示只在画面已经存在时出现, 空态的说明与按钮在取图区里 -->
+                    <p v-if="hint" class="qr-scan-stage-hint">{{ hint }}</p>
                 </div>
             </section>
         </div>
@@ -477,11 +509,11 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     /* 两种承载使用同一宽度, 只在外边距与阴影上有区别 */
     width: min(560px, 100%);
-    /* 窄屏下限: 再窄标题栏的切换胶囊会顶到边缘, 两个等分按钮也会挤成多行;
+    /* 窄屏下限: 面板不跟着容器无限收窄, 标题与右上角图标按钮才有呼吸空间;
        下限必须是绝对值, 用 100% 会跟着容器一起缩, 起不到撑住的作用。
-       320px 是"互不挤压"的临界值, 360px 才能让标题露出几个字 */
-    min-width: 360px;
-    padding: 24px;
+       但手机上容器本身比 360px 还窄时再撑就会横向溢出, 取两者更小值 */
+    min-width: min(360px, 100%);
+    padding: clamp(16px, 4vw, 24px);
     border: 1px solid #e2e8f0;
     border-radius: 18px;
     background: #fff;
@@ -539,46 +571,75 @@ onBeforeUnmount(() => {
     gap: 6px;
 }
 
-/* 工具按钮: 细边框方块, 悬停转为琥珀色, 只在需要时出现 */
+/* 工具按钮: 细边框方块, 悬停转为品牌蓝, 只在需要时出现 */
 .qr-scan-tool {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    width: 32px;
+    min-width: 32px;
     height: 32px;
     padding: 0;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
     background: #fff;
     color: #64748b;
+    font: inherit;
     cursor: pointer;
     transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
-/* 独立页把切换源做成带文字的胶囊, 比纯图标更容易发现 */
-.qr-scan-tool--switch {
-    width: auto;
-    padding: 0 11px 0 9px;
-    border-radius: 999px;
-}
-
-.qr-scan-tool-label {
-    font-size: 12.5px;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-}
-
-.qr-scan-tool:hover {
+.qr-scan-tool:hover:not(:disabled) {
     border-color: #bfdbfe;
-    background: #f9fafb;
+    background: #f8fafc;
     color: #1d4ed8;
 }
 
 .qr-scan-tool:focus-visible {
     outline: 2px solid rgba(37, 99, 235, 0.35);
     outline-offset: 2px;
+}
+
+/* 扫描中不允许上传/翻转换图, 按钮保持可见但不可点 */
+.qr-scan-tool:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* 主操作 (图片扫描 / 开启相机): 唯一带文字的实心按钮, 一眼能认出该点哪里 */
+.qr-scan-tool--primary {
+    padding: 0 12px;
+    border-color: #2563eb;
+    background: #2563eb;
+    box-shadow: 0 6px 14px -8px rgba(37, 99, 235, 0.9);
+    color: #fff;
+}
+
+.qr-scan-tool--primary:hover:not(:disabled) {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+    color: #fff;
+}
+
+.qr-scan-tool--primary:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.qr-scan-tool--primary:disabled {
+    border-color: #e2e8f0;
+    background: #f1f5f9;
+    box-shadow: none;
+    /* 通用 disabled 会再压一层透明度, 主操作已经用中性配色表示不可点, 不需要更淡 */
+    opacity: 1;
+    color: #94a3b8;
+}
+
+.qr-scan-tool-label {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
 }
 
 /* 完整声明 margin/opacity: 页面全局 svg 规则会作用到注入的浮层上 */
@@ -594,7 +655,7 @@ onBeforeUnmount(() => {
     stroke-linejoin: round;
 }
 
-/* 关闭按钮去掉边框, 与切换按钮区分层级 */
+/* 关闭按钮去掉边框, 与来源工具按钮区分层级 */
 .qr-scan-tool--close {
     border-color: transparent;
     background: transparent;
@@ -620,6 +681,29 @@ onBeforeUnmount(() => {
     border: 1.5px dashed #cbd5e1;
     border-radius: 10px;
     background: #fff;
+    transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+/* 窄屏上 16:9 只剩不到 200px, 空态的说明换行后会被裁掉;
+   这时放弃固定比例, 让取景框按内容长高 (保留 min-height 撑住观感) */
+@media (max-width: 420px) {
+    .qr-scan-stage:not(.qr-scan-stage--camera) {
+        aspect-ratio: auto;
+        min-height: 210px;
+    }
+}
+
+/* 虚线框同时是取图区的命中区域: 悬停与拖入时直接变品牌蓝,
+   让"可以点"和"可以放"写在框上, 不用另加文字 */
+.qr-scan-stage:has(.qr-picker:hover),
+.qr-scan-stage:has(.qr-picker:focus-within) {
+    border-color: #93c5fd;
+    background: #fbfdff;
+}
+
+.qr-scan-stage:has(.qr-picker--active) {
+    border-color: #2563eb;
+    background: #eff6ff;
 }
 
 /* 摄像头取景框跟随画面比例, 高度封顶后再按同一比例收窄宽度,
@@ -648,6 +732,30 @@ onBeforeUnmount(() => {
 .qr-scan-stage .qr-picker {
     height: 100%;
     justify-content: center;
+}
+
+/* 提示压在取景框底部: 深色药丸在深色画面和浅色预览上都看得清, 不再挤占面板高度 */
+.qr-scan-stage-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    box-sizing: border-box;
+    max-width: calc(100% - 24px);
+    margin: 0;
+    padding: 4px 11px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(6px);
+    color: #f8fafc;
+    font-size: 12px;
+    line-height: 17px;
+    text-align: center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    transform: translateX(-50%);
+    pointer-events: none;
 }
 
 .qr-scan-stage :deep(.qr-picker-figure) {
@@ -789,69 +897,6 @@ onBeforeUnmount(() => {
     to {
         transform: rotate(360deg);
     }
-}
-
-/* 固定一行高度: 文案长短或换源都不改变面板尺寸 */
-.qr-scan-hint {
-    height: 20px;
-    margin: 12px 0 0;
-    overflow: hidden;
-    text-align: center;
-    font-size: 12.5px;
-    line-height: 20px;
-    color: #64748b;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.qr-scan-panel-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 14px;
-}
-
-/* 固定高度: 一个按钮与两个按钮、换源后都保持同一行高 */
-.qr-scan-panel-btn {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 40px;
-    padding: 0 18px;
-    border: 1px solid #d1d5db;
-    border-radius: 10px;
-    background: #fff;
-    color: #1f2937;
-    font: inherit;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-    cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.qr-scan-panel-btn:hover:not(:disabled) {
-    border-color: #9ca3af;
-    background: #f9fafb;
-}
-
-.qr-scan-panel-btn:focus-visible {
-    outline: 2px solid rgba(37, 99, 235, 0.35);
-    outline-offset: 2px;
-}
-
-/* 主操作: 品牌蓝实底, 与通知弹窗的主按钮保持一致 */
-.qr-scan-panel-btn--primary {
-    border-color: #2563eb;
-    background: #2563eb;
-    color: #ffffff;
-}
-
-.qr-scan-panel-btn--primary:hover:not(:disabled) {
-    border-color: #1d4ed8;
-    background: #1d4ed8;
-}
-
-.qr-scan-panel-btn:disabled {
-    opacity: 0.45;
-    cursor: default;
 }
 
 @media (prefers-reduced-motion: reduce) {

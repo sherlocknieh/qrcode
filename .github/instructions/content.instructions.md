@@ -13,7 +13,7 @@ applyTo:
 
 - 独立 SVG / XML 文档不要挂 integrated UI：直接打开的 `.svg` 里 `document.createElement('div')` 没有 `.style`，`createIntegratedUi` 会在设 `overflow` 时抛错。`content/index.ts` 开头的能力检查不能删，这类页面的扫描交 popup / `capture.html`。
 - `file://` 页面：Firefox 扩展页 / 后台无法 fetch，内容脚本读已渲染图片画 canvas，失败回退截取视口。
-- 页面全局 CSS 会泄漏进注入 UI（如 `svg { margin: -2.75em auto 0 }` 会把图标顶到按钮外）：新增图标时在 `.qr-shot` / `.qr-notify-root` / `.qr-picker-icon` 上声明完整 `margin` 与 `opacity`。
+- 页面全局 CSS 会泄漏进注入 UI（如 `svg { margin: -2.75em auto 0 }` 会把图标顶到按钮外）：新增图标时在 `.qr-shot` / `.qr-notify-root` / `.qr-picker-icon` / `.qr-picker-cta` 上声明完整 `margin` 与 `opacity`；`button` 还要写全背景、字重与 `text-transform`，否则会被页面的按钮样式改写。
 
 # 绿框与点选
 
