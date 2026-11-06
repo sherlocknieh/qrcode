@@ -59,10 +59,7 @@ function dotStyle(rect: ScanRect) {
                     v-for="(rect, index) in props.rects"
                     :key="index"
                     class="qr-marks-item"
-                    :class="{
-                        'qr-marks-item--picked': isPicked(index),
-                        'qr-marks-item--static': !showDots,
-                    }"
+                    :class="{ 'qr-marks-item--picked': isPicked(index) }"
                     :style="rectStyle(rect)"
                     @click.stop.prevent="pick(index)"
                 >
@@ -112,16 +109,10 @@ function dotStyle(rect: ScanRect) {
     opacity: 1;
     animation: qr-marks-pop 200ms ease both;
     /* 整个绿框区域都能点选: 不必非得点中中间的小绿点;
-       点过的码与单码不再响应点选, 但同样按这块区域挡住点击, 不让它穿到网页 */
+       点过的码与单码不再响应点选, 但同样按这块区域接住点击(穿透会触发下层交互),
+       光标也统一保持手型, 让人一眼看出这块区域会吃掉点击 */
     pointer-events: auto;
     cursor: pointer;
-}
-
-/* 点过的码与单码都只留绿框做位置标记: 不再响应点选, 但框内仍然挡住点击 ——
-   穿透回网页会顺带触发下层交互(打开看图浮层、点到图片外面的链接), 让"只是标位置"变成误操作 */
-.qr-marks-item--picked,
-.qr-marks-item--static {
-    cursor: default;
 }
 
 /* 点过的码把绿框转灰并去掉荧光: 一眼分清"看过"和"还没点"的码 */
