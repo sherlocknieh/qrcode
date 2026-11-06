@@ -45,14 +45,14 @@ Agent 调试时用户大概率已经打开 pnpm dev ， Agent 直接复用该 de
 | [src/entrypoints/capture/](./src/entrypoints/capture/) | `capture.html`：截视口后直出扫描（PDF、SVG 等注入不了内容脚本的页面兜底）；`?frame=1` 由「框选扫描」打开，同一张视口图直接以可框选层呈现，不自动整屏扫 |
 | [src/components/ScreenshotOverlay.vue](./src/components/ScreenshotOverlay.vue) | 截图容器：承载截图扫描的结果（冻结截图 + 绿框绿点），结果画面上仍可拖框另选一块重扫；拖框的选框与手柄用蓝色（`SELECTION_COLOR`，与结果绿框区分），只有拖框与确认按钮，点空白或 Esc 退出；浏览器窗口变化时整层自动收成居中大浮窗，尺寸/位置带 0.34s 过渡（`qr-shot--transitioning`，只在进入浮窗时短暂开启） |
 | [src/components/ScanOverlay.vue](./src/components/ScanOverlay.vue) | 扫描动画（整屏 / 图片区域，不拦截交互）；图片区域按 [overlayHost.ts](./src/services/overlayHost.ts) 挂进图片所在容器并排在图片之后，只压住图片而不越过后加入的页面浮层 |
-| [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 命中后在码上标绿框，多码时才叠可点绿点（单码只留绿框、整块框不接收点击，结果通知已经展示过）；`picked` 记录点开过的码，这些只留绿框、摘掉圆点也不再接收点击；网页图片传 `anchor` 跟随图片所在层（同 [overlayHost.ts](./src/services/overlayHost.ts)），截图容器里则铺在其结果层内 |
+| [src/components/ScanMarks.vue](./src/components/ScanMarks.vue) | 命中后在码上标绿框，多码时才叠可点绿点（单码只留绿框、框内点击就地吞掉不做点选，结果通知已经展示过）；`picked` 记录点开过的码，这些只留绿框、摘掉圆点也不再点选，但框内照旧挡住点击，不让它穿到网页；网页图片传 `anchor` 跟随图片所在层（同 [overlayHost.ts](./src/services/overlayHost.ts)），截图容器里则铺在其结果层内 |
 | [src/services/overlayHost.ts](./src/services/overlayHost.ts) | 扫码叠加层（扫描动画、命中绿框）的挂载策略：优先挂进图片容器只压住图片；祖先改掉 `fixed` 参照时退回 `body` 保持最高层 |
 | [src/components/QrCodePanel.vue](./src/components/QrCodePanel.vue) | 二维码生成面板（预览 + 单输入框 + 展开后的复制/下载与扫码入口） |
 | [src/components/ScanPanel.vue](./src/components/ScanPanel.vue) | 唯一扫描面板：图片 / 摄像头两种 `mode` |
 | [src/components/ImagePicker.vue](./src/components/ImagePicker.vue) | 取图区（粘贴 / 拖放 / 选文件） |
 | [src/composables/useImagePasteOverlay.ts](./src/composables/useImagePasteOverlay.ts) | 浮层宿主：`createApp(ScanPanel, { variant: 'overlay', mode: 'image' })` |
 | [src/composables/useScanAnimation.ts](./src/composables/useScanAnimation.ts) | 扫描动画挂载与淡出：`play()` 只等首帧，`stop()` 淡出后 resolve（用于延后弹窗） |
-| [src/composables/useCodePicker.ts](./src/composables/useCodePicker.ts) | **各入口共用的多码点选**：`show(results, anchor)` 叠绿框绿点（多条结果时弹一条“发现多个码”提示、列表默认收起，点“显示全部”才摊开，点某个码再逐条出结果通知；只有一条结果时只留绿框、不叠绿点，免得压在码中央挡内容，这块绿框只标位置不再接收点击——结果通知已经展示过这个码，否则关掉通知还能反复点出同一条）、`pick` 切结果（只把该码记成 `picked`，绿框留着、圆点摘掉）、`remaining` 给出还没点开的码数供宿主收尾、空白点击/宽度变化收起 |
+| [src/composables/useCodePicker.ts](./src/composables/useCodePicker.ts) | **各入口共用的多码点选**：`show(results, anchor)` 叠绿框绿点（多条结果时弹一条“发现多个码”提示、列表默认收起，点“显示全部”才摊开，点某个码再逐条出结果通知；只有一条结果时只留绿框、不叠绿点，免得压在码中央挡内容，这块绿框只标位置、框内点击就地吞掉（不点选也不穿到网页）——结果通知已经展示过这个码，否则关掉通知还能反复点出同一条）、`pick` 切结果（只把该码记成 `picked`，绿框留着、圆点摘掉）、`remaining` 给出还没点开的码数供宿主收尾、空白点击/宽度变化收起 |
 | [src/services/imageRect.ts](./src/services/imageRect.ts) | `measureImageRect(img)`：按 `object-fit` 算图片实际绘制区域，点选锚点与扫描动画都靠它 |
 | [src/services/decodeResultNotice.ts](./src/services/decodeResultNotice.ts) | 结果与错误通知 |
 | [src/composables/useNoticeFallback.ts](./src/composables/useNoticeFallback.ts) | 通知策略：popup 优先、页面内兜底 |

@@ -67,8 +67,8 @@ function dotStyle(rect: ScanRect) {
                     @click.stop.prevent="pick(index)"
                 >
                     <span class="qr-marks-box" />
-                    <!-- 单个码不叠绿点: 绿点是给多码点选用的, 只有一个码时结果通知已经展示,
-                         点还压在码中央会挡住内容, 整块绿框本身就能点 -->
+                    <!-- 单个码不叠绿点: 绿点是给多码点选用的, 只有一个码时结果通知已经展示过,
+                         点还压在码中央会挡住内容; 这块框只标位置, 点击由外层就地吞掉 -->
                     <button
                         v-if="showDots && !isPicked(index)"
                         type="button"
@@ -111,20 +111,16 @@ function dotStyle(rect: ScanRect) {
     padding: 0;
     opacity: 1;
     animation: qr-marks-pop 200ms ease both;
-    /* 整个绿框区域都能点选: 不必非得点中中间的小绿点 */
+    /* 整个绿框区域都能点选: 不必非得点中中间的小绿点;
+       点过的码与单码不再响应点选, 但同样按这块区域挡住点击, 不让它穿到网页 */
     pointer-events: auto;
     cursor: pointer;
 }
 
-/* 点过的码只留绿框做位置标记: 空出来的地方还给页面, 不再接收点击 */
-.qr-marks-item--picked {
-    pointer-events: none;
-    cursor: default;
-}
-
-/* 单码没有点选这回事: 结果已经由通知展示, 绿框同样不接收点击 */
+/* 点过的码与单码都只留绿框做位置标记: 不再响应点选, 但框内仍然挡住点击 ——
+   穿透回网页会顺带触发下层交互(打开看图浮层、点到图片外面的链接), 让"只是标位置"变成误操作 */
+.qr-marks-item--picked,
 .qr-marks-item--static {
-    pointer-events: none;
     cursor: default;
 }
 
