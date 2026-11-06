@@ -2,7 +2,7 @@ import { connectExtensionPage, returnToOrigin } from '@/services/background/exte
 import { handleBackgroundMessage } from '@/services/background/messages';
 import { addPageActionMenuItem, handlePageActionClick, showPageAction } from '@/services/background/pageAction';
 import { openCameraScan, requestLocalImageScan, requestWebImageScan } from '@/services/background/scanEntry';
-import { requestScreenScan } from '@/services/background/screenScan';
+import { requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { popupHost } from '@/services/popupHost';
 
@@ -12,7 +12,7 @@ const IS_FIREFOX = import.meta.env.FIREFOX;
 // Firefox 内置支持图标设置
 const setMenuIcon = (name: MenuIconName) => IS_FIREFOX ? { icons: { 16: getMenuIcon(name) } } : {};
 // Chrome 只能通过在标题前添加 emoji 来充当图标
-type MenuMessageKey = 'selectionToQR' | 'scanWebImage' | 'scanScreen' | 'scanLocalImage' | 'scanCamera';
+type MenuMessageKey = 'selectionToQR' | 'scanWebImage' | 'scanScreen' | 'scanRegion' | 'scanLocalImage' | 'scanCamera';
 const setMenuTitle = (key: MenuMessageKey, emoji?: string) => {
     const title = browser.i18n.getMessage(key);
     return IS_FIREFOX || !emoji ? title : `${emoji} ${title}`;
@@ -41,6 +41,13 @@ const addContextMenus = () => new Promise<void>((resolve) => {
             title: setMenuTitle('scanScreen', '🖥️'),
             contexts: ['action', 'page_action'],
             ...setMenuIcon('scanScreen'),
+        });
+        // 框选页面一块区域扫描: 页面上任意位置与工具栏图标都能进
+        browser.contextMenus.create({
+            id: 'scanRegion',
+            title: setMenuTitle('scanRegion', '🔲'),
+            contexts: ['page', 'action', 'page_action'],
+            ...setMenuIcon('scanRegion'),
         });
         // 粘贴/上传本地图片扫描
         browser.contextMenus.create({
@@ -90,6 +97,10 @@ const handleContextMenuClick = (
     // 扫描当前页面视口: 独立 SVG 由 requestScreenScan 内部跳过内容脚本
     if (info.menuItemId === 'scanScreen') {
         void requestScreenScan(tab?.id, tab?.windowId, tab?.url);
+    }
+    // 框选扫描: 注入不了内容脚本的页面由 requestFrameScan 自己退到可框选的截图页
+    if (info.menuItemId === 'scanRegion') {
+        void requestFrameScan(tab?.id);
     }
 };
 

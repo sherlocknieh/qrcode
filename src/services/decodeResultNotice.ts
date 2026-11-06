@@ -119,17 +119,21 @@ function retryLabel(action?: PopupNoticeAction): string | undefined {
 }
 
 // 未扫描到任何码
-function noResultNotice(retry?: PopupNoticeAction): PopupNoticePayload {
+// exitOnDismiss: 整页扫描没扫到时, 关掉通知本身就是"不再扫了" ——
+// 不给"确定"按钮, 旁边只留「尝试框选扫描」让还想扫的用户接着框
+function noResultNotice(retry?: PopupNoticeAction, exitOnDismiss = false): PopupNoticePayload {
     return {
         options: {
             toast: false,
             icon: 'info',
             title: t('recognitionFailed'),
             text: t('recognitionFailedMsg'),
+            showConfirmButton: !exitOnDismiss,
             extraButtonText: retryLabel(retry),
             showCloseButton: true,
         },
         extraAction: retry,
+        exitOnDismiss,
     };
 }
 
@@ -215,12 +219,16 @@ function singleResultNotice(result: DecodeResult): PopupNoticePayload {
 // 按结果数量选择对应的通知。
 // retry: 未扫到码时提供的重试方式, 传 false 表示当前入口无法再试
 // (独立扫描页里截图只会截到自己); 缺省为整屏重扫
+// exitOnDismiss: 没扫到时关掉通知是否表示退出扫描 (整页扫描用), 见 noResultNotice
 export function resultNotice(
     results: DecodeResult[],
-    options: { retry?: PopupNoticeAction | false } = {},
+    options: { retry?: PopupNoticeAction | false; exitOnDismiss?: boolean } = {},
 ): PopupNoticePayload {
     if (!results.length) {
-        return noResultNotice(options.retry === false ? undefined : options.retry ?? { kind: 'screenScan' });
+        return noResultNotice(
+            options.retry === false ? undefined : options.retry ?? { kind: 'screenScan' },
+            options.exitOnDismiss,
+        );
     }
     if (results.length > 1) return multiResultNotice(results);
     return singleResultNotice(results[0]!);

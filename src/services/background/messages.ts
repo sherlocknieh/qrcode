@@ -1,7 +1,6 @@
-import { closeTabAndReturn, sendExtensionPageAction } from '@/services/background/extensionTabs';
+import { closeTabAndReturn } from '@/services/background/extensionTabs';
 import { openCameraScan, requestLocalImageScan } from '@/services/background/scanEntry';
-import { captureVisibleTab, requestScreenScan, showFrameScan } from '@/services/background/screenScan';
-import { resolveActiveTabId, sendTabAction } from '@/services/messaging';
+import { captureVisibleTab, requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { popupHost } from '@/services/popupHost';
 
 // 后台消息路由: 内容脚本与 popup 发来的请求都汇总在这里, 入口文件只把监听器挂上。
@@ -70,19 +69,9 @@ export const handleBackgroundMessage = (
     }
     // 通知里的"框选扫描": 图片扫描失败, 由页面打开框选工具让用户自己选一块
     // (截图扫描自己的结果层就能继续框选, 不再需要这个入口)。
-    // 内容脚本优先; 扩展页 (capture.html) 收不到 tabs.sendMessage, 走它自己连上来的端口;
-    // 都够不着 (扩展商店、独立 SVG 等注入不了脚本的页面) 就截张视口图开可框选的截图页
+    // 分发细节 (内容脚本 → 扩展页端口 → 截视口截图页) 与右键菜单共用 requestFrameScan
     if (request.action === 'requestFrameScan') {
-        resolveActiveTabId()
-            .then(async (tabId) => {
-                if (tabId == null) return false;
-                const delivered = await sendTabAction(tabId, 'frameScan')
-                    || sendExtensionPageAction(tabId, 'frameScan')
-                    || await showFrameScan(tabId);
-                // 框选要在这一页继续扫, 别让这条通知收尾时把该页一起关掉
-                if (delivered) await popupHost.keepTab(tabId);
-                return delivered;
-            })
+        requestFrameScan()
             .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;

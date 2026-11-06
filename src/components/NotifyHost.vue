@@ -285,6 +285,7 @@ onBeforeUnmount(() => {
                                 {{ cancelLabel }}
                             </button>
                             <button
+                                v-if="options.showConfirmButton !== false"
                                 type="button"
                                 class="qr-notify-btn"
                                 :class="{ 'qr-notify-btn--primary': !options.extraButtonText }"

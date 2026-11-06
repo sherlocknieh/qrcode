@@ -25,6 +25,8 @@ import type { ScanRect } from '@/components/ScanOverlay.vue';
 let clearActiveMarks = () => {};
 const { notify, notifyFetching, notifyPickedResults, notifyResults, host } = useNoticeFallback({
     onLocalNoticeDone: () => onNoticeDone(),
+    // 页面内兜底通知被关掉 (popup 打不开时): 整页扫描的空结果同样按"退出扫描"处理
+    onExitScan: () => screenshotScan.close(),
 });
 const scanAnimation = useScanAnimation();
 const imagePasteOverlay = useImagePasteOverlay();
@@ -77,11 +79,13 @@ function showResults(outcome: Extract<DecodeOutcome, { status: 'ok' }>, anchor: 
 
 // 内容脚本的主流程函数，根据不同的消息类型调用相应的处理逻辑
 const mainProcess = (
-    message: { action?: string; imageUrl?: string },
+    message: { action?: string; imageUrl?: string; exitOnDismiss?: boolean },
     _sender: Browser.runtime.MessageSender,
     sendResponse: (response?: { success: boolean }) => void,
 ) => {
     if (message.action === 'notificationResolved') {
+        // 整页扫描没扫到的提示被关掉: 与单击空白、Esc 一样退出, 收起冻结的截图
+        if (message.exitOnDismiss) screenshotScan.close();
         onNoticeDone();
         sendResponse({ success: true });
         return false;
@@ -270,14 +274,17 @@ function decodeScreenshotCapture(
             mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
-        // 整屏扫描没扫到码: 画面已自动退回框选态, 通知里留一句入口提示, 按钮只关掉通知
-        noResultRetry: context.fullScreen ? 'dismiss' : undefined,
+        // 整页扫描没扫到: 通知里不留"确定", 关掉通知即退出扫描, 旁边只留框选入口
+        noResultRetry: context.fullScreen ? 'exit' : undefined,
+        onRetry: context.fullScreen ? () => void openFrameScan() : undefined,
         deferResults: true,
     });
 }
 
-// 框选扫描: 在全屏截图上自己框一块, 与整屏扫描共用同一条截图扫描流程
+// 框选扫描: 上一步整页扫描的截图还留着 (含已被收起的那张) 就直接退回框选态,
+// 免得再截一次、把用户刚才看的画面换掉; 没有可用截图时才重新截一张
 async function openFrameScan() {
+    if (await screenshotScan.frameScan()) return;
     await screenshotScan.open();
 }
 

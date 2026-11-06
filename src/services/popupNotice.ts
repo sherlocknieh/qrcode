@@ -23,6 +23,8 @@ export interface PopupNoticeOptions {
     itemsCollapsed?: boolean;
     showCloseButton?: boolean;
     showCancelButton?: boolean;
+    // 整页扫描没扫到的提示不给"确定": 关掉通知本身就是"不再扫了"
+    showConfirmButton?: boolean;
     confirmButtonText?: string;
     cancelButtonText?: string;
     extraButtonText?: string;
@@ -35,6 +37,9 @@ export interface PopupNoticePayload {
     confirmAction?: PopupNoticeAction;
     cancelAction?: PopupNoticeAction;
     extraAction?: PopupNoticeAction;
+    // 关掉通知即"不再扫了": 整页扫描没扫到时, 页面据此收起冻结的截图 (capture 页关掉自己)。
+    // 用户选了「尝试框选扫描」时不算关掉, 那条路径由 keepTab / frameScan 收尾
+    exitOnDismiss?: boolean;
     // 独立扫描页 (capture.html) 使用: 通知结束后关闭发起它的标签页,
     // 符合"在临时标签页里扫描完就收摊"的预期
     closeOriginTab?: boolean;

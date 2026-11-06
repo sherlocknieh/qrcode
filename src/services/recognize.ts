@@ -14,8 +14,9 @@ export type RecognizeHost = {
     notifyNoResult(onRetry?: () => void, retry?: RetryKind): Promise<boolean>;
 };
 
-// 未扫到码后的按钮: 整屏重扫、框选一块, 或什么都不做只关通知 (页面已经可以框选)
-export type RetryKind = 'screenScan' | 'frameScan' | 'dismiss';
+// 未扫到码后的按钮: 整屏重扫、框选一块, 什么都不做只关通知 (页面已经可以框选),
+// 或"关掉通知即退出扫描" (exit: 整页扫描本身没扫到, 再扫一遍多半还是同样结果)
+export type RetryKind = 'screenScan' | 'frameScan' | 'dismiss' | 'exit';
 
 export type DecodeOutcome =
     // imageSize 是解码所用图像的像素尺寸, 用于把结果的 bounds 换算到画面上
@@ -37,7 +38,7 @@ export type RecognizeOptions = {
     afterDecode?: () => void | Promise<void>;
     // 未扫描到码时点击重试按钮的处理
     onRetry?: () => void;
-    // 重试按钮的方式, 缺省为整屏重扫; 全屏扫描本身失败时改为框选扫描
+    // 重试按钮的方式, 缺省为整屏重扫; 全屏扫描没扫到时改为"关通知即退出 + 旁路框选"
     noResultRetry?: RetryKind;
     // 结果是否已被新一轮扫描取代
     isStale?: () => boolean;

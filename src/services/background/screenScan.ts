@@ -1,5 +1,6 @@
-import { openExtensionPage } from '@/services/background/extensionTabs';
-import { sendTabAction } from '@/services/messaging';
+import { openExtensionPage, sendExtensionPageAction } from '@/services/background/extensionTabs';
+import { resolveActiveTabId, sendTabAction } from '@/services/messaging';
+import { popupHost } from '@/services/popupHost';
 import { storageArea } from '@/services/storage';
 
 // 后台截取的视口图, 由 capture.html 读取后立即删除
@@ -53,6 +54,21 @@ export const showFrameScan = async (originTabId?: number): Promise<boolean> => {
         : await browser.tabs.get(originTabId).then((tab) => tab.windowId).catch(() => undefined);
     if (!await storeViewportCapture(windowId)) return false;
     return openExtensionPage('/capture.html?frame=1', originTabId);
+};
+
+// 框选扫描的分发 (右键菜单与通知里的"框选扫描"共用):
+// 内容脚本优先, 在页面上直接拖框; 扩展页 (capture.html) 收不到 tabs.sendMessage,
+// 走它自己连上来的端口; 都够不着 (扩展商店、独立 SVG、PDF 阅读器等) 就截张视口图开可框选的截图页。
+// 右键菜单可能在 popup / devtools 里触发而没有标签页, 由 resolveActiveTabId 兜底
+export const requestFrameScan = async (tabId?: number): Promise<boolean> => {
+    const targetTabId = await resolveActiveTabId(tabId);
+    if (targetTabId == null) return false;
+    const delivered = await sendTabAction(targetTabId, 'frameScan')
+        || sendExtensionPageAction(targetTabId, 'frameScan')
+        || await showFrameScan(targetTabId);
+    // 框选要在这一页继续扫, 别让这条通知收尾时把该页一起关掉
+    if (delivered) await popupHost.keepTab(targetTabId);
+    return delivered;
 };
 
 // 扫描屏幕要用到标签页 id、窗口与地址, 三者必须来自同一个标签页:

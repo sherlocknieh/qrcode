@@ -5,7 +5,7 @@ import {
     resultNotice,
     runNoticeAction,
 } from '@/services/decodeResultNotice';
-import type { PopupNoticePayload } from '@/services/popupNotice';
+import type { PopupNoticeAction, PopupNoticePayload } from '@/services/popupNotice';
 import { showPopupNotice } from '@/services/popupNotice';
 import type { DecodeResult } from '@/services/qrScanner';
 import type { RecognizeHost, RetryKind } from '@/services/recognize';
@@ -19,6 +19,8 @@ export type NoticeFallbackOptions = {
     closeOriginTab?: boolean | (() => boolean);
     // 通知退回页面内展示时, 在用户结束通知后调用 (被新通知替换不算结束)
     onLocalNoticeDone?: () => void;
+    // 带 exitOnDismiss 的通知被关掉时调用: 整页扫描没扫到, 关掉提示就是退出扫描
+    onExitScan?: () => void;
 };
 
 export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
@@ -68,6 +70,10 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
         // 复制按钮已在页面内就地处理, 打开类动作由本进程执行
         if (response.isConfirmed) runNoticeAction(payload.confirmAction);
         if (response.dismiss === 'cancel') runNoticeAction(payload.cancelAction);
+        // 空结果提示被关掉 (X / Esc) 就是"不再扫了": 页面据此收起截图浮层
+        if (payload.exitOnDismiss && response.dismiss !== 'extra' && response.dismiss !== 'replaced') {
+            options.onExitScan?.();
+        }
         settleLocal(response);
         return false;
     }
@@ -109,10 +115,16 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
 
     // 未扫描到码: 只有调用方真的能再试一次时才给出重试按钮,
     // 按钮方式 (整屏重扫 / 框选) 由调用方决定;
-    // dismiss 例外: 页面已经可以框选, 按钮只负责关通知, 因此不要求 onRetry
+    // dismiss / exit 例外: 页面已经可以框选, 按钮本身不触发重试, 因此不要求 onRetry。
+    // exit 表示整页扫描没扫到: 关掉通知即退出扫描, 页面里只留「尝试框选扫描」一个按钮
     function notifyNoResult(onRetry?: () => void, retry: RetryKind = 'screenScan'): Promise<boolean> {
-        const showRetry = retry === 'dismiss' || Boolean(onRetry);
-        return deliver(resultNotice([], { retry: showRetry ? { kind: retry } : false }), onRetry);
+        const showRetry = retry === 'dismiss' || retry === 'exit' || Boolean(onRetry);
+        // 框选入口在整页扫描里要在同一张冻结的截图上继续框, 走 frameScan 而不是 dismiss
+        const action: PopupNoticeAction = retry === 'exit' ? { kind: 'frameScan' } : { kind: retry };
+        return deliver(resultNotice([], {
+            retry: showRetry ? action : false,
+            exitOnDismiss: retry === 'exit',
+        }), onRetry);
     }
 
     // 供 recognizeImage 使用的宿主: 与上面的函数同一套实现

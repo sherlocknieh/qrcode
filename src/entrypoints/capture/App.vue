@@ -14,7 +14,7 @@ import { t } from '@/services/i18n';
 import { describeImageError, errorNotice } from '@/services/decodeResultNotice';
 import { sendMessage } from '@/services/messaging';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
-import { recognizeImage } from '@/services/recognize';
+import { recognizeImage, type RecognizeHost } from '@/services/recognize';
 import { takeStoredString } from '@/services/storage';
 
 // background 截取视口后写入该键, 本页面读取后立即清除
@@ -24,7 +24,8 @@ const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
 const frameOnly = new URLSearchParams(location.search).get('frame') === '1';
 
 // 关闭本页的时机: 有截图之后通知结束都不关页——扫完还能接着框选、点选,
-// 由单击 / Esc 退出; 只有"没图可看"的失败提示 (取图失败、图片读不出来) 结束时才收掉这一页
+// 由单击 / Esc 退出; "没图可看"的失败提示 (取图失败、图片读不出来) 与整页扫描的空结果
+// 结束时收掉这一页
 let closeOnNoticeDone = true;
 const noticeOptions = {
     closeOriginTab: () => closeOnNoticeDone,
@@ -34,6 +35,17 @@ const noticeOptions = {
 };
 const { host, notify, notifyPickedResults, notifyResults } = useNoticeFallback(noticeOptions);
 const scanAnimation = useScanAnimation();
+
+// 整页扫描没扫到: 这一页只为这次扫描而开, 通知一关 (点网页收起 popup、点 X、Esc) 就收摊。
+// 标记要在通知投递前立起来 (closeOriginTab 在投递那刻求值), 用户点「尝试框选扫描」
+// 继续扫时由 switchToFrameScan 撤掉
+const exitNoticeHost: RecognizeHost = {
+    ...host,
+    notifyNoResult: (onRetry, retry) => {
+        closeOnNoticeDone = true;
+        return host.notifyNoResult(onRetry, retry);
+    },
+};
 
 // 与内容脚本同一套截图扫描: 全屏扫描就是对整屏自动框选一次, 之后还能继续框选重扫
 const screenshotScan = useScreenshotScan({
@@ -78,7 +90,8 @@ function fullScreenCapture(dataUrl: string): ScreenshotScanCapture {
 
 function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanContext) {
     return recognizeImage(() => getImageDataFromDataUrl(capture.dataUrl), {
-        host,
+        // 整页扫描的空结果用带"关闭即退出"标记的宿主, 让通知收尾时把这一页也关掉
+        host: context.fullScreen ? exitNoticeHost : host,
         errorTitle: t('screenshotFailed'),
         isStale: context.isStale,
         beforeNotice: () => scanAnimation.play({
@@ -88,8 +101,10 @@ function decodeCapture(capture: ScreenshotScanCapture, context: ScreenshotScanCo
             mask: false,
         }),
         afterDecode: () => scanAnimation.stop(),
-        // 整屏扫描没扫到码: 画面已自动退回框选态, 通知里留一句入口提示, 按钮只关掉通知
-        noResultRetry: context.fullScreen ? 'dismiss' : undefined,
+        // 整页扫描没扫到: 通知里不留"确定", 关掉通知即退出扫描, 旁边只留框选入口
+        noResultRetry: context.fullScreen ? 'exit' : undefined,
+        // 通知在 popup 里时由 popup 转发框选请求, 页面内兜底通知就地退回框选态
+        onRetry: context.fullScreen ? () => void switchToFrameScan() : undefined,
         deferResults: true,
     });
 }

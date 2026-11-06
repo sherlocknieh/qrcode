@@ -55,6 +55,10 @@
     "message": "Scan Screen",
     "description": "Context menu item for capturing the visible page and scanning it directly without selecting an area"
   },
+  "scanRegion": {
+    "message": "Scan Region",
+    "description": "Context menu item for selecting an area of the page and scanning only that area"
+  },
   "scanLocalImage": {
     "message": "Scan Local Image",
     "description": "Toolbar context menu item that opens the scan panel for uploading or pasting an image"

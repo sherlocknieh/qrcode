@@ -52,15 +52,19 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanScreen": {
-    "message": "扫描当前页面",
+    "message": "一键扫描",
     "description": "右键菜单项：直接截取当前视口并扫描，无需框选区域"
+  },
+  "scanRegion": {
+    "message": "手选区域扫描",
+    "description": "右键菜单项：框选页面的一块区域，只扫描这块区域里的二维码/条形码"
   },
   "scanCamera": {
     "message": "打开相机扫描",
     "description": "相机扫描页面的标题"
   },
   "scanLocalImage": {
-    "message": "扫描本地图片",
+    "message": "上传图片扫描",
     "description": "工具栏图标右键菜单项：在当前页面打开扫描面板，上传或粘贴图片"
   },
   "cameraHint": {

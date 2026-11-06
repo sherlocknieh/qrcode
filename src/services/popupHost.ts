@@ -66,18 +66,23 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         if (lastFinishedId === current.id) return;
         lastFinishedId = current.id;
         await storageArea().remove(POPUP_NOTICE_KEY);
-        // 通知结束也告诉发起它的页面: 内容脚本据此清掉扫描标记, 全屏扫描的截图浮层随结果通知收起
-        void sendTabAction(current.sourceTabId, 'notificationResolved', { id: current.id });
+        // 通知结束也告诉发起它的页面: 内容脚本据此清掉扫描标记, 全屏扫描的截图浮层随结果通知收起;
+        // exitOnDismiss 表示这条提示被关掉就等于退出扫描 (整页扫描没扫到), 页面据此收起截图
+        void sendTabAction(current.sourceTabId, 'notificationResolved', {
+            id: current.id,
+            exitOnDismiss: current.exitOnDismiss === true,
+        });
         if (current.closeTabId != null) await closeTab(current.closeTabId);
     };
 
-    // 通知里的动作要让这一页继续扫 (框选扫描) 时, 这条通知收尾不能把它一起关掉:
-    // closeTabId 只该在"扫完就收摊"的通知上生效
+    // 通知里的动作要让这一页继续扫 (框选扫描) 时, 这条通知收尾既不能关掉它,
+    // 也不能算"关掉即退出": closeTabId 只该在"扫完就收摊"的通知上生效, exitOnDismiss 同理
     const keepTab = async (tabId: number) => {
         const stored = await storageArea().get(POPUP_NOTICE_KEY);
         const current = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
-        if (!current || current.closeTabId !== tabId) return;
-        const { closeTabId: _closeTabId, ...rest } = current;
+        if (!current || current.sourceTabId !== tabId) return;
+        if (current.closeTabId == null && !current.exitOnDismiss) return;
+        const { closeTabId: _closeTabId, exitOnDismiss: _exitOnDismiss, ...rest } = current;
         await storageArea().set({ [POPUP_NOTICE_KEY]: rest });
     };
 
