@@ -145,7 +145,6 @@ defineExpose({ pickFile });
                 </svg>
             </span>
             <p class="qr-picker-title">{{ t('pickerHint') }}</p>
-            <p class="qr-picker-sub">{{ t('pickerFormats') }}</p>
         </template>
 
         <input ref="fileInput" class="qr-picker-input" type="file" accept="image/*" @change="onFileChange" />
@@ -221,21 +220,13 @@ defineExpose({ pickFile });
     stroke-linejoin: round;
 }
 
-/* 主提示说清楚"能做什么", 格式与粘贴入口降为辅助行 */
+/* 与摄像头空态的提示同一套字号与留白, 两种来源的空态看起来才对得上 */
 .qr-picker-title {
     margin: 12px 0 0;
     font-size: 13.5px;
     font-weight: 600;
     line-height: 1.4;
     color: #334155;
-    text-align: center;
-}
-
-.qr-picker-sub {
-    margin: 4px 0 0;
-    font-size: 12px;
-    line-height: 1.5;
-    color: #94a3b8;
     text-align: center;
 }
 

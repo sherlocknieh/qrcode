@@ -52,15 +52,15 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanScreen": {
-    "message": "一键扫描页面",
+    "message": "一键扫描",
     "description": "右键菜单项：直接截取当前视口并扫描，无需框选区域"
   },
   "scanRegion": {
-    "message": "精准选区扫描",
+    "message": "框选区域扫描",
     "description": "右键菜单项：框选页面的一块区域，只扫描这块区域里的二维码/条形码"
   },
   "scanCamera": {
-    "message": "相机扫描",
+    "message": "本地来源扫描",
     "description": "右键菜单项：扫描摄像头里的二维码/条形码"
   },
   "scanSource": {
@@ -107,8 +107,8 @@
     "message": "相机正被其他程序占用",
     "description": "相机被占用时的错误文案"
   },
-  "cameraIdle": {
-    "message": "相机已关闭",
+  "cameraButtonHint": {
+    "message": "相机已关闭, 点击开启",
     "description": "相机未启动时取景框内的提示"
   },
   "cameraOffHint": {
@@ -120,16 +120,12 @@
     "description": "相机扫描页面的标题"
   },
   "scanLocalImageTitle": {
-    "message": "上传/粘贴图片扫码",
+    "message": "上传/粘贴图片扫描",
     "description": "本地图片扫描页面的标题"
   },
   "pickerHint": {
-    "message": "拖入图片开始扫描",
+    "message": "拖入图片到此处, 或按 Ctrl+V 粘贴图片",
     "description": "取图区主提示"
-  },
-  "pickerFormats": {
-    "message": "也可按 Ctrl+V 粘贴",
-    "description": "取图区主提示下方的辅助行"
   },
   "chooseImage": {
     "message": "选择图片",

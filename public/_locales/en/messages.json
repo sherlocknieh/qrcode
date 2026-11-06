@@ -107,8 +107,8 @@
     "message": "The camera is being used by another application.\nClose it and try again.",
     "description": "Error text when the camera is occupied"
   },
-  "cameraIdle": {
-    "message": "Camera is OFF",
+  "cameraButtonHint": {
+    "message": "Camera is OFF, tap to turn it ON",
     "description": "Hint inside the viewfinder before the camera starts"
   },
   "cameraOffHint": {
@@ -124,12 +124,8 @@
     "description": "Title of the local image scanning page"
   },
   "pickerHint": {
-    "message": "Drop an image here to scan",
+    "message": "Drop an image here, or press Ctrl+V to paste",
     "description": "Main hint in the image picker"
-  },
-  "pickerFormats": {
-    "message": "or press Ctrl+V to paste",
-    "description": "Supporting line under the main hint in the image picker"
   },
   "chooseImage": {
     "message": "Choose Image",

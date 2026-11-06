@@ -102,7 +102,7 @@ defineExpose({
                     <circle cx="12" cy="14.1" r="3.4" />
                 </svg>
             </button>
-            <p>{{ t('cameraIdle') }}</p>
+            <p class="qr-scan-camera-hint">{{ t('cameraButtonHint') }}</p>
         </div>
         <div v-if="starting" class="qr-scan-state">
             <span class="qr-scan-spinner" aria-hidden="true"></span>
@@ -204,12 +204,7 @@ defineExpose({
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 10px;
     border-radius: 10px;
-}
-
-.qr-scan-camera-idle {
-    color: #64748b;
 }
 
 /* 空态的开启摄像头按钮: 与取图区的徽章同款, 悬停加亮边框与光圈提示可点 */
@@ -229,6 +224,16 @@ defineExpose({
     cursor: pointer;
     font: inherit;
     transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+/* 与取图区的标题同款: 徽章与文字的留白由文字自身的上边距给出 */
+.qr-scan-camera-hint {
+    margin: 12px 0 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #334155;
+    text-align: center;
 }
 
 .qr-scan-camera-badge:hover {
@@ -257,13 +262,8 @@ defineExpose({
     stroke-linejoin: round;
 }
 
-.qr-scan-camera-idle p {
-    margin: 0;
-    font-size: 12.5px;
-    letter-spacing: 0.02em;
-}
-
 .qr-scan-state {
+    gap: 10px;
     color: #475569;
     font-size: 13px;
     letter-spacing: 0.02em;
