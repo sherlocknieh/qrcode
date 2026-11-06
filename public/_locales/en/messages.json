@@ -1,14 +1,14 @@
 {
   "appName": {
-    "message": "Simple QR Code - Generate & Scan",
+    "message": "Minimal QRCode - Generator & Scanner",
     "description": "Application name"
   },
   "appShortName": {
-    "message": "Simple QR Code",
+    "message": "Minimal QRCode",
     "description": "Short name used for the toolbar tooltip"
   },
   "appDescription": {
-    "message": "Minimal UI, powerful features: generate QR codes from text, and scan QR codes or barcodes from images, screenshots, or the camera.",
+    "message": "Minimalistic UI, Powerful features: generate QR codes from text, and scan QR codes or barcodes from images, screenshots, or the camera.",
     "description": "Application description"
   },
   "selectionToQR": {
@@ -315,14 +315,6 @@
     "message": "Cancel",
     "description": "Cancel button text"
   },
-  "qrCopy": {
-    "message": "Copy QR Code",
-    "description": "Tooltip of the button that copies the QR code image"
-  },
-  "qrDownloadPng": {
-    "message": "Download PNG",
-    "description": "Tooltip of the button that downloads the QR code as PNG"
-  },
   "qrDownloadSvg": {
     "message": "Download SVG",
     "description": "Tooltip of the button that downloads the QR code as SVG"
@@ -330,10 +322,6 @@
   "qrFileName": {
     "message": "QR Code",
     "description": "Default file name of the downloaded QR code"
-  },
-  "qrActionCopy": {
-    "message": "Copy",
-    "description": "Label under the copy icon in the QR code panel"
   },
   "qrActionCamera": {
     "message": "Camera",

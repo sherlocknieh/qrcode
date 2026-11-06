@@ -52,15 +52,15 @@
     "description": "右键菜单项：扫描选中图片中的二维码/条形码"
   },
   "scanScreen": {
-    "message": "一键扫描",
+    "message": "一键扫描页面",
     "description": "右键菜单项：直接截取当前视口并扫描，无需框选区域"
   },
   "scanRegion": {
-    "message": "手选区域扫描",
+    "message": "精准选区扫描",
     "description": "右键菜单项：框选页面的一块区域，只扫描这块区域里的二维码/条形码"
   },
   "scanCamera": {
-    "message": "打开相机扫描",
+    "message": "本地图像扫描",
     "description": "相机扫描页面的标题"
   },
   "scanSource": {
@@ -128,7 +128,7 @@
     "description": "取图区主提示"
   },
   "pickerFormats": {
-    "message": "支持 PNG、JPG、WebP 等格式，也可按 Ctrl+V 粘贴",
+    "message": "也可按 Ctrl+V 粘贴",
     "description": "取图区主提示下方的辅助行"
   },
   "previewHint": {
@@ -315,14 +315,6 @@
     "message": "取消",
     "description": "取消按钮文本"
   },
-  "qrCopy": {
-    "message": "复制二维码",
-    "description": "复制二维码图片的按钮提示"
-  },
-  "qrDownloadPng": {
-    "message": "下载 PNG 图片",
-    "description": "下载二维码 PNG 图片的按钮提示"
-  },
   "qrDownloadSvg": {
     "message": "下载 SVG 矢量图",
     "description": "下载二维码 SVG 矢量图的按钮提示"
@@ -330,10 +322,6 @@
   "qrFileName": {
     "message": "二维码",
     "description": "下载二维码时的默认文件名"
-  },
-  "qrActionCopy": {
-    "message": "复制",
-    "description": "二维码面板：复制按钮图标下方的文字"
   },
   "qrActionCamera": {
     "message": "相机",

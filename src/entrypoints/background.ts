@@ -42,14 +42,14 @@ const addContextMenus = () => new Promise<void>((resolve) => {
             contexts: ['page', 'action', 'page_action'],
             ...setMenuIcon('scanScreen'),
         });
-        // 框选页面一块区域扫描: 页面上任意位置与工具栏图标都能进
+        // 框选页面上特定区域扫描
         browser.contextMenus.create({
             id: 'scanRegion',
             title: setMenuTitle('scanRegion', '🔲'),
             contexts: ['action', 'page_action'],
             ...setMenuIcon('scanRegion'),
         });
-        // 扫码面板: 进入后可选打开相机或上传图片, 不再单列上传入口
+        // 外部来源扫描: 相机/本地图片扫描
         browser.contextMenus.create({
             id: 'scanCamera',
             title: setMenuTitle('scanCamera', '📷'),

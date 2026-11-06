@@ -6,6 +6,8 @@
 
 命令、端口、manifest、目录结构、样式细节以 [package.json](./package.json)、[wxt.config.ts](./wxt.config.ts)、[.dev/](./.dev/) 和源码注释为准;
 
+- 文案在 `public/_locales/en` 与 `zh_CN` 成对添加;
+
 ## 架构
 
 - 入口：background（注册事件与右键菜单）、content（全站注入 UI）、popup、upload（`?camera=1` 摄像头）、capture（截视口扫描，`?frame=1` 框选）。后台能力拆在 `services/background/`，其余共用逻辑在 `services/`，UI 在 `components/`，流程在 `composables/`。
@@ -30,23 +32,7 @@
 | 通知协议、popup 宿主 | [notice.instructions.md](./.github/instructions/notice.instructions.md) |
 | popup 面板、二维码面板 | [popup.instructions.md](./.github/instructions/popup.instructions.md) |
 
-## 约定
 
-- 注释、提交信息、用户可见文案用中文，标识符用英文；缩进 4 空格；新文件单引号 + 分号。
-- 文案在 `public/_locales/en` 与 `zh_CN` 成对添加，代码里统一 `browser.i18n.getMessage`（各入口有本地 `t()`）。
-- 不引入新依赖；不提交 `.env.submit` 与 `pnpm-lock.yaml`；不改 `.env` 里的本机路径。
-- 平台差异用 `import.meta.env.FIREFOX`；`page_action` 只在 Firefox 声明；不要声明 `clipboardRead` / `clipboardWrite`。
-- 临时数据用 `storageArea()`（session 回退 local），`takeStored*` 读后即清；`qr*` 键改动时全局搜索。
-- 权限、manifest、图标只改 [wxt.config.ts](./wxt.config.ts)。
+## 开发调试
 
-## 开发
-
-对话过程中用户通常已经打开 pnpm dev, Agent 调试时可直接复用该 dev server;
-
-改完跑 `pnpm compile`（`vue-tsc --noEmit`，无测试）。
-
-
-## 提交
-
-- 每轮对话后有一定量改动、适合提交时，自行提交当前对话的改动。
-- 检测到会话外的改动时，弹出交互提示框让用户选择如何提交。
+对话过程中用户大概率已打开 pnpm dev, Agent 调试时可直接复用该 dev server, 不需要自行打开新的 dev server。

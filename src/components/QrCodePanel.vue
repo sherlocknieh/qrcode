@@ -1,7 +1,6 @@
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
-import { copyImageDataUrl } from '@/services/clipboardImage';
 import { toSvgDataUrl } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
@@ -78,48 +77,15 @@ function toggleExpanded() {
     if (props.collapsible) expanded.value = !expanded.value;
 }
 
-// 抽屉里复制按钮就地反馈结果: 成功换成对勾, 失败换回图标并短暂给出失败提示
-const copyState = ref<'idle' | 'done' | 'failed'>('idle');
-let copyTimer: number | undefined;
-
-function setCopyState(state: 'done' | 'failed') {
-    copyState.value = state;
-    if (copyTimer !== undefined) window.clearTimeout(copyTimer);
-    copyTimer = window.setTimeout(() => {
-        copyTimer = undefined;
-        copyState.value = 'idle';
-    }, 1500);
-}
-
-const copyLabel = computed(() => {
-    if (copyState.value === 'done') return t('copied');
-    if (copyState.value === 'failed') return t('screenshotCopyFailed');
-    return t('qrCopy');
-});
-
-// 按钮图标下方只放得下短文案: 完整说明仍留给悬停提示与读屏, 复制成功后直接换成结果
-const copyButtonText = computed(() =>
-    copyState.value === 'idle' ? t('qrActionCopy') : copyLabel.value,
-);
-
-async function copyQrCode() {
-    if (!dataUrl.value) return;
-    setCopyState((await copyImageDataUrl(dataUrl.value)) ? 'done' : 'failed');
-}
-
-// 两种格式都直接取现成结果: PNG 就是预览用的位图, SVG 是它的矢量源, 不再重新编码
-function downloadQrCode(format: 'png' | 'svg') {
-    const href = format === 'svg' ? toSvgDataUrl(svg.value) : dataUrl.value;
+// SVG 直接取二维码的矢量源, 避免从预览位图重新编码
+function downloadQrCode() {
+    const href = toSvgDataUrl(svg.value);
     if (!href) return;
     const link = document.createElement('a');
     link.href = href;
-    link.download = `${t('qrFileName')}.${format}`;
+    link.download = `${t('qrFileName')}.svg`;
     link.click();
 }
-
-onBeforeUnmount(() => {
-    if (copyTimer !== undefined) window.clearTimeout(copyTimer);
-});
 </script>
 
 <template>
@@ -176,37 +142,14 @@ onBeforeUnmount(() => {
                             @blur="onInputBlur"
                         ></textarea>
 
-                        <!-- 复制 / 下载收进抽屉: 悬停浮层会挡住二维码热区, 也不便在触屏上触发 -->
+                        <!-- 操作按钮: 下载/扫描 -->
                         <div v-if="dataUrl" class="qr-panel-actions">
-                            <button
-                                class="qr-panel-action"
-                                :class="
-                                    copyState === 'done'
-                                        ? 'qr-panel-action--copied'
-                                        : 'qr-panel-action--copy'
-                                "
-                                type="button"
-                                :aria-label="copyLabel"
-                                :title="copyLabel"
-                                @click="copyQrCode"
-                            >
-                                <span class="qr-panel-action-label">{{ copyButtonText }}</span>
-                            </button>
-                            <button
-                                class="qr-panel-action qr-panel-action--format"
-                                type="button"
-                                :aria-label="t('qrDownloadPng')"
-                                :title="t('qrDownloadPng')"
-                                @click="downloadQrCode('png')"
-                            >
-                                <span class="qr-panel-action-label">PNG</span>
-                            </button>
                             <button
                                 class="qr-panel-action qr-panel-action--format"
                                 type="button"
                                 :aria-label="t('qrDownloadSvg')"
                                 :title="t('qrDownloadSvg')"
-                                @click="downloadQrCode('svg')"
+                                @click="downloadQrCode"
                             >
                                 <span class="qr-panel-action-label">SVG</span>
                             </button>
@@ -241,10 +184,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .qr-panel {
-    /* 二维码结果动作图标: 复制 / 下载 / 复制成功 */
-    --qr-copy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5.5' y='5.5' width='8' height='8' rx='1.5'/%3E%3Cpath d='M10.5 3.5h-6A1.5 1.5 0 0 0 3 5v6'/%3E%3C/svg%3E");
+    /* 二维码结果动作图标: 下载 */
     --qr-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2.5v7'/%3E%3Cpath d='m5 6.5 3 3 3-3'/%3E%3Cpath d='M3 12.5h10'/%3E%3C/svg%3E");
-    --qr-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-7'/%3E%3C/svg%3E");
     /* 扫码入口图标: 屏幕 / 摄像头, 画成单色由 currentColor 上色 */
     --qr-scan-screen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1.5' y='2.5' width='13' height='9' rx='1.5'/%3E%3Cpath d='M8 11.5v2'/%3E%3Cpath d='M5.5 14h5'/%3E%3Cpath d='M4.5 7h7'/%3E%3C/svg%3E");
     --qr-scan-camera: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4.5 7 3h2l1 1.5h2.5A1.5 1.5 0 0 1 14 6v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12V6a1.5 1.5 0 0 1 1.5-1.5z'/%3E%3Ccircle cx='8' cy='9' r='2.4'/%3E%3C/svg%3E");
@@ -443,15 +384,7 @@ onBeforeUnmount(() => {
     --qr-action-icon: var(--qr-scan-camera);
 }
 
-.qr-panel-action--copy {
-    --qr-action-icon: var(--qr-copy);
-}
-
-.qr-panel-action--copied {
-    --qr-action-icon: var(--qr-check);
-}
-
-/* 两个下载按钮共用下载图标, 下方文字标明导出的格式 */
+/* 下载按钮使用统一图标, 下方文字标明导出的格式 */
 .qr-panel-action--format {
     --qr-action-icon: var(--qr-download);
 }
