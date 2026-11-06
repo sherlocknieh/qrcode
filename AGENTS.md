@@ -31,6 +31,7 @@
 | 截图浮层、capture 页 | [screenshot.instructions.md](./.github/instructions/screenshot.instructions.md) |
 | 通知协议、popup 宿主 | [notice.instructions.md](./.github/instructions/notice.instructions.md) |
 | popup 面板、二维码面板 | [popup.instructions.md](./.github/instructions/popup.instructions.md) |
+| 发布、商店提交与描述长度 | [release.instructions.md](./.github/instructions/release.instructions.md) |
 
 
 ## 开发调试
