@@ -1,3 +1,4 @@
+import { notifyState } from '@/composables/useNotify';
 import type { NotifyIcon, NotifyResultItem } from '@/composables/useNotify';
 
 // 页面通知统一转发给 popup 显示, 该键保存 popup 尚未展示的最新一条通知
@@ -46,6 +47,18 @@ export interface PopupNoticeRecord extends PopupNoticePayload {
     closeTabId?: number;
     // 发起通知的标签页: 通知结束时通知它收尾 (清扫描标记、收起全屏扫描的截图浮层)
     sourceTabId?: number;
+}
+
+// 还有通知在等用户处理: 本页兜底通知开着, 或 popup 通知窗口开着 (刚被这次点击点掉也算,
+// 后台用一段关闭宽限兜住)。宿主据此把这次空白点击只当成"消通知", 不动扫描现场
+export async function isNoticeShowing(): Promise<boolean> {
+    if (notifyState.open) return true;
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'popupNoticeOpen' });
+        return response?.open === true;
+    } catch {
+        return false;
+    }
 }
 
 // 交给 popup 显示; 返回 false 表示 popup 不可用, 调用方应回退到页面内通知

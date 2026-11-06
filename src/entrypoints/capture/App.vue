@@ -13,6 +13,7 @@ import { t } from '@/services/i18n';
 import { describeImageError, errorNotice } from '@/services/decodeResultNotice';
 import { sendMessage } from '@/services/messaging';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
+import { isNoticeShowing } from '@/services/popupNotice';
 import { recognizeImage } from '@/services/recognize';
 import { takeStoredString } from '@/services/storage';
 
@@ -46,9 +47,12 @@ const screenshotScan = useScreenshotScan({
         void notifyScreenshotError();
     },
     onClose: () => closeTab(),
-    // 单击 (没拖出选区) 就是退出: 通知是否还开着都一样; 拖框选了一块则继续扫, 不关页;
-    // 多码还没点完时浮层不发这个事件
-    onBlank: () => closeTab(),
+    // 单击 (没拖出选区) 就是退出: 通知还开着时这一下是去消通知的, 不关页;
+    // 通知消掉后再点空白才收起
+    onBlank: async () => {
+        if (await isNoticeShowing()) return;
+        closeTab();
+    },
 });
 
 const takeStoredImage = () => takeStoredString(CAPTURE_IMAGE_KEY);

@@ -8,6 +8,7 @@ import { sendMessage } from '@/services/messaging';
 import { describeImageError, errorNotice, warningNotice } from '@/services/decodeResultNotice';
 import { recognizeImage, type DecodeOutcome, type RetryKind } from '@/services/recognize';
 import { measureImageRect } from '@/services/imageRect';
+import { isNoticeShowing } from '@/services/popupNotice';
 
 // UI组件
 import NotifyHost from '@/components/NotifyHost.vue';
@@ -32,9 +33,12 @@ const screenshotScan = useScreenshotScan({
     notifyResults: (results) => notifyPickedResults(results),
     notifyPicked: (result) => notifyResults([result]),
     onError: () => notifyScreenshotError({ type: 'failed' }),
-    // 单击 (没拖出选区) 就是退出: 通知是否还开着都一样, 这一下点哪算哪;
-    // 拖框选了一块则走 capture 继续扫, 不退出; 多码还没点完时浮层不发这个事件
-    onBlank: () => screenshotScan.close(),
+    // 单击 (没拖出选区) 就是退出: 通知还开着时这一下是去消通知的, 截图与绿框都留着;
+    // 通知消掉后再点空白才收起
+    onBlank: async () => {
+        if (await isNoticeShowing()) return;
+        screenshotScan.close();
+    },
 });
 
 // 命中码后统一在画面上叠绿点: 网页图片按图片实时位置定位; 整屏扫描改用截图容器承载结果

@@ -2,7 +2,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { ScanRect } from '@/components/ScanAnimation.vue';
 import type { DecodeResult } from '@/services/qrScanner';
 import { intersectRect } from '@/services/imageRect';
-import { sendMessage } from '@/services/messaging';
+import { isNoticeShowing } from '@/services/popupNotice';
 
 // 点选锚点: 说明解码用的图像画在屏幕的哪块矩形上。
 // 各入口(扫描屏幕的结果截图/网页图片/扫描面板)只需要给出这个矩形,
@@ -101,9 +101,6 @@ export function useCodePicker(options: CodePickerOptions) {
     // 还没点开过的码数: 宿主据此判断什么时候可以收起整层标记
     const remaining = computed(() => pickedFlags.value.filter((flag) => !flag).length);
 
-    // 正在多码点选: 画面上还有码等着用户挑
-    const awaitingPick = computed(() => (picked.value?.results.length ?? 0) > 1 && remaining.value > 0);
-
     // 结果显示在画面上: 与结果通知同时给出, 点哪个就把通知切到哪个
     function show(results: DecodeResult[], anchor: PickAnchor) {
         clear();
@@ -132,23 +129,10 @@ export function useCodePicker(options: CodePickerOptions) {
         void options.notifyResults([result]);
     }
 
-    // 通知窗口是否还开着 (含刚被这次点击点掉的情况): 内容脚本发起的通知都落在 popup 里
-    async function isNoticeWindowOpen(): Promise<boolean> {
-        try {
-            const response = await sendMessage<{ open?: boolean }>('popupNoticeOpen');
-            return response.open === true;
-        } catch {
-            return false;
-        }
-    }
-
-    // 点击空白处只当是在消通知: 多码还没点完时无论通知开没开都不收摊,
-    // 否则关掉通知就再也点不了剩下的码; 退出交给点已看过的灰框(或单码框)。
-    // 单码的结果通知已经展示过, 通知窗口开着时这一下往往是去关 popup 的,
-    // 也得留到下一次点击再收
+    // 点击空白处收起绿点。但通知还开着时, 这一下往往是去关通知的,
+    // 若此时收起, 用户就没法接着点码了, 所以留到下一次点击再收
     async function dismiss() {
-        if (awaitingPick.value) return;
-        if (await isNoticeWindowOpen()) return;
+        if (await isNoticeShowing()) return;
         clear();
     }
 

@@ -11,9 +11,11 @@ export const handleBackgroundMessage = (
     sendResponse: (response: any) => void,
 ): boolean => {
     // 全屏扫描的绿点被点空白处收起前先问一句: 通知窗口是否还开着。
-    // 开着说明这一下点击是去关 popup 的, 内容脚本会保留绿点等下一次点击
+    // 开着说明这一下点击是去关 popup 的, 内容脚本会保留绿点等下一次点击。
+    // popup 自己来问不算: 它窗口一直连着, 自己的通知状态由本页的 notifyState 反映
     if (request.action === 'popupNoticeOpen') {
-        sendResponse({ success: true, open: popupHost.isOpen() });
+        const fromPopup = sender.url?.includes('/popup.html') === true;
+        sendResponse({ success: true, open: !fromPopup && popupHost.isOpen() });
         return false;
     }
     // 页面通知转发到 popup; 独立扫描页会带上 closeOriginTab, 记录发起它的标签页
