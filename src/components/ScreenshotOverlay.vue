@@ -197,9 +197,12 @@ const pixelHeight = computed(() => Math.max(1, Math.round(layout.value.height * 
 const rootStyle = computed(() => {
     const width = phase.value === 'cover' ? viewport.value.width : layout.value.width;
     const height = phase.value === 'cover' ? viewport.value.height : layout.value.height;
+    // 浮窗的 1px 描边会把画布往里推, 位置提前让出这一像素才能让画布落在 layout 坐标上;
+    // 铺满视口时没有描边, 再让出去整张截图就偏左上 1px, 扫描动画的框会与选区错开一个边框
+    const borderInset = floatingMode.value ? 1 : 0;
     return {
-        left: phase.value === 'cover' ? '0px' : `${layout.value.left - 1}px`,
-        top: phase.value === 'cover' ? '0px' : `${layout.value.top - 1}px`,
+        left: phase.value === 'cover' ? '0px' : `${layout.value.left - borderInset}px`,
+        top: phase.value === 'cover' ? '0px' : `${layout.value.top - borderInset}px`,
         width: `${width}px`,
         height: `${height}px`,
         '--qr-shot-radius': phase.value === 'cover' ? '0px' : '12px',

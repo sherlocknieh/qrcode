@@ -75,7 +75,6 @@ const rootStyle = computed(() => {
     /* 动画挂在图片容器里, 靠排在图片之后压住图片即可;
        层级交给页面自身, 免得越过后加入的浮层(如维基的下载面板) */
     z-index: auto;
-    border-radius: 6px;
     box-shadow:
         0 0 0 2px rgba(255, 255, 255, 0.92),
         0 0 18px rgba(255, 255, 255, 0.55),
