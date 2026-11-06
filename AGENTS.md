@@ -16,7 +16,7 @@ pnpm install       # postinstall 会执行 wxt prepare
 pnpm dev           # 只调试 Chrome：wxt -b chrome -p 3001，并自动固定 dev 图标
 pnpm dev:firefox   # 只调试桌面 Firefox：wxt -b firefox --mv3（端口 3000）
 pnpm dev:android   # Firefox for Android：wxt 只出 dev 版，web-ext 经 adb 装到手机，dev server 端口走 adb reverse 供热更新
-pnpm wxt -b edge -p 3002  # Edge 没有专用脚本，需要时手敲（不带 -p 会撞 Firefox 的 3000）
+pnpm wxt -b edge   # Edge 没有专用脚本，需要时手敲（端口由 wxt.config.ts 按浏览器给：Edge 3002）
 pnpm compile       # 类型检查，提交前必须通过
 pnpm build         # 打包 Chrome/Edge zip
 pnpm build:firefox # 打包 Firefox zip（含 sources）
@@ -24,7 +24,7 @@ pnpm submit:chrome|edge|firefox|all  # 构建并提交商店；wxt 自读 .env.s
 ```
 
 - profile 按浏览器隔离于 `.wxt/dev-profile/<browser>`；[wxt.config.ts](./wxt.config.ts) 从 `-b` 参数推导浏览器，据此选 profile 与调试端口，测试页也在那里配置。
-- 端口固定（Chrome 3001 / Firefox 3000，Edge 手敲时用 3002），可执行文件用 `CHROME_BINARY` / `EDGE_BINARY` / `FIREFOX_BINARY` 覆盖（脚本不探测浏览器路径，缺浏览器由 wxt 报错）；`dev.server.strictPort` 开启，被占即报错（换端口会断热更新，两个实例还会争写 `.output`）。先结束旧进程再重启。
+- 端口按浏览器写死在 [wxt.config.ts](./wxt.config.ts) 的 `DEV_SERVER_PORTS`（Chrome 3001 / Firefox 3000 / Edge 3002），可执行文件用 `CHROME_BINARY` / `EDGE_BINARY` / `FIREFOX_BINARY` 覆盖（脚本不探测浏览器路径，缺浏览器由 wxt 报错）。同一个浏览器只能开一个 dev 实例：端口被占会直接 `ERROR Port 3000 is already in use` 退出（换端口会断热更新，两个实例还会争写 `.output`）。先结束旧进程再重启。
 - `pnpm dev` 把 stdio 直接交给 wxt，wxt 自带的 `o` 键重启照常可用；`pnpm dev:android` 没有 TTY，日志按 `[wxt]` / `[android]` 前缀转发。
 - `pnpm dev` 启动后 [.dev/pin-dev-extension.mjs](./.dev/pin-dev-extension.mjs) 连调试端口（Chrome 9222），在 `chrome://extensions` 上下文调 `chrome.developerPrivate` 固定 dev 图标；Firefox 无此能力。`pnpm dev:firefox` 与手敲的 Edge 不跑这层，需要时在 `chrome://extensions` 手动固定。
 - 手机调试只支持 Firefox for Android（Chromium 系手机浏览器基本不支持扩展）：手机开 USB 调试并授权后跑 `pnpm dev:android`，脚本自动找 adb（`ADB_BIN` 可覆盖，默认按 `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `~/Android/Sdk` 探测），`ANDROID_DEVICE` 指定多设备里的哪台，`FIREFOX_APK` 换 Nightly 等包名。桌面 Firefox 不会被拉起，装包与设备连接由 [.dev/android.mjs](./.dev/android.mjs) 负责（重装重跑命令，外壳脚本不再接管 `o` 键）；热更新复用 WXT dev server（端口 3000 经 `adb reverse` 打通），所以 web-ext 那边关了自带的 reload。
@@ -158,7 +158,7 @@ flowchart LR
 - **扩展页收不到 `tabs.sendMessage`**：`capture.html` 这类扩展页在自己的标签页里时，`browser.tabs.sendMessage` 直接报 `Receiving end does not exist`（Chrome MV3 实测），所以内容脚本那套消息推不进扩展页。需要给扩展页下发动作（如通知里的「框选扫描」）时，由页面挂载时 `runtime.connect({ name: 'extensionPage' })` 连一个端口，后台用 `sendExtensionPageAction()` 按标签页 id 推回去；关掉端口就推不到了，别改回 `tabs.sendMessage`。
 - **开发时固定图标**：未打包扩展的 pin 只在内存里，写 `.wxt/dev-profile/.../Preferences` 的 `extensions.pinned_extensions` 无效；只能由 `.dev/pin-dev-extension.mjs` 运行时调 `chrome.developerPrivate.updateExtensionConfiguration`。改这段前先用 CDP 实测。
 - **Chrome/Edge 的 popup 在 Linux 上打不了中文**：Chromium 的扩展弹窗是独立原生窗口，Linux 下 ibus/fcitx 挂不上去，输入框里只能输英文（Firefox 正常，同一份 `popup.html` 用标签页打开也正常）。这是浏览器层面的限制，改焦点处理、composition 事件或 `value` 绑定都不会有效果，别为此加平台探测；需要中文输入时把扩展页当标签页打开，或先把文字复制好再粘贴。
-- **开发端口号变化**：开发时使用的端口号变化时，浏览器可能会无法加载最新版本的扩展。需要卸载旧扩展再重新加载。
+- **开发端口号变化**：开发时使用的端口号变化时，浏览器可能会无法加载最新版本的扩展。需要卸载旧扩展再重新加载。端口写死在 [wxt.config.ts](./wxt.config.ts) 里就是为了不让它变：只写 `dev.server.strictPort` 而不给 `port` 时 WXT 会从 3000 往后找 3001-3010，第二个 dev 实例静默落到新端口并把 `.output/<browser>-mv3-dev` 的页面入口改写成新端口，已在浏览器里跑的扩展随即加载不到 popup 脚本（弹窗空白、通知不出来，但右键菜单照常）。
 
 ## 完成标准
 

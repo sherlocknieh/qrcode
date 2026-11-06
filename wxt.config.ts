@@ -10,6 +10,9 @@ const devBrowser = (browserFlag >= 0 && process.argv[browserFlag + 1]) || 'chrom
 // Chromium 系预留的远程调试端口, 供 .dev/pin-dev-extension.mjs 连接固定 dev 图标; Firefox 不支持
 const CDP_PORTS: Record<string, string> = { chrome: '9222', edge: '9223' };
 const cdpPort = CDP_PORTS[devBrowser] ?? '';
+// 各浏览器的 dev server 端口: 同一个浏览器只允许一个实例, 第二个要在同一个端口上报错
+const DEV_SERVER_PORTS: Record<string, number> = { chrome: 3001, edge: 3002, firefox: 3000 };
+const devServerPort = DEV_SERVER_PORTS[devBrowser];
 // 可执行文件一律沿用用户环境变量, 脚本里不再自己探测浏览器路径
 const BINARY_ENV: Record<string, string> = { chrome: 'CHROME_BINARY', edge: 'EDGE_BINARY', firefox: 'FIREFOX_BINARY' };
 const binary = process.env[BINARY_ENV[devBrowser] ?? ''];
@@ -30,11 +33,13 @@ for (const profile of new Set([chromiumProfile, firefoxProfile])) {
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'], // 使用 Vue 模块
   srcDir: 'src',                    // 指定源码目录
-  // dev server 端口固定: Chrome 3001 (pnpm dev 传入), Firefox 3000 (wxt 默认, pnpm dev:firefox / dev:android)。
-  // 这里开启 strictPort: 端口被占用时直接报错, 不要静默换端口 —— 换端口后已加载的 dev 扩展
-  // 仍连旧端口, 热更新/重载会失效; 同一浏览器的两个 dev 实例还会争写同一个 .output 目录。
+  // dev server 端口按浏览器写死在配置里: 只开 strictPort 不够 —— 没配 port 时 WXT 会从 3000
+  // 往后找 3001-3010, 第二个 dev 实例就静默落到别的端口, 又把同一份 .output/<browser>-mv3-dev
+  // 的页面入口改写成新端口, 已在浏览器里跑的扩展随即加载不到 popup 脚本 (弹窗空白、通知不出来)。
+  // 显式给 port 后才能让 strictPort 生效: 端口被占即报错退出, 不会悄悄换端口
   dev: {
     server: {
+      port: devServerPort,
       strictPort: true,
     },
   },
