@@ -141,14 +141,33 @@ function multiResultTitle(results: DecodeResult[]): string {
     return t(hasBarcode ? 'multiBarcodeScanSuccess' : 'multiQrcodeScanSuccess');
 }
 
+// 重复的码在画面上也要圈出来, 但通知里只列一次内容:
+// 多码点选时同一内容可能在图上出现多份, 列表按码型 + 内容去重后逐条展示
+function uniqueResults(results: DecodeResult[]): DecodeResult[] {
+    const seen = new Set<string>();
+    return results.filter((result) => {
+        const key = `${result.kind}:${result.text}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+// 去重真的发生时才提示, 让用户知道列表条数少于画面上的码数
+function dedupNoticeText(results: DecodeResult[], unique: DecodeResult[]): string | undefined {
+    return unique.length < results.length ? t('multiResultDeduped') : undefined;
+}
+
 // 多个结果: 逐条列出, 由用户分别打开/复制
 function multiResultNotice(results: DecodeResult[]): PopupNoticePayload {
+    const unique = uniqueResults(results);
     return {
         options: {
             toast: false,
             icon: 'success',
             title: multiResultTitle(results),
-            items: toNoticeItems(results),
+            text: dedupNoticeText(results, unique),
+            items: toNoticeItems(unique),
             showCloseButton: true,
         },
     };
@@ -157,12 +176,14 @@ function multiResultNotice(results: DecodeResult[]): PopupNoticePayload {
 // 画面上已经用绿框标出每个码时先只给一条轻提示: 说明这次扫到多个码、每个都能点开;
 // 内容默认收起, 点"显示全部"才摊开, 避免一上来就把同一批码在列表和绿框里各列一遍
 export function multiFoundNotice(results: DecodeResult[]): PopupNoticePayload {
+    const unique = uniqueResults(results);
     return {
         options: {
             toast: true,
             icon: 'success',
             title: multiResultTitle(results),
-            items: toNoticeItems(results),
+            text: dedupNoticeText(results, unique),
+            items: toNoticeItems(unique),
             itemsCollapsed: true,
             showCloseButton: true,
         },

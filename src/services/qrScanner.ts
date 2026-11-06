@@ -611,6 +611,27 @@ const toRect = (bounds: Bounds, width: number, height: number) => {
     return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
 };
 
+type OccurrenceRect = NonNullable<DecodeResult['bounds']>;
+
+// 同一个码会在多个候选图里重复命中: 内容相同且包围盒明显重叠才算同一个。
+// 内容相同但位置分开(同一张图里印了两份)要各自保留, 这样重复的码也能在画面上圈出来。
+const OCCURRENCE_OVERLAP_RATIO = 0.5;
+
+function isSameOccurrence(a: OccurrenceRect, b: OccurrenceRect): boolean {
+    const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+    const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    if (overlapX <= 0 || overlapY <= 0) return false;
+    const minArea = Math.min(a.width * a.height, b.width * b.height);
+    return minArea <= 0 || overlapX * overlapY >= minArea * OCCURRENCE_OVERLAP_RATIO;
+}
+
+const boundsToRect = (bounds: Bounds): OccurrenceRect => ({
+    x: bounds.minX,
+    y: bounds.minY,
+    width: bounds.maxX - bounds.minX,
+    height: bounds.maxY - bounds.minY,
+});
+
 // ZXing 给出的包围盒只到定位点中心, 二维码外圈还有数据模块;
 // 按模块尺寸向外扩一圈, 让标记框住整个码面。
 const padBounds = (bounds: Bounds | null, pad: number, width: number, height: number): Bounds | null =>
@@ -854,15 +875,20 @@ const shiftBounds = (bounds: Bounds | null, candidate: Candidate): Bounds | null
 export async function decodeAllFromImageData(imageData: ImageData): Promise<DecodeResult[]> {
     const gray = toGrayImage(imageData);
     const found: LocatedResult[] = [];
-    const seen = new Set<string>();
 
     // bounds 已在原图坐标系中, 用于排序和在页面上标出码的位置
     const add = (text: string, kind: DecodeResult['kind'], bounds: Bounds | null) => {
         if (!text || found.length >= MULTI_MAX_RESULTS) return;
-        const key = `${kind}:${text}`;
-        if (seen.has(key)) return;
-        seen.add(key);
         const rect = bounds ? toRect(bounds, gray.width, gray.height) : null;
+        // 修复重复内容只保留一份的问题: 同一个码会在多个候选图里重复命中,
+        // 但同一张图里也可能真的印了两份相同内容; 只按内容去重会吞掉后一份,
+        // 改为内容相同且位置重叠才算同一个, 位置分开的各自保留以便分别圈出
+        const duplicate = found.some((item) => (
+            item.text === text
+            && item.kind === kind
+            && (!rect || !item.bounds || isSameOccurrence(rect, item.bounds))
+        ));
+        if (duplicate) return;
         found.push({
             text,
             kind,
@@ -986,8 +1012,7 @@ function decodeMultipleQrWithZXing(gray: GrayImage): { text: string; bounds: Bou
 
     const detector = new Detector(matrix) as unknown as MultiDetector;
     const decoder = new Decoder();
-    const results: { text: string; bounds: Bounds | null }[] = [];
-    const seen = new Set<string>();
+    const results: { text: string; bounds: Bounds | null; rect: OccurrenceRect | null }[] = [];
     let attempts = 0;
 
     for (let i = 0; i < centers.length - 2; i++) {
@@ -1009,18 +1034,20 @@ function decodeMultipleQrWithZXing(gray: GrayImage): { text: string; bounds: Bou
                 try {
                     const detected = detector.processFinderPatternInfo(new FinderPatternInfo(points));
                     const text = decoder.decodeBitMatrix(detected.getBits(), zxingHints).getText();
-                    if (!text || seen.has(text)) continue;
-                    seen.add(text);
+                    if (!text) continue;
                     const moduleSize = sizes.reduce((sum, size) => sum + size, 0) / sizes.length;
-                    results.push({
-                        text,
-                        bounds: padBounds(
-                            getPointBounds(detected.getPoints(), gray.width, gray.height),
-                            moduleSize * 3.5,
-                            gray.width,
-                            gray.height,
-                        ),
-                    });
+                    const bounds = padBounds(
+                        getPointBounds(detected.getPoints(), gray.width, gray.height),
+                        moduleSize * 3.5,
+                        gray.width,
+                        gray.height,
+                    );
+                    const rect = bounds && boundsToRect(bounds);
+                    // 同内容的码可能在这张图里出现多份, 只有位置重叠的才认作重复解码
+                    if (rect && results.some((item) => (
+                        item.text === text && item.rect && isSameOccurrence(item.rect, rect)
+                    ))) continue;
+                    results.push({ text, bounds, rect });
                 } catch {
                     // 该组合不是有效二维码, 继续尝试其它组合。
                 }
@@ -1091,7 +1118,6 @@ function decodeAllBarcodesWithZXing(gray: GrayImage): BarcodeHit[] {
     const scaleX = scaled.width > 0 ? gray.width / scaled.width : 1;
     const scaleY = scaled.height > 0 ? gray.height / scaled.height : 1;
     const hits: BarcodeHit[] = [];
-    const seen = new Set<string>();
 
     const scaleMapper: BoundsMapper = (bounds) => ({
         minX: bounds.minX * scaleX,
@@ -1113,7 +1139,7 @@ function decodeAllBarcodesWithZXing(gray: GrayImage): BarcodeHit[] {
         { gray: scaled, mapper: scaleMapper },
         { gray: rotateGray90(scaled), mapper: rotateMapper },
     ].map((base) => ({
-        gray: scanBarcodesWithMasking(cloneGray(base.gray), hits, seen, base.mapper),
+        gray: scanBarcodesWithMasking(cloneGray(base.gray), hits, base.mapper),
         mapper: base.mapper,
     }));
 
@@ -1123,20 +1149,30 @@ function decodeAllBarcodesWithZXing(gray: GrayImage): BarcodeHit[] {
     if (hits.length) {
         for (const masked of maskedImages) {
             for (const threshold of BARCODE_THRESHOLDS) {
-                scanBarcodesWithMasking(thresholdGray(masked.gray, threshold), hits, seen, masked.mapper);
+                scanBarcodesWithMasking(thresholdGray(masked.gray, threshold), hits, masked.mapper);
             }
         }
     }
 
     // 命中坐标只到扫描行, 条高在精修时按原图实测:
-    // 候选图超过 1600 会被缩小, 在原图上做剖面和行解码不受缩放误差影响
-    return hits.map((hit) => ({ text: hit.text, bounds: measureBarcodeBounds(gray, hit.bounds, hit.text) }));
+    // 候选图超过 1600 会被缩小, 在原图上做剖面和行解码不受缩放误差影响。
+    // 缩放图与旋转图可能重复命中同一个条形码, 精修后按位置去重;
+    // 同内容但位置分开的条形码各自保留, 让每一份都能被标出来
+    const measured: BarcodeHit[] = [];
+    for (const hit of hits) {
+        const bounds = measureBarcodeBounds(gray, hit.bounds, hit.text);
+        const rect = boundsToRect(bounds);
+        const duplicate = measured.some((item) => (
+            item.text === hit.text && isSameOccurrence(boundsToRect(item.bounds), rect)
+        ));
+        if (!duplicate) measured.push({ text: hit.text, bounds });
+    }
+    return measured;
 }
 
 function scanBarcodesWithMasking(
     gray: GrayImage,
     hits: BarcodeHit[],
-    seen: Set<string>,
     mapper: BoundsMapper,
 ): GrayImage {
     for (let pass = 0; pass < MULTI_MAX_BARCODE_PASS; pass++) {
@@ -1148,8 +1184,7 @@ function scanBarcodesWithMasking(
 
         // 未通过相邻行核对的是文字误判: 不采纳, 但仍遮掉这段继续找,
         // 否则一处正文误判会把同图里真正的条形码一起挡掉。
-        if (isOneDResultConfirmed(result, gray) && !seen.has(text)) {
-            seen.add(text);
+        if (isOneDResultConfirmed(result, gray)) {
             hits.push({ text, bounds: mapper(bounds) });
         }
 
