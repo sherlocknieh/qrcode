@@ -98,8 +98,6 @@ async function playScanAnimation() {
 
 // ---------------------------- 布局与交互 ----------------------------
 
-const title = computed(() => t(isCamera.value ? 'scanCamera' : 'scanLocalImageTitle'));
-
 // 面板内切源: 组件卸载会带走各自设备与预览, 这里只清掉旧结果
 function switchMode(next: ScanMode) {
     if (mode.value === next) return;
@@ -115,7 +113,9 @@ onBeforeUnmount(() => {
 <template>
     <section class="qr-scan-panel" aria-labelledby="qr-scan-panel-title">
         <header class="qr-scan-panel-header">
-            <h1 id="qr-scan-panel-title" class="qr-scan-panel-title">{{ title }}</h1>
+            <h1 id="qr-scan-panel-title" class="qr-scan-panel-title">
+                {{ t(isCamera ? 'scanCamera' : 'scanLocalImageTitle') }}
+            </h1>
             <!-- 面板内的两个源: 相机是默认入口, 图片是相机不可用或被拒绝时的退路 -->
             <div class="qr-scan-source" role="tablist" :aria-label="t('scanSource')">
                 <button
