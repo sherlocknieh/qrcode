@@ -60,8 +60,8 @@
     "description": "Context menu item for selecting an area of the page and scanning only that area"
   },
   "scanCamera": {
-    "message": "Camera",
-    "description": "Title of the camera scanning page"
+    "message": "Scan Camera",
+    "description": "Context menu item for scanning QR codes or barcodes in the camera"
   },
   "scanSource": {
     "message": "Choose Image Source",
@@ -79,13 +79,9 @@
     "message": "Code detected. Tap the top-right button to scan again.",
     "description": "Hint inside the viewfinder after the camera stopped on a detected code"
   },
-  "cameraStop": {
-    "message": "Stop Camera",
-    "description": "Button that stops the camera preview"
-  },
-  "cameraResume": {
-    "message": "Scan Again",
-    "description": "Button that restarts the camera after a result"
+  "cameraClose": {
+    "message": "Close Camera",
+    "description": "Button that turns the camera off without scanning"
   },
   "retryCamera": {
     "message": "Start Camera",
@@ -119,6 +115,10 @@
     "message": "Turn on the camera and point it at a code",
     "description": "Hint inside the viewfinder while the camera is off"
   },
+  "scanCameraTitle": {
+    "message": "Scan from Camera",
+    "description": "Title of the camera scanning page"
+  },
   "scanLocalImageTitle": {
     "message": "Scan Local Image",
     "description": "Title of the local image scanning page"
@@ -130,6 +130,10 @@
   "pickerFormats": {
     "message": "or press Ctrl+V to paste",
     "description": "Supporting line under the main hint in the image picker"
+  },
+  "chooseImage": {
+    "message": "Choose Image",
+    "description": "Button that opens the local image file picker"
   },
   "previewHint": {
     "message": "Click the preview to choose another image",

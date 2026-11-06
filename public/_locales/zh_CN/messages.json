@@ -60,8 +60,8 @@
     "description": "右键菜单项：框选页面的一块区域，只扫描这块区域里的二维码/条形码"
   },
   "scanCamera": {
-    "message": "本地图像扫描",
-    "description": "相机扫描页面的标题"
+    "message": "相机扫描",
+    "description": "右键菜单项：扫描摄像头里的二维码/条形码"
   },
   "scanSource": {
     "message": "选择取图方式",
@@ -79,13 +79,9 @@
     "message": "已扫描到内容，点右上角继续扫描",
     "description": "取景框内的提示: 命中后相机已停止"
   },
-  "cameraStop": {
-    "message": "停止相机",
-    "description": "停止相机预览的按钮"
-  },
-  "cameraResume": {
-    "message": "继续扫描",
-    "description": "扫描结束后重新开启相机的按钮"
+  "cameraClose": {
+    "message": "关闭相机",
+    "description": "关闭摄像头的按钮"
   },
   "retryCamera": {
     "message": "开启相机",
@@ -112,12 +108,16 @@
     "description": "相机被占用时的错误文案"
   },
   "cameraIdle": {
-    "message": "相机未开启",
+    "message": "相机已关闭",
     "description": "相机未启动时取景框内的提示"
   },
   "cameraOffHint": {
     "message": "开启相机后对准二维码或条形码",
     "description": "相机未启动时取景框内的提示"
+  },
+  "scanCameraTitle": {
+    "message": "相机扫描",
+    "description": "相机扫描页面的标题"
   },
   "scanLocalImageTitle": {
     "message": "上传/粘贴图片扫码",
@@ -130,6 +130,10 @@
   "pickerFormats": {
     "message": "也可按 Ctrl+V 粘贴",
     "description": "取图区主提示下方的辅助行"
+  },
+  "chooseImage": {
+    "message": "选择图片",
+    "description": "打开本地图片选择框的按钮"
   },
   "previewHint": {
     "message": "点击方框可更换图片",

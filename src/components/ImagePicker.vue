@@ -105,6 +105,9 @@ onBeforeUnmount(() => {
     window.removeEventListener('dragover', preventPageDrop);
     window.removeEventListener('drop', preventPageDrop);
 });
+
+// 标题栏的上传按钮复用同一个文件选择框
+defineExpose({ pickFile });
 </script>
 
 <template>

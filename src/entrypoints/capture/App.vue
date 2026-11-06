@@ -137,7 +137,8 @@ function connectPagePort(): Browser.runtime.Port | undefined {
 let pagePort = connectPagePort();
 
 onMounted(async () => {
-    document.title = t('appName');
+    // 标签页标题对应本次打开的功能: 框选扫描还是整屏扫描
+    document.title = t(frameOnly ? 'frameScanScreenshot' : 'qrActionScreen');
     try {
         const stored = await takeStoredImage();
         if (!stored) {

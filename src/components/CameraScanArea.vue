@@ -56,7 +56,18 @@ function measureResult(): ScanRect | undefined {
     return frame instanceof HTMLImageElement ? measureImageRect(frame) : measureElementBox(root.value);
 }
 
-defineExpose({ measure, measureResult, isMirrored: () => mirrored.value });
+defineExpose({
+    measure,
+    measureResult,
+    isMirrored: () => mirrored.value,
+    // 标题栏的操作按钮由面板渲染, 这里交出状态与动作
+    active,
+    canFlip,
+    starting,
+    start,
+    stop,
+    flip,
+});
 </script>
 
 <template>
@@ -83,12 +94,8 @@ defineExpose({ measure, measureResult, isMirrored: () => mirrored.value });
             <span class="qr-scan-frame-corner qr-scan-frame-corner--br"></span>
         </div>
         <div v-if="!active && !previewUrl && !starting" class="qr-scan-camera-idle">
-            <button
-                class="qr-scan-camera-badge"
-                type="button"
-                :aria-label="t('retryCamera')"
-                @click="start"
-            >
+            <!-- 空态唯一的操作: 实心圆形图标按钮, 点它开启摄像头 -->
+            <button class="qr-scan-camera-badge" type="button" :aria-label="t('retryCamera')" @click="start">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4.4 8.2 5.5 6.6A1 1 0 0 1 6.3 6h3.4a1 1 0 0 1 .8.6l1.1 1.6" />
                     <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
@@ -100,50 +107,6 @@ defineExpose({ measure, measureResult, isMirrored: () => mirrored.value });
         <div v-if="starting" class="qr-scan-state">
             <span class="qr-scan-spinner" aria-hidden="true"></span>
             <p>{{ t('cameraStarting') }}</p>
-        </div>
-        <!-- 空态没有任何操作时不占位, 免得留下一个空的小黑块 -->
-        <div v-if="canFlip || active || previewUrl" class="qr-scan-stage-tools">
-            <button
-                v-if="canFlip"
-                class="qr-scan-tool"
-                type="button"
-                :title="t('switchCamera')"
-                :aria-label="t('switchCamera')"
-                :disabled="starting"
-                @click="flip"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20.4 9A8.6 8.6 0 0 0 5.6 5.6L3.5 7.7" />
-                    <path d="M3.5 4.4v3.3h3.3" />
-                    <path d="M3.6 15a8.6 8.6 0 0 0 14.8 3.4l2.1-2.1" />
-                    <path d="M20.5 19.6v-3.3h-3.3" />
-                </svg>
-            </button>
-            <button
-                v-if="active"
-                class="qr-scan-tool"
-                type="button"
-                :title="t('cameraStop')"
-                :aria-label="t('cameraStop')"
-                @click="stop"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="7" y="7" width="10" height="10" rx="1.8" />
-                </svg>
-            </button>
-            <button
-                v-else-if="previewUrl"
-                class="qr-scan-tool qr-scan-tool--primary"
-                type="button"
-                :title="t('cameraResume')"
-                :aria-label="t('cameraResume')"
-                :disabled="starting"
-                @click="start"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M9 7.3v9.4l7.4-4.7z" />
-                </svg>
-            </button>
         </div>
         <p v-if="hint" class="qr-scan-stage-hint">{{ hint }}</p>
     </div>
@@ -249,24 +212,28 @@ defineExpose({ measure, measureResult, isMirrored: () => mirrored.value });
     color: #64748b;
 }
 
+/* 空态的开启摄像头按钮: 与取图区的徽章同款, 悬停加亮边框与光圈提示可点 */
 .qr-scan-camera-badge {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 64px;
-    height: 64px;
-    border: 1px solid #e2e8f0;
+    width: 56px;
+    height: 56px;
+    margin: 0;
+    border: 1px solid #dbeafe;
     border-radius: 50%;
-    background: #f8fafc;
-    color: inherit;
+    background-color: #fff;
+    background-image: linear-gradient(180deg, #ffffff 0%, #f2f7ff 100%);
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.04);
+    opacity: 1;
     cursor: pointer;
     font: inherit;
-    transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+    transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
 .qr-scan-camera-badge:hover {
-    border-color: #bfdbfe;
-    background: #eff6ff;
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.1);
 }
 
 .qr-scan-camera-badge:focus-visible {
@@ -279,12 +246,12 @@ defineExpose({ measure, measureResult, isMirrored: () => mirrored.value });
 }
 
 .qr-scan-camera-badge svg {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     margin: 0;
     opacity: 1;
     fill: none;
-    stroke: #94a3b8;
+    stroke: #2563eb;
     stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -319,11 +286,6 @@ defineExpose({ measure, measureResult, isMirrored: () => mirrored.value });
     to {
         transform: rotate(360deg);
     }
-}
-
-/* 深色画面上操作条用半透明深底, 白色按钮才压得住 */
-.qr-scan-stage.qr-scan-stage--camera .qr-scan-stage-tools {
-    background: rgba(15, 23, 42, 0.62);
 }
 
 @media (prefers-reduced-motion: reduce) {

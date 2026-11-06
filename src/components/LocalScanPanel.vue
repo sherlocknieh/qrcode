@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watchEffect } from 'vue';
 import CameraScanArea from '@/components/CameraScanArea.vue';
 import ImageScanArea from '@/components/ImageScanArea.vue';
 import ScanResultMarks from '@/components/ScanResultMarks.vue';
@@ -11,7 +11,7 @@ import { recognizeImage } from '@/services/recognize';
 import { t } from '@/services/i18n';
 
 // 扫描面板: 相机与本地图片是同一条扫描流水线 (recognizeImage) 的两种输入源。
-// 各源的状态、取景框与按钮都收在自己的区域组件里, 面板只负责切源、统一识别与结果展示。
+// 各源的状态与取景框收在自己的区域组件里, 操作按钮由标题栏统一渲染, 面板负责切源、统一识别与结果展示。
 type ScanMode = 'image' | 'camera';
 
 const props = withDefaults(
@@ -98,6 +98,11 @@ async function playScanAnimation() {
 
 // ---------------------------- 布局与交互 ----------------------------
 
+// 标签页标题跟随当前源, 与面板内的标签文案一致
+watchEffect(() => {
+    document.title = t(isCamera.value ? 'scanCameraTitle' : 'scanLocalImageTitle');
+});
+
 // 面板内切源: 组件卸载会带走各自设备与预览, 这里只清掉旧结果
 function switchMode(next: ScanMode) {
     if (mode.value === next) return;
@@ -111,12 +116,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <section class="qr-scan-panel" aria-labelledby="qr-scan-panel-title">
+    <section class="qr-scan-panel">
         <header class="qr-scan-panel-header">
-            <h1 id="qr-scan-panel-title" class="qr-scan-panel-title">
-                {{ t(isCamera ? 'scanCamera' : 'scanLocalImageTitle') }}
-            </h1>
-            <!-- 面板内的两个源: 相机是默认入口, 图片是相机不可用或被拒绝时的退路 -->
+            <!-- 源切换: 每个标签直接写明对应的扫描标题 -->
             <div class="qr-scan-source" role="tablist" :aria-label="t('scanSource')">
                 <button
                     class="qr-scan-source-item"
@@ -131,7 +133,7 @@ onBeforeUnmount(() => {
                         <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
                         <circle cx="12" cy="14.1" r="3.4" />
                     </svg>
-                    {{ t('qrActionCamera') }}
+                    {{ t('scanCameraTitle') }}
                 </button>
                 <button
                     class="qr-scan-source-item"
@@ -142,16 +144,85 @@ onBeforeUnmount(() => {
                     @click="switchMode('image')"
                 >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-                        <path d="M12 15.6V8.6" />
-                        <path d="m8.8 11.6 3.2-3 3.2 3" />
+                        <rect x="3.4" y="4.4" width="17.2" height="15.2" rx="2.4" />
+                        <circle cx="8.4" cy="9.6" r="1.3" />
+                        <path d="m4.4 17.8 5-5 3.3 3.3 2.2-2.2 4.9 4.9" />
                     </svg>
-                    {{ t('qrActionImage') }}
+                    {{ t('scanLocalImageTitle') }}
+                </button>
+            </div>
+            <!-- 相机操作: 播放/暂停常驻开关, 另有翻转 -->
+            <div v-if="isCamera" class="qr-scan-actions">
+                <button
+                    class="qr-scan-tool"
+                    type="button"
+                    :title="t(cameraArea?.active ? 'cameraClose' : 'retryCamera')"
+                    :aria-label="t(cameraArea?.active ? 'cameraClose' : 'retryCamera')"
+                    :disabled="cameraArea?.starting"
+                    @click="cameraArea?.active ? cameraArea?.stop() : cameraArea?.start()"
+                >
+                    <!-- 取景中显示暂停, 关着时显示播放 -->
+                    <svg v-if="cameraArea?.active" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="8" y="6.5" width="2.6" height="11" rx="1.2" />
+                        <rect x="13.4" y="6.5" width="2.6" height="11" rx="1.2" />
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M9 7.3v9.4l7.4-4.7z" />
+                    </svg>
+                </button>
+                <button
+                    v-if="cameraArea?.canFlip"
+                    class="qr-scan-tool"
+                    type="button"
+                    :title="t('switchCamera')"
+                    :aria-label="t('switchCamera')"
+                    :disabled="cameraArea?.starting"
+                    @click="cameraArea?.flip()"
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20.4 9A8.6 8.6 0 0 0 5.6 5.6L3.5 7.7" />
+                        <path d="M3.5 4.4v3.3h3.3" />
+                        <path d="M3.6 15a8.6 8.6 0 0 0 14.8 3.4l2.1-2.1" />
+                        <path d="M20.5 19.6v-3.3h-3.3" />
+                    </svg>
+                </button>
+            </div>
+            <!-- 图片操作: 上传 / 清空 -->
+            <div v-else class="qr-scan-actions">
+                <button
+                    class="qr-scan-tool"
+                    type="button"
+                    :title="t('chooseImage')"
+                    :aria-label="t('chooseImage')"
+                    :disabled="recognizing"
+                    @click="imageArea?.pickFile()"
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 15.4V4.8" />
+                        <path d="m7.8 9 4.2-4.2L16.2 9" />
+                        <path d="M4.6 15.4v2.4a2.4 2.4 0 0 0 2.4 2.4h10a2.4 2.4 0 0 0 2.4-2.4v-2.4" />
+                    </svg>
+                </button>
+                <button
+                    v-if="imageArea?.previewUrl"
+                    class="qr-scan-tool"
+                    type="button"
+                    :title="t('clearImage')"
+                    :aria-label="t('clearImage')"
+                    :disabled="recognizing"
+                    @click="imageArea?.clear()"
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 7h16" />
+                        <path d="M9.6 7V5.4a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2V7" />
+                        <path d="m6.6 7 .8 11.6a1.2 1.2 0 0 0 1.2 1.1h6.8a1.2 1.2 0 0 0 1.2-1.1L17.4 7" />
+                        <path d="M10.6 10.8v5M13.4 10.8v5" />
+                    </svg>
                 </button>
             </div>
         </header>
 
-        <!-- 取景框: 各自组件自带画面、操作与提示 -->
+        <!-- 取景框: 各自组件自带画面与提示, 操作在标题栏 -->
         <CameraScanArea
             v-if="isCamera"
             ref="cameraArea"
@@ -177,7 +248,7 @@ onBeforeUnmount(() => {
     position: relative;
     box-sizing: border-box;
     width: min(560px, 100%);
-    /* 窄屏下限: 面板不跟着容器无限收窄, 标题与右上角图标按钮才有呼吸空间;
+    /* 窄屏下限: 面板不跟着容器无限收窄, 源切换与右上角按钮才有呼吸空间;
        下限必须是绝对值, 用 100% 会跟着容器一起缩, 起不到撑住的作用。
        但手机上容器本身比 360px 还窄时再撑就会横向溢出, 取两者更小值 */
     min-width: min(360px, 100%);
@@ -205,32 +276,23 @@ onBeforeUnmount(() => {
     }
 }
 
-/* 标题栏: 标题左对齐, 源切换收在右侧, 高度固定 */
+/* 标题栏: 源切换靠左, 当前源的操作靠右; 窄屏放不下时操作另起一行 */
 .qr-scan-panel-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 8px 12px;
     min-height: 32px;
     margin-bottom: 12px;
 }
 
-.qr-scan-panel-title {
-    flex: 1 1 auto;
-    min-width: 0;
-    margin: 0;
-    overflow: hidden;
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    color: #0f172a;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* 源切换: 两个并列选项, 选中项浮白底; 相机与图片是同一面板的两种取图方式 */
+/* 源切换: 两个等宽选项, 选中项浮白底; 相机与图片是同一面板的两种取图方式 */
 .qr-scan-source {
-    display: inline-flex;
+    display: inline-grid;
     flex: none;
+    grid-auto-flow: column;
+    /* 1fr 让两格以较长的标签为准等宽, 切换时按钮不跳动 */
+    grid-auto-columns: 1fr;
     gap: 2px;
     padding: 3px;
     border-radius: 11px;
@@ -240,6 +302,7 @@ onBeforeUnmount(() => {
 .qr-scan-source-item {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     height: 28px;
     padding: 0 12px;
@@ -250,6 +313,7 @@ onBeforeUnmount(() => {
     font: inherit;
     font-size: 12.5px;
     font-weight: 500;
+    white-space: nowrap;
     cursor: pointer;
     transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
@@ -316,28 +380,21 @@ onBeforeUnmount(() => {
     background: #eff6ff;
 }
 
-/* 当前源的操作贴在取景框底部, 不占用标题栏空间 */
-:deep(.qr-scan-stage-tools) {
-    position: absolute;
-    right: 12px;
-    bottom: 12px;
-    z-index: 2;
-    display: flex;
+/* 当前源的操作放在标题栏右侧, 不遮挡取景框画面 */
+.qr-scan-actions {
+    display: inline-flex;
+    flex: none;
     align-items: center;
     gap: 6px;
-    padding: 4px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.16);
+    margin-left: auto;
 }
 
-/* 工具按钮: 细边框方块, 悬停转为品牌蓝, 只在需要时出现 */
-:deep(.qr-scan-tool) {
+/* 工具按钮: 统一的 32px 细边框方块, 悬停转为品牌蓝 */
+.qr-scan-tool {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    min-width: 32px;
+    width: 32px;
     height: 32px;
     padding: 0;
     border: 1px solid #e2e8f0;
@@ -349,61 +406,25 @@ onBeforeUnmount(() => {
     transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
-:deep(.qr-scan-tool:hover:not(:disabled)) {
+.qr-scan-tool:hover:not(:disabled) {
     border-color: #bfdbfe;
     background: #f8fafc;
     color: #1d4ed8;
 }
 
-:deep(.qr-scan-tool:focus-visible) {
+.qr-scan-tool:focus-visible {
     outline: 2px solid rgba(37, 99, 235, 0.35);
     outline-offset: 2px;
 }
 
 /* 扫描中不允许上传/翻转换图, 按钮保持可见但不可点 */
-:deep(.qr-scan-tool:disabled) {
+.qr-scan-tool:disabled {
     opacity: 0.45;
     cursor: default;
 }
 
-/* 主操作 (图片扫描 / 继续相机): 唯一带文字的实心按钮, 一眼能认出该点哪里 */
-:deep(.qr-scan-tool--primary) {
-    padding: 0 12px;
-    border-color: #2563eb;
-    background: #2563eb;
-    box-shadow: 0 6px 14px -8px rgba(37, 99, 235, 0.9);
-    color: #fff;
-}
-
-:deep(.qr-scan-tool--primary:hover:not(:disabled)) {
-    border-color: #1d4ed8;
-    background: #1d4ed8;
-    color: #fff;
-}
-
-:deep(.qr-scan-tool--primary:active:not(:disabled)) {
-    transform: translateY(1px);
-}
-
-:deep(.qr-scan-tool--primary:disabled) {
-    border-color: #e2e8f0;
-    background: #f1f5f9;
-    box-shadow: none;
-    /* 通用 disabled 会再压一层透明度, 主操作已经用中性配色表示不可点, 不需要更淡 */
-    opacity: 1;
-    color: #94a3b8;
-}
-
-:deep(.qr-scan-tool-label) {
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-}
-
 /* 完整声明 margin/opacity: 页面全局 svg 规则会作用到注入的浮层上 */
-:deep(.qr-scan-tool svg) {
+.qr-scan-tool svg {
     width: 18px;
     height: 18px;
     margin: 0;
