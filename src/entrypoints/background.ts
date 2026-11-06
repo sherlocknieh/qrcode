@@ -1,6 +1,6 @@
 import { connectExtensionPage, returnToOrigin } from '@/services/background/extensionTabs';
 import { handleBackgroundMessage } from '@/services/background/messages';
-import { addPageActionMenuItem, handlePageActionClick, showPageAction } from '@/services/background/pageAction';
+import { addPageActionMenuItem, handlePageActionClick, addPageAction } from '@/services/background/pageAction';
 import { openLocalScanPanel, requestWebImageScan } from '@/services/background/scanEntry';
 import { requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
@@ -108,9 +108,8 @@ export default defineBackground(() => {
         void addContextMenus().then(addPageActionMenuItem);
     });
 
-    // 标签页加载完成时添加 Firefox 地址栏图标
-    if (IS_FIREFOX)
-        browser.tabs.onUpdated.addListener((tabId) => void showPageAction(tabId));
+    // Firefox 新增标签页自动添加地址栏图标
+    if (IS_FIREFOX) browser.tabs.onUpdated.addListener((tabId) => void addPageAction(tabId));
 
     // 用户手动点 X 关闭临时扩展页 (capture / upload) 时把焦点还给来源页;
     // 由后台主动关闭的标签页已先清除记录, 不会重复处理
