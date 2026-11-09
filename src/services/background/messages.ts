@@ -1,7 +1,16 @@
 import { closeTabAndReturn } from '@/services/background/extensionTabs';
 import { openLocalScanPanel } from '@/services/background/scanEntry';
-import { captureVisibleTab, requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
+import { primeViewportCapture, requestFrameScan, requestScreenScan, takeViewportCapture } from '@/services/background/screenScan';
 import { popupHost } from '@/services/popupHost';
+
+// 截图目标标签页: 内容脚本的消息带着来源页, popup 等没有标签页的宿主回落到当前活动标签页
+const resolveCaptureTarget = async (
+    sender: Browser.runtime.MessageSender,
+): Promise<{ tabId?: number; windowId?: number }> => {
+    if (sender.tab?.windowId != null) return { tabId: sender.tab.id, windowId: sender.tab.windowId };
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    return { tabId: tab?.id, windowId: tab?.windowId };
+};
 
 // 后台消息路由: 内容脚本与 popup 发来的请求都汇总在这里, 入口文件只把监听器挂上。
 // 每个 action 独立处理, 需要异步回执的返回 true 保持消息端口开启
@@ -43,18 +52,26 @@ export const handleBackgroundMessage = (
             .catch(() => sendResponse({ success: false }));
         return true;
     }
-    // 截取当前标签页可见区域: 由后台调用可避免 getDisplayMedia 的屏幕共享提示条压缩页面视口
+    // 截取当前标签页可见区域: 由后台调用可避免 getDisplayMedia 的屏幕共享提示条压缩页面视口。
+    // 优先用预热好的同一张画面, 让"点扫描"到截图出现之间不再等整屏编码
     if (request.action === 'captureVisibleTab') {
-        // 消息可能来自内容脚本 (sender.tab), 也可能来自 popup (无 sender.tab)
-        const resolveWindowId = async () => {
-            if (sender.tab?.windowId != null) return sender.tab.windowId;
-            const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-            return tab?.windowId;
-        };
-        resolveWindowId()
-            .then(windowId => captureVisibleTab(windowId))
+        resolveCaptureTarget(sender)
+            .then(({ tabId, windowId }) => takeViewportCapture(tabId, windowId))
             .then(dataUrl => sendResponse({ success: true, dataUrl }))
             .catch(error => sendResponse({ success: false, error: error?.message ?? String(error) }));
+        return true;
+    }
+    // 预热视口截图: popup 抽屉展开时先截一张, 点「扫描屏幕」时直接复用
+    if (request.action === 'primeCapture') {
+        // 手机上 popup 是被当标签页打开的: 此时 sender.tab 指向 popup 自己, 没有可扫的画面
+        if (sender.tab != null) {
+            sendResponse({ success: false });
+            return false;
+        }
+        resolveCaptureTarget(sender)
+            .then(({ tabId, windowId }) => primeViewportCapture(tabId, windowId))
+            .then(() => sendResponse({ success: true }))
+            .catch(() => sendResponse({ success: false }));
         return true;
     }
     // popup 点击"改用扫描屏幕"后, 让当前页面重新截取视口扫描;

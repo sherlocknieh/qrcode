@@ -2,7 +2,7 @@ import { connectExtensionPage, returnToOrigin } from '@/services/background/exte
 import { handleBackgroundMessage } from '@/services/background/messages';
 import { addPageActionMenuItem, handlePageActionClick, addPageAction } from '@/services/background/pageAction';
 import { openLocalScanPanel, requestWebImageScan } from '@/services/background/scanEntry';
-import { requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
+import { primeViewportCapture, requestFrameScan, requestScreenScan } from '@/services/background/screenScan';
 import { getMenuIcon, type MenuIconName } from '@/services/menuIcons';
 import { popupHost } from '@/services/popupHost';
 
@@ -13,6 +13,10 @@ const IS_FIREFOX = import.meta.env.FIREFOX;
 const setMenuIcon = (name: MenuIconName) => IS_FIREFOX ? { icons: { 16: getMenuIcon(name) } } : {};
 // Chrome 只能通过在标题前添加 emoji 来充当图标
 type MenuMessageKey = 'selectionToQR' | 'scanWebImage' | 'scanScreen' | 'scanRegion' | 'scanCamera';
+
+// contextMenus.onShown 的入参: 只取判断"要不要预热截图"要用的字段
+type MenuShownInfo = { editable?: boolean; contexts?: string[] };
+
 const setMenuTitle = (key: MenuMessageKey, emoji?: string) => {
     const title = browser.i18n.getMessage(key);
     return IS_FIREFOX || !emoji ? title : `${emoji} ${title}`;
@@ -119,6 +123,20 @@ export default defineBackground(() => {
     browser.contextMenus.onClicked.addListener((info, tab) => {
         if (handlePageActionClick(info.menuItemId)) return;
         handleContextMenuClick(info, tab);
+    });
+
+    // 菜单弹出时先把视口截下来: 菜单本身是浏览器界面, 不会进截图;
+    // 等用户点到「扫描屏幕 / 框选扫描」时截图已经就绪, 点击后不必再等整屏编码。
+    // 标签页还没被本次使用授权时截不到 (activeTab 要等点了菜单项才给), 这次预热自动落空,
+    // 点下去照常现截; 同一标签页上第二次以后就都能提前备好
+    const menuShown = (browser.contextMenus as unknown as {
+        onShown?: { addListener(listener: (info: MenuShownInfo, tab?: Browser.tabs.Tab) => void): void };
+    }).onShown;
+    menuShown?.addListener((info, tab) => {
+        // 在输入框里右键多半是想编辑, 不值得为它截一张整屏
+        if (info.editable || info.contexts?.includes('editable')) return;
+        if (tab?.id == null || tab.url?.startsWith(browser.runtime.getURL('/'))) return;
+        void primeViewportCapture(tab.id, tab.windowId);
     });
 
     // 监听并处理来自内容脚本、扩展页、popup 的消息

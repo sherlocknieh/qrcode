@@ -21,10 +21,51 @@ export const captureVisibleTab = (windowId?: number): Promise<string> => windowI
     ? browser.tabs.captureVisibleTab({ format: 'png' })
     : browser.tabs.captureVisibleTab(windowId, { format: 'png' });
 
+// 预热的视口图只能用这么久的画面: 过期了宁可现截一张, 也不能拿旧画面冒充当前屏幕
+const PRIMED_CAPTURE_TTL_MS = 5000;
+
+type PrimedCapture = { tabId: number; dataUrl: string; at: number };
+
+// 预热的视口图: 右键菜单弹出、popup 抽屉展开时就截好, 点扫描时直接复用。
+// 整屏 PNG 编码是"点下去到截图出现"里最贵的一段, 提到用户做决定之前就做完了
+let primedCapture: PrimedCapture | undefined;
+// 预热还在路上: 扫描请求碰上它就直接等这一张, 同一画面不截两遍
+let priming: Promise<void> | undefined;
+
+const isFreshFor = (capture: PrimedCapture | undefined, tabId?: number): capture is PrimedCapture =>
+    capture != null
+    && capture.tabId === tabId
+    && Date.now() - capture.at < PRIMED_CAPTURE_TTL_MS;
+
+// 预热一张视口图供紧接着的扫描复用; 同一标签页已有新鲜的就不重复截 (截视口有每秒次数上限)
+export const primeViewportCapture = async (tabId?: number, windowId?: number): Promise<void> => {
+    if (tabId == null || tabId < 0) return;
+    if (priming || isFreshFor(primedCapture, tabId)) return;
+    priming = captureVisibleTab(windowId)
+        .then((dataUrl) => {
+            primedCapture = { tabId, dataUrl, at: Date.now() };
+        })
+        // 预热失败不影响扫码: 真要点扫描时再截一次
+        .catch(() => {})
+        .finally(() => {
+            priming = undefined;
+        });
+    await priming;
+};
+
+// 截视口: 有预热好的同一张画面就直接用, 预热还在路上就等它, 都没有才现截
+export const takeViewportCapture = async (tabId?: number, windowId?: number): Promise<string> => {
+    await priming;
+    const primed = primedCapture;
+    // 预热图一次性使用: 下一次扫描要重新截, 免得反复拿到同一张旧画面
+    primedCapture = undefined;
+    return isFreshFor(primed, tabId) ? primed.dataUrl : captureVisibleTab(windowId);
+};
+
 // 截视口并落盘: capture.html 读取后立即清除
-const storeViewportCapture = async (windowId?: number): Promise<boolean> => {
+const storeViewportCapture = async (tabId?: number, windowId?: number): Promise<boolean> => {
     try {
-        const dataUrl = await captureVisibleTab(windowId);
+        const dataUrl = await takeViewportCapture(tabId, windowId);
         // 截图体积较大, 交给扩展页面读取后立即清除
         await storageArea().set({ [CAPTURE_IMAGE_KEY]: dataUrl });
         return true;
@@ -40,7 +81,7 @@ const storeViewportCapture = async (windowId?: number): Promise<boolean> => {
 // 兜底交给 popup 会受其窗口尺寸限制, 所以截图类降级统一走 capture.html;
 // originTabId 用于关闭 capture 页时切回来源页面, 否则浏览器会切到相邻标签
 export const showScreenScan = async (originTabId?: number, windowId?: number): Promise<boolean> => {
-    if (!await storeViewportCapture(windowId)) return false;
+    if (!await storeViewportCapture(originTabId, windowId)) return false;
     // capture 页先整屏扫一次, 扫完还能在截图上接着框选
     return openExtensionPage('/capture.html', originTabId);
 };
@@ -52,7 +93,7 @@ export const showFrameScan = async (originTabId?: number): Promise<boolean> => {
     const windowId = originTabId == null
         ? undefined
         : await browser.tabs.get(originTabId).then((tab) => tab.windowId).catch(() => undefined);
-    if (!await storeViewportCapture(windowId)) return false;
+    if (!await storeViewportCapture(originTabId, windowId)) return false;
     return openExtensionPage('/capture.html?frame=1', originTabId);
 };
 

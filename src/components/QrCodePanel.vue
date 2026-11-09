@@ -19,6 +19,8 @@ const emit = defineEmits<{
     (event: 'update:modelValue', value: string): void;
     // 扫码入口只负责发出意图, 具体分发交给宿主 (popup 交给后台)
     (event: 'scan', entry: 'screen' | 'camera'): void;
+    // 抽屉展开: 宿主可以趁用户挑入口的时间先备好截图
+    (event: 'expand'): void;
 }>();
 
 const text = computed({
@@ -74,7 +76,9 @@ onMounted(fitInputHeight);
 
 // 二维码整块就是展开/收起入口, 没有再叠一个可见按钮
 function toggleExpanded() {
-    if (props.collapsible) expanded.value = !expanded.value;
+    if (!props.collapsible) return;
+    expanded.value = !expanded.value;
+    if (expanded.value) emit('expand');
 }
 
 // SVG 直接取二维码的矢量源, 避免从预览位图重新编码

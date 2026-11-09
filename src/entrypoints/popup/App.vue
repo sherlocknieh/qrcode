@@ -326,6 +326,12 @@ function prepareScanView() {
   document.documentElement.style.minWidth = '360px';
 }
 
+// 抽屉展开后就有「扫描屏幕」可选: 趁用户点它的时间把视口图先截好,
+// 点下去直接进截图流程, 不必再等整屏编码
+function primeScreenScan() {
+  void trySendMessage('primeCapture');
+}
+
 // 实现展开面板里的扫码入口: 扫描要在扩展页或页面浮层里完成,
 // popup 失焦即关闭且会挡住页面浮层, 因此拿到后台成功回执后主动收起 popup;
 // 失败时保留窗口, 让后台给出的错误通知还能被看到
@@ -438,6 +444,7 @@ onBeforeUnmount(() => {
     v-model="qrText"
     collapsible
     :flash-text="eggText"
+    @expand="primeScreenScan"
     @scan="startPanelScan"
   />
 
