@@ -143,7 +143,11 @@ export function useScreenshotScan(options: ScreenshotScanOptions) {
                 return false;
             }
             session = opened;
-            if (params.autoCapture) await scan(params.autoCapture, true);
+            // 截图已经在画面上, 这里就算响应完了: 解码与整屏扫描留给后台跑,
+            // 否则调用方要一直等到出结果 (或通知) 才算"打开完成"
+            if (params.autoCapture) {
+                void scan(params.autoCapture, true).catch(() => options.onError?.());
+            }
             return true;
         } catch {
             options.onError?.();
