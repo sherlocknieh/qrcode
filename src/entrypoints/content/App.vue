@@ -293,11 +293,29 @@ function decodeScreenshotCapture(
     });
 }
 
+// 触发即给反馈: 页面上提前出现的图层会被截进图里, 只有光标不进截图,
+// 所以先让光标进入等待态; 截图浮层一挂上就由它自己的光标接管
+function beginScanCursor() {
+    const root = document.documentElement;
+    const previous = root.style.getPropertyValue('cursor');
+    const priority = root.style.getPropertyPriority('cursor');
+    root.style.setProperty('cursor', 'progress', 'important');
+    return () => {
+        if (previous) root.style.setProperty('cursor', previous, priority);
+        else root.style.removeProperty('cursor');
+    };
+}
+
 // 框选扫描: 上一步整页扫描的截图还留着 (含已被收起的那张) 就直接退回框选态,
 // 免得再截一次、把用户刚才看的画面换掉; 没有可用截图时才重新截一张
 async function openFrameScan() {
     if (await screenshotScan.frameScan()) return;
-    await screenshotScan.open();
+    const endScanCursor = beginScanCursor();
+    try {
+        await screenshotScan.open();
+    } finally {
+        endScanCursor();
+    }
 }
 
 // 扫描屏幕: 截取当前视口后直接进入截图扫描, 自动对整屏扫一次;
@@ -305,16 +323,21 @@ async function openFrameScan() {
 async function handleScreenScan() {
     screenshotEpoch++;
     clearMarks();
-    // 等上一轮扫描动画退场, 否则新的 play() 会因为旧会话还在而直接跳过
-    await scanAnimation.stop();
-    const epoch = screenshotEpoch;
+    const endScanCursor = beginScanCursor();
     try {
-        const dataUrl = await captureVisibleTab();
-        if (epoch !== screenshotEpoch) return;
-        await screenshotScan.open({ src: dataUrl, autoCapture: fullScreenCapture(dataUrl) });
-    } catch (error) {
-        if (epoch !== screenshotEpoch) return;
-        notifyScreenshotError(error);
+        // 等上一轮扫描动画退场, 否则新的 play() 会因为旧会话还在而直接跳过
+        await scanAnimation.stop();
+        const epoch = screenshotEpoch;
+        try {
+            const dataUrl = await captureVisibleTab();
+            if (epoch !== screenshotEpoch) return;
+            await screenshotScan.open({ src: dataUrl, autoCapture: fullScreenCapture(dataUrl) });
+        } catch (error) {
+            if (epoch !== screenshotEpoch) return;
+            notifyScreenshotError(error);
+        }
+    } finally {
+        endScanCursor();
     }
 }
 

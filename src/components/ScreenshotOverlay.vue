@@ -528,7 +528,8 @@ const handleWheel = (event: WheelEvent) => {
 // 结果画面上继续框选: 拖出选区后照常确认、扫描新区域;
 // 没拖出选区就松开的行为在 pointerup 里处理
 const handlePointerDown = (event: PointerEvent) => {
-    if (busy.value || event.button !== 0) return;
+    // 压暗先出现, 截图还在解码: 这时不能开始框选, 否则会在空画布上画出选区
+    if (!loaded.value || busy.value || event.button !== 0) return;
     if (frozen.value) {
         pendingArchive = {
             marks: resultMarks.value,
@@ -555,7 +556,7 @@ const handlePointerDown = (event: PointerEvent) => {
 };
 
 const handlePointerMove = (event: PointerEvent) => {
-    if (busy.value) return;
+    if (!loaded.value || busy.value) return;
     const { x, y } = getPointerPosition(event);
     if (!drag) {
         updateCursor(x, y);
@@ -777,7 +778,6 @@ defineExpose({
 
 <template>
     <div
-        v-if="loaded"
         ref="rootRef"
         class="qr-shot"
         :class="{
@@ -785,8 +785,9 @@ defineExpose({
             'qr-shot--animating': busy,
             'qr-shot--frozen': frozen,
             'qr-shot--transitioning': allowLayoutTransition,
+            'qr-shot--loading': !loaded,
         }"
-        :style="[rootStyle, { cursor: busy ? 'default' : cursor }]"
+        :style="[rootStyle, { cursor: !loaded ? 'progress' : busy ? 'default' : cursor }]"
         @wheel="handleWheel">
         <!-- 截图框选画布 -->
         <canvas
@@ -835,6 +836,11 @@ defineExpose({
     overflow: visible;
     user-select: none;
     touch-action: none;
+}
+
+/* 截图还在解码: 先把整屏压暗, 用户点完立刻看得到反应; 颜色与画布上的遮罩一致, 接上时不跳 */
+.qr-shot--loading {
+    background: rgba(8, 12, 20, 0.22);
 }
 
 .qr-shot-canvas {
