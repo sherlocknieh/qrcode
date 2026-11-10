@@ -73,9 +73,17 @@ defineExpose({
 </template>
 
 <style scoped>
+/* 取景框高度由 min-height 撑出时是 auto, 子元素的 100% 高度无从解析,
+   取图区会缩成内容高度贴在顶部; 用纵向 flex 让取图区吃掉剩余高度, 内容才真正居中 */
+.qr-scan-stage {
+    display: flex;
+    flex-direction: column;
+}
+
 /* 取图区占满取景框, 内容居中; 虚线边框正好充当取景提示 */
 :deep(.qr-picker) {
-    height: 100%;
+    flex: 1 1 auto;
+    height: auto;
     justify-content: center;
 }
 

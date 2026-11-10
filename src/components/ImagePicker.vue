@@ -222,12 +222,18 @@ defineExpose({ pickFile });
 
 /* 与摄像头空态的提示同一套字号与留白, 两种来源的空态看起来才对得上 */
 .qr-picker-title {
+    /* 纵向 flex 的居中会让子项按内容宽度收缩, 长文案不换行就会顶出虚线框 */
+    max-width: 100%;
     margin: 12px 0 0;
+    padding: 0 12px;
+    box-sizing: border-box;
     font-size: 13.5px;
     font-weight: 600;
     line-height: 1.4;
     color: #334155;
     text-align: center;
+    /* 换行时两行长度均衡, 避免末行只剩一两个字 */
+    text-wrap: balance;
 }
 
 .qr-picker-figure {

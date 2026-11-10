@@ -133,7 +133,7 @@ onBeforeUnmount(() => {
                         <rect x="2" y="8.2" width="20" height="11.8" rx="2.4" />
                         <circle cx="12" cy="14.1" r="3.4" />
                     </svg>
-                    {{ t('scanCameraTitle') }}
+                    <span class="qr-scan-source-label">{{ t('scanCameraTitle') }}</span>
                 </button>
                 <button
                     class="qr-scan-source-item"
@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
                         <circle cx="8.4" cy="9.6" r="1.3" />
                         <path d="m4.4 17.8 5-5 3.3 3.3 2.2-2.2 4.9 4.9" />
                     </svg>
-                    {{ t('scanLocalImageTitle') }}
+                    <span class="qr-scan-source-label">{{ t('scanLocalImageTitle') }}</span>
                 </button>
             </div>
             <!-- 相机操作: 播放/暂停常驻开关, 另有翻转 -->
@@ -289,11 +289,13 @@ onBeforeUnmount(() => {
 /* 源切换: 两个等宽选项, 选中项浮白底; 相机与图片是同一面板的两种取图方式 */
 .qr-scan-source {
     display: inline-grid;
-    flex: none;
+    /* 可压缩: 窄屏上两个标签的固有宽度会超过卡片内容区, 不缩就会顶出右边缘 */
+    flex: 0 1 auto;
     grid-auto-flow: column;
     /* 1fr 让两格以较长的标签为准等宽, 切换时按钮不跳动 */
-    grid-auto-columns: 1fr;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 2px;
+    min-width: 0;
     padding: 3px;
     border-radius: 11px;
     background: #f1f5f9;
@@ -305,6 +307,7 @@ onBeforeUnmount(() => {
     justify-content: center;
     gap: 6px;
     height: 28px;
+    min-width: 0;
     padding: 0 12px;
     border: 0;
     border-radius: 8px;
@@ -316,6 +319,33 @@ onBeforeUnmount(() => {
     white-space: nowrap;
     cursor: pointer;
     transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+/* 标签文字是唯一可压缩的部分: 放不下时省略, 图标与内边距保持不动 */
+.qr-scan-source-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 窄屏: 标题栏不换行, 切换器让出空间给右侧操作按钮;
+   放不下时只省略标签文字, 按钮始终留在同一行 */
+@media (max-width: 420px) {
+    .qr-scan-panel-header {
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .qr-scan-source {
+        flex: 1 1 auto;
+        grid-auto-columns: minmax(0, auto);
+    }
+
+    .qr-scan-source-item {
+        gap: 3px;
+        padding: 0 3px;
+        font-size: clamp(10px, 3.2vw, 12.5px);
+    }
 }
 
 .qr-scan-source-item:hover {
@@ -335,6 +365,7 @@ onBeforeUnmount(() => {
 }
 
 .qr-scan-source-item svg {
+    flex: none;
     width: 15px;
     height: 15px;
     margin: 0;
