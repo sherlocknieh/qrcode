@@ -634,6 +634,8 @@ const boundsToRect = (bounds: Bounds): OccurrenceRect => ({
 
 // ZXing 给出的包围盒只到定位点中心, 二维码外圈还有数据模块;
 // 按模块尺寸向外扩一圈, 让标记框住整个码面。
+const QR_BOUNDS_PAD_MODULES = 3.5;
+
 const padBounds = (bounds: Bounds | null, pad: number, width: number, height: number): Bounds | null =>
     bounds && {
         minX: clamp(bounds.minX - pad, 0, Math.max(0, width - 1)),
@@ -918,7 +920,7 @@ export async function decodeAllFromImageData(imageData: ImageData): Promise<Deco
             const fallback = decodeQrResultWithZXing(candidate.image);
             const text = fallback?.getText() ?? '';
             if (fallback && text) {
-                const bounds = getResultBounds(fallback, candidate.image.width, candidate.image.height);
+                const bounds = getQrResultBounds(fallback, candidate.image.width, candidate.image.height);
                 add(text, 'qr', shiftBounds(bounds, candidate));
             }
         }
@@ -1038,7 +1040,7 @@ function decodeMultipleQrWithZXing(gray: GrayImage): { text: string; bounds: Bou
                     const moduleSize = sizes.reduce((sum, size) => sum + size, 0) / sizes.length;
                     const bounds = padBounds(
                         getPointBounds(detected.getPoints(), gray.width, gray.height),
-                        moduleSize * 3.5,
+                        moduleSize * QR_BOUNDS_PAD_MODULES,
                         gray.width,
                         gray.height,
                     );
@@ -1202,6 +1204,29 @@ function cloneGray(gray: GrayImage): GrayImage {
 
 function getResultBounds(result: Result, width: number, height: number): Bounds | null {
     return getPointBounds(result.getResultPoints(), width, height);
+}
+
+// 单码兜底路径的定位点同样只到定位图案中心, 不补边绿框会缩在码面里、
+// 四个角正好压在三个定位图案上; 按定位图案的模块尺寸向外扩一圈。
+function getQrResultBounds(result: Result, width: number, height: number): Bounds | null {
+    const bounds = getResultBounds(result, width, height);
+    const moduleSize = averageModuleSize(result.getResultPoints());
+    return bounds && moduleSize
+        ? padBounds(bounds, moduleSize * QR_BOUNDS_PAD_MODULES, width, height)
+        : bounds;
+}
+
+// 定位图案自带模块尺寸; 取平均以兼容透视下三个角大小略有差异的情况。
+function averageModuleSize(points: ResultPoint[] | null | undefined): number {
+    let sum = 0;
+    let count = 0;
+    for (const point of points ?? []) {
+        const size = (point as FinderPattern | null)?.getEstimatedModuleSize?.() ?? 0;
+        if (!Number.isFinite(size) || size <= 0) continue;
+        sum += size;
+        count++;
+    }
+    return count ? sum / count : 0;
 }
 
 // 用定位点计算包围盒; 没有可用定位点时返回 null, 避免遮罩掉整张图。
