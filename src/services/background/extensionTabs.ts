@@ -1,7 +1,7 @@
 import { storageArea } from '@/services/storage';
 
 // WXT 的 getURL 只接受已知入口路径, 这里收紧类型以便拼接查询参数
-type ExtensionPage = `/capture.html${string}` | `/upload.html${string}`;
+export type ExtensionPage = `/capture.html${string}` | `/upload.html${string}`;
 
 // 临时扩展页 (capture / upload) 关闭后要回到的页面。
 // tabs.remove 只会切到相邻标签, 需要记录来源页并手动切回去
@@ -49,16 +49,17 @@ const takeOrigin = async (extensionTabId: number): Promise<number | undefined> =
 export const openExtensionPage = async (
     path: ExtensionPage,
     originTabId?: number,
-): Promise<boolean> => {
+): Promise<number | undefined> => {
     try {
         const placement = await resolvePlacement(originTabId);
         const tab = await browser.tabs.create({ url: browser.runtime.getURL(path), ...placement });
-        if (tab?.id != null) await rememberOrigin(tab.id, originTabId);
-        return true;
+        if (tab?.id == null) return undefined;
+        await rememberOrigin(tab.id, originTabId);
+        return tab.id;
     } catch (error) {
         // 打开失败不再弹通知: 调用方只关心成败, 原因留在控制台供排查
         console.warn('[qrcode] 打开临时扩展页失败:', error);
-        return false;
+        return undefined;
     }
 };
 

@@ -3,7 +3,8 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #0f172a;
+  /* 截图还没到位时先铺白底: 深色底会在页面刚打开的一瞬间闪一下黑 */
+  background: #fff;
 }
 
 #app {

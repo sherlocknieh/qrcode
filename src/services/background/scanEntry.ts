@@ -35,5 +35,5 @@ export const requestWebImageScan = async (
 
 // 扫码面板只在扩展页里可用: popup 失焦即关闭, 内容脚本又受页面自身摄像头权限约束。
 // 相机与上传图片都在同一个面板里, 由面板内的源切换决定, 入口只有这一个
-export const openLocalScanPanel = async (originTabId?: number) =>
-    openExtensionPage('/upload.html', await resolveActiveTabId(originTabId));
+export const openLocalScanPanel = async (originTabId?: number): Promise<boolean> =>
+    (await openExtensionPage('/upload.html', await resolveActiveTabId(originTabId))) != null;

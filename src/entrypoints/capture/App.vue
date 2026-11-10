@@ -15,7 +15,7 @@ import { sendMessage } from '@/services/messaging';
 import { getImageDataFromDataUrl } from '@/services/qrScanner';
 import { isNoticeShowing } from '@/services/popupNotice';
 import { recognizeImage, type RecognizeHost } from '@/services/recognize';
-import { takeStoredString } from '@/services/storage';
+import { storageArea, storageAreaName, takeStoredString } from '@/services/storage';
 
 // background 截取视口后写入该键, 本页面读取后立即清除
 const CAPTURE_IMAGE_KEY = 'qrCaptureImage';
@@ -56,6 +56,43 @@ const screenshotScan = useScreenshotScan({
 });
 
 const takeStoredImage = () => takeStoredString(CAPTURE_IMAGE_KEY);
+
+// 截图页与截屏同时开始: 页面可能比截图先就绪, 这时等图落盘而不是直接报失败。
+// 只等一小会儿, 超时就按"没有截图"处理, 免得页面一直空着
+const CAPTURE_WAIT_MS = 3000;
+
+// 取这次要扫的截图: 已经落盘就直接用, 否则等后台截完。
+// 必须先挂监听再读存储: 反过来的话, 读空之后、挂上之前写入的图会漏掉
+function takeCaptureImage(): Promise<string> {
+    return new Promise((resolve) => {
+        let settled = false;
+        let timer: number | undefined;
+        const finish = (value: string) => {
+            if (settled) return;
+            settled = true;
+            if (timer !== undefined) window.clearTimeout(timer);
+            browser.storage.onChanged.removeListener(onChanged);
+            resolve(value);
+        };
+        const onChanged = (
+            changes: Record<string, { newValue?: unknown }>,
+            areaName: string,
+        ) => {
+            if (areaName !== storageAreaName()) return;
+            const value = changes[CAPTURE_IMAGE_KEY]?.newValue;
+            if (typeof value === 'string' && value) {
+                // 与 takeStoredString 一致: 读到就清掉, 不留残留
+                void storageArea().remove(CAPTURE_IMAGE_KEY).catch(() => {});
+                finish(value);
+            }
+        };
+        browser.storage.onChanged.addListener(onChanged);
+        timer = window.setTimeout(() => finish(''), CAPTURE_WAIT_MS);
+        void takeStoredImage().then((stored) => {
+            if (stored) finish(stored);
+        });
+    });
+}
 
 // 关闭本标签页: 交给后台先切回来源页面再关闭, 否则浏览器会落到相邻标签页
 function closeTab() {
@@ -140,7 +177,7 @@ onMounted(async () => {
     // 标签页标题对应本次打开的功能: 框选扫描还是整屏扫描
     document.title = t(frameOnly ? 'frameScanScreenshot' : 'qrActionScreen');
     try {
-        const stored = await takeStoredImage();
+        const stored = await takeCaptureImage();
         if (!stored) {
             await notifyScreenshotError();
             return;

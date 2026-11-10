@@ -1,4 +1,4 @@
-import { openExtensionPage, sendExtensionPageAction } from '@/services/background/extensionTabs';
+import { openExtensionPage, sendExtensionPageAction, type ExtensionPage } from '@/services/background/extensionTabs';
 import { resolveActiveTabId, sendTabAction } from '@/services/messaging';
 import { popupHost } from '@/services/popupHost';
 import { storageArea } from '@/services/storage';
@@ -80,11 +80,8 @@ const storeViewportCapture = async (tabId?: number, windowId?: number): Promise<
 // 截视口后在新标签页直接扫描整图。
 // 兜底交给 popup 会受其窗口尺寸限制, 所以截图类降级统一走 capture.html;
 // originTabId 用于关闭 capture 页时切回来源页面, 否则浏览器会切到相邻标签
-export const showScreenScan = async (originTabId?: number, windowId?: number): Promise<boolean> => {
-    if (!await storeViewportCapture(originTabId, windowId)) return false;
-    // capture 页先整屏扫一次, 扫完还能在截图上接着框选
-    return openExtensionPage('/capture.html', originTabId);
-};
+export const showScreenScan = async (originTabId?: number, windowId?: number): Promise<boolean> =>
+    openCapturePage('/capture.html', originTabId, windowId);
 
 // 框选扫描的兜底: 注入不了内容脚本的页面 (扩展商店、独立 SVG、PDF 阅读器)
 // 也先截一张视口图, 打开可框选的截图页让用户自己框住要看的那块。
@@ -93,8 +90,25 @@ export const showFrameScan = async (originTabId?: number): Promise<boolean> => {
     const windowId = originTabId == null
         ? undefined
         : await browser.tabs.get(originTabId).then((tab) => tab.windowId).catch(() => undefined);
-    if (!await storeViewportCapture(originTabId, windowId)) return false;
-    return openExtensionPage('/capture.html?frame=1', originTabId);
+    return openCapturePage('/capture.html?frame=1', originTabId, windowId);
+};
+
+// 截图页与截屏同时开始: 截屏请求先发出去 (抓的是来源页), 紧接着前台打开截图页。
+// 页面先就绪时由它自己等图 (见 capture 入口), 图到了直接画, 不必等开页完成再截
+const openCapturePage = async (
+    path: ExtensionPage,
+    originTabId?: number,
+    windowId?: number,
+): Promise<boolean> => {
+    const captured = storeViewportCapture(originTabId, windowId);
+    const tabId = await openExtensionPage(path, originTabId);
+    if (tabId == null) return false;
+    if (!await captured) {
+        // 没有图可看: 别把一张空白的截图页留在前台
+        await browser.tabs.remove(tabId).catch(() => {});
+        return false;
+    }
+    return true;
 };
 
 // 框选扫描的分发 (右键菜单与通知里的"框选扫描"共用):
