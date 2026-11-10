@@ -60,23 +60,12 @@ export async function isNoticeShowing(): Promise<boolean> {
     }
 }
 
-// 交给 popup 显示; 返回通知 id, null 表示 popup 不可用, 调用方应回退到页面内通知
-export async function showPopupNotice(payload: PopupNoticePayload): Promise<number | null> {
+// 交给 popup 显示; 返回 false 表示 popup 不可用, 调用方应回退到页面内通知
+export async function showPopupNotice(payload: PopupNoticePayload): Promise<boolean> {
     try {
         const response = await browser.runtime.sendMessage({ action: 'showNotification', payload });
-        return response?.success === true ? (response.id as number) : null;
+        return response?.success === true;
     } catch {
-        return null;
-    }
-}
-
-// 收起一条还在等用户处理的过程提示 (如正在下载图片): 后台删掉记录并让 popup 自行关窗,
-// 之后的扫描结果通知会重新打开 popup。
-// 与 notificationResolved 不同: 这是宿主自己撤掉的提示, 不算用户处理完, 不通知来源页收尾
-export async function dismissPopupNotice(id: number): Promise<void> {
-    try {
-        await browser.runtime.sendMessage({ action: 'dismissNotification', id });
-    } catch {
-        // 后台不可用时无需额外提示: 这条提示本身只是过程说明
+        return false;
     }
 }

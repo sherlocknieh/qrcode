@@ -167,6 +167,10 @@
     "message": "Scan the screen instead.",
     "description": "Suggestion shown when fetching the image times out"
   },
+  "decodingQR": {
+    "message": "Scanning…",
+    "description": "Loading message when decoding the fetched image"
+  },
   "qrcodeScanSuccess": {
     "message": "QR Code Detected",
     "description": "Title shown when a QR code is detected"

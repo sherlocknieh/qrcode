@@ -1,4 +1,4 @@
-import { closeIfCurrent, notifyState, useNotify, type NotifyOptions } from '@/composables/useNotify';
+import { useNotify, type NotifyOptions } from '@/composables/useNotify';
 import {
     copyHandlers,
     multiFoundNotice,
@@ -6,7 +6,7 @@ import {
     runNoticeAction,
 } from '@/services/decodeResultNotice';
 import type { PopupNoticeAction, PopupNoticePayload } from '@/services/popupNotice';
-import { dismissPopupNotice, showPopupNotice } from '@/services/popupNotice';
+import { showPopupNotice } from '@/services/popupNotice';
 import type { DecodeResult } from '@/services/qrScanner';
 import type { RecognizeHost, RetryKind } from '@/services/recognize';
 import { t } from '@/services/i18n';
@@ -52,7 +52,7 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     // 带动作按钮的通知要等用户选择, 纯提示则不阻塞流程。
     async function deliver(rawPayload: PopupNoticePayload, onRetry?: () => void): Promise<boolean> {
         const payload = tag(rawPayload);
-        if ((await showPopupNotice(payload)) != null) return true;
+        if (await showPopupNotice(payload)) return true;
 
         const interactive = Boolean(
             payload.confirmAction || payload.cancelAction || payload.extraAction,
@@ -93,11 +93,11 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     }
 
     // 取图耗时提示: 网络取图期间先说明"正在获取图片"并解释原因,
-    // 图片就绪后由扫描动画接替, 避免用户把下载时间当成扫描时间。
-    // 与其它通知一样交给 popup 展示, 返回收起函数: 图片到手 (或改由超时提示接管) 时
-    // 撤掉这条提示让 popup 自行关窗, 之后的扫描结果通知会重新打开它。
-    async function notifyFetching(): Promise<() => void> {
-        const payload = tag({
+    // 避免用户把下载时间当成扫描时间。
+    // 图片就绪后由"正在扫描"提示接替 (见 notifyDecoding), 两者都是普通通知,
+    // 后一条交给 popup 时直接替换前一条, 窗口原地换文案、不必关掉再重开
+    async function notifyFetching(): Promise<void> {
+        await notify({
             options: {
                 toast: true,
                 icon: 'info',
@@ -107,13 +107,20 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
                 loading: true,
             },
         });
-        const id = await showPopupNotice(payload);
-        if (id != null) return () => void dismissPopupNotice(id);
+    }
 
-        // popup 不可用: 退回页面内展示, 同样由调用方在取图结束时收起
-        void fireLocal(payload).then(settleLocal);
-        const seq = notifyState.seq;
-        return () => closeIfCurrent(seq);
+    // 图片取到后的"正在扫描": 只在需要先取图的跨域路线上接替取图提示,
+    // 解码期间 popup 保持开着; 结果通知到来时再把它替换掉
+    async function notifyDecoding(): Promise<void> {
+        await notify({
+            options: {
+                toast: true,
+                icon: 'info',
+                title: t('decodingQR'),
+                showCloseButton: true,
+                loading: true,
+            },
+        });
     }
 
     // 未扫描到码: 只有调用方真的能再试一次时才给出重试按钮,
@@ -130,7 +137,7 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     }
 
     // 供 recognizeImage 使用的宿主: 与上面的函数同一套实现
-    const host: RecognizeHost = { notify, notifyResults, notifyNoResult };
+    const host: RecognizeHost = { notify, notifyDecoding, notifyResults, notifyNoResult };
 
-    return { fireLocal, notify, notifyFetching, notifyPickedResults, notifyNoResult, notifyResults, host };
+    return { fireLocal, notify, notifyDecoding, notifyFetching, notifyPickedResults, notifyNoResult, notifyResults, host };
 }

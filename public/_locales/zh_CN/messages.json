@@ -167,6 +167,10 @@
     "message": "图片加载超时\n可改用截屏扫码",
     "description": "图片获取超时时建议改用扫描屏幕的说明"
   },
+  "decodingQR": {
+    "message": "正在扫描…",
+    "description": "图片取到后解码二维码或条形码时的加载提示"
+  },
   "qrcodeScanSuccess": {
     "message": "发现二维码",
     "description": "扫描到二维码时的提示标题"

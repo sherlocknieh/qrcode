@@ -14,9 +14,9 @@ applyTo:
 # 通知
 
 - 统一落 popup：`showPopupNotice` → 后台写 `qrNotification` 推送；没开窗则 `pageAction.openPopup` → `action.openPopup` → 页面内 `NotifyHost` 兜底。
-- 过程提示同走 popup，但**可撤回**：`showPopupNotice` 返回通知 id，`notifyFetching` 据此返回收起函数；`recognizeImage` 在图片到手或改由超时提示接管时调 `dismissPopupNotice`。后台 `dismissNotification` 删记录并让 popup 关窗，不通知来源页收尾（区别于 `notificationResolved`）。撤掉提示后 `lastOpenAt` 清零，后续结果通知才会重新开窗；关窗的断开事件也不能再 `finish`，否则会把刚写入的结果通知删掉。
+- 过程提示靠**后一条替换前一条**：`notifyFetching`（正在获取图片）→ `notifyDecoding`（正在扫描）→ 结果通知，三条都是普通通知，后一条交给 popup 时直接替换，窗口原地换文案，不要为「收起提示」加消息或让窗口关掉再重开。
 - 通知不放「确定」这类纯关闭按钮：关通知靠右上角关闭键或点 popup 外部，按钮只承载真实动作（打开链接 / 复制内容 / 重试），没有动作就不铺操作区。
-- payload 必须可序列化：动作用 `PopupNoticeAction`（`open` / `copy` / `screenScan` / `frameScan`），不要塞函数。通知已结束就删记录，popup 无内容时自己关窗；只有「宿主撤回自己发的过程提示」才用 `dismissNotification`（`dismissPopupNotice`），别拿它当通用的收起入口。
+- payload 必须可序列化：动作用 `PopupNoticeAction`（`open` / `copy` / `screenScan` / `frameScan`），不要塞函数。不要为「收起通知」加消息：通知已结束就删记录，popup 无内容时自己关窗，靠下一条通知替换。
 - 退出扫描不看通知状态：整页扫描没扫到的提示只留「尝试框选扫描」，用户在截图上是单击还是拖框才决定退出（见截图浮层那条），别把「通知被关掉」当成退出信号——点网页或拖动都会顺手关掉 popup。
 - `closeOriginTab` 让通知结束后关掉发起页（capture / upload）；点「框选扫描」时后台 `popupHost.keepTab()` 摘掉它，否则会关掉正要框选的那页。
 - 竞态：`opening` / `POPUP_OPEN_GRACE` 防丢通知，自增 `id` 做 `clearIfCurrent`，`lastFinishedId` 防重复收尾。popup 断开连接时删 `qrNotification`，否则下次会重复弹出。

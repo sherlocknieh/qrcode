@@ -8,6 +8,9 @@ import { t } from '@/services/i18n';
 export type RecognizeHost = {
     // onRetry: 通知里的"框选扫描"被点击时, 在无法由 popup 执行动作时于本进程内回调
     notify(payload: PopupNoticePayload, onRetry?: () => void): Promise<unknown>;
+    // 图片取到、扫描动画已起时的"正在扫描"提示, 用来接替"正在获取图片"。
+    // 只有需要先取图 (跨域/防盗链) 的路线上才会出现, 本地图片与截图不弹这条
+    notifyDecoding?(): Promise<unknown>;
     notifyResults(results: DecodeResult[]): Promise<boolean>;
     // retry: 未扫到码时的重试方式, 与 onRetry 一一对应 (本地兜底执行 onRetry,
     // popup 代管时按 retry 转告页面)
@@ -32,9 +35,8 @@ export type RecognizeOptions = {
     // 图片就绪后执行 (如播放扫描动画), 会等待其结束
     beforeNotice?: () => Promise<void>;
     // 需要先从网络取图时提供: 取图慢于阈值时先提示"正在获取图片",
-    // 避免用户把下载耗时误认为扫描耗时。本地图片/截图无需提供。
-    // 返回收起函数: 图片就绪或改由超时提示接管时由这里收掉这条过程提示
-    notifyFetching?: () => (() => void) | void | Promise<(() => void) | void>;
+    // 避免用户把下载耗时误认为扫描耗时。本地图片/截图无需提供
+    notifyFetching?: () => Promise<unknown>;
     // 解码结束时回调, 通常用于停止动画 (返回 Promise 时会等淡出结束再继续)
     afterDecode?: () => void | Promise<void>;
     // 未扫描到码时点击重试按钮的处理
@@ -47,10 +49,10 @@ export type RecognizeOptions = {
     deferResults?: boolean;
 };
 
-// 取图结果: 只携带结果不影响流程, 失败也在这里收口
+// 取图结果: 只携带结果不影响流程, 失败也在这里收口; fetchingNotified 记录取图提示是否真的弹过
 type LoadResult =
-    | { ok: true; imageData: ImageData }
-    | { ok: false; error: unknown };
+    | { ok: true; imageData: ImageData; fetchingNotified?: boolean }
+    | { ok: false; error: unknown; fetchingNotified?: boolean };
 
 // 取图超过这个时间才提示"正在获取图片", 快速完成的场景不会闪一下
 const FETCH_NOTICE_DELAY_MS = 150;
@@ -59,7 +61,7 @@ const FETCH_NOTICE_DELAY_MS = 150;
 const DECODE_FRAME_DELAY_MS = 50;
 
 // 拿到图像数据的统一扫描入口:
-// 获取图片提示 → 取图 → 扫描动画 → 解码 → 结果 / 无结果重试 / 错误。
+// 获取图片提示 → 取图 → 扫描动画 → (跨域取图时) 正在扫描提示 → 解码 → 结果 / 无结果重试 / 错误。
 // 网页图片、本地/粘贴图片、截图都走这里, 各处只负责把数据包装成 loader。
 export async function recognizeImage(
     loadImageData: () => Promise<ImageData>,
@@ -74,6 +76,8 @@ export async function recognizeImage(
         (error: unknown): LoadResult => ({ ok: false, error }),
     );
     const settled = await loadWithFetchNotice(pending, options);
+    // 取图提示是否真的弹过 (取图快于阈值就没有): 只有它还在画面上时才需要"正在扫描"接替
+    const fetchedSlowly = Boolean(settled.fetchingNotified);
 
     if (isStale()) {
         await options.afterDecode?.();
@@ -88,6 +92,10 @@ export async function recognizeImage(
     // 图片已经在手: 先起扫描动画, 动画在解码期间一直循环, 结束后由 afterDecode 收起
     await options.beforeNotice?.();
     await new Promise((resolve) => setTimeout(resolve, DECODE_FRAME_DELAY_MS));
+
+    // 取图提示还在画面上: 用"正在扫描"接替它, 解码期间 popup 保持开着并说明进行到哪一步,
+    // 结果通知到来时再替换掉。取图很快 (没弹过提示) 与本地图片/截图都不弹这条, 动画已说明进度
+    if (fetchedSlowly) await host.notifyDecoding?.();
 
     if (isStale()) {
         await options.afterDecode?.();
@@ -118,7 +126,7 @@ export async function recognizeImage(
     };
 }
 
-// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由扫描动画接替;
+// 取图慢于阈值时先提示"正在获取图片", 图片就绪后由"正在扫描"接替;
 // 远超阈值仍没结果时换成"改用扫描屏幕"的提示 (图片之后到达也照样继续扫描)
 async function loadWithFetchNotice(
     pending: Promise<LoadResult>,
@@ -133,18 +141,18 @@ async function loadWithFetchNotice(
     ]);
     if (settled) return settled.value;
 
-    const dismissFetching = await notifyFetching();
+    await notifyFetching();
     // 取图卡住时干等下去只能让用户以为扫描挂了, 给出截屏扫描这个保底出口
+    let timedOut = false;
     const timer = setTimeout(() => {
-        dismissFetching?.();
+        timedOut = true;
         void host.notify(fetchTimeoutNotice(), onRetry);
     }, FETCH_TIMEOUT_MS);
     try {
-        return await pending;
+        // 提示弹过且没被超时提示替换: 图片到手后才有"正在扫描"来接替它
+        return { ...(await pending), fetchingNotified: !timedOut };
     } finally {
         clearTimeout(timer);
-        // 图片到手: 收起取图提示, 画面交给扫描动画
-        dismissFetching?.();
     }
 }
 

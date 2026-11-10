@@ -27,19 +27,12 @@ export const handleBackgroundMessage = (
         sendResponse({ success: true, open: !fromPopup && popupHost.isOpen() });
         return false;
     }
-    // 页面通知转发到 popup; 独立扫描页会带上 closeOriginTab, 记录发起它的标签页。
-    // 回执带通知 id, 发起方据此在自己那条提示已无必要时撤掉它
+    // 页面通知转发到 popup; 独立扫描页会带上 closeOriginTab, 记录发起它的标签页
     if (request.action === 'showNotification') {
         popupHost.showNotification(request.payload, sender.tab?.id)
-            .then(id => sendResponse(id != null ? { success: true, id } : { success: false }))
+            .then(success => sendResponse({ success }))
             .catch(() => sendResponse({ success: false }));
         return true;
-    }
-    // 发起方撤掉一条已无必要的提示 (取图提示): 只删记录并让 popup 关窗, 不算用户处理完
-    if (request.action === 'dismissNotification') {
-        void popupHost.dismiss(request.id);
-        sendResponse({ success: true });
-        return false;
     }
     // popup 已展示通知, 清理待展示内容 (需要时一并关闭发起它的标签页)
     if (request.action === 'notificationResolved') {
