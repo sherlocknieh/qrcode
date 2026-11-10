@@ -43,6 +43,8 @@ interface NotifyState {
     open: boolean;
     options: NotifyOptions;
     loading: boolean;
+    // 通知序号: 每次 fire 递增, 供调用方判断自己那条通知是否已被替换
+    seq: number;
 }
 
 // 通知是全局单例: 同一时间只显示一个, 再次触发会先结束上一条
@@ -50,6 +52,7 @@ const state = reactive<NotifyState>({
     open: false,
     options: {},
     loading: false,
+    seq: 0,
 });
 
 let resolveCurrent: ((result: NotifyResult) => void) | null = null;
@@ -69,6 +72,7 @@ function settlePrevious() {
 
 function fire(options: NotifyOptions = {}): Promise<NotifyResult> {
     settlePrevious();
+    state.seq += 1;
 
     const promise = new Promise<NotifyResult>((resolve) => {
         resolveCurrent = resolve;
@@ -92,6 +96,10 @@ const confirm = () => finish({ isConfirmed: true, isDismissed: false });
 const showLoading = () => {
     if (state.open) state.loading = true;
 };
+// 只收起自己那条通知: 已被后续通知替换时不动, 免得把新通知一起关掉
+const closeIfCurrent = (seq: number) => {
+    if (state.open && state.seq === seq) close();
+};
 
 export function useNotify() {
     return { fire, close, cancel, confirm, showLoading };
@@ -102,6 +110,7 @@ export const notifyState = state;
 export {
     cancel as cancelNotify,
     close as closeNotify,
+    closeIfCurrent,
     confirm as confirmNotify,
     extra as extraNotify,
 };

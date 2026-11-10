@@ -1,4 +1,4 @@
-import { useNotify, type NotifyOptions } from '@/composables/useNotify';
+import { closeIfCurrent, notifyState, useNotify, type NotifyOptions } from '@/composables/useNotify';
 import {
     copyHandlers,
     multiFoundNotice,
@@ -93,18 +93,21 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     }
 
     // 取图耗时提示: 网络取图期间先说明"正在获取图片"并解释原因,
-    // 图片就绪后由扫描动画接替, 避免用户把下载时间当成扫描时间
-    async function notifyFetching(): Promise<void> {
-        await notify({
-            options: {
-                toast: true,
-                icon: 'info',
-                title: t('fetchingImage'),
-                text: t('fetchingImageHint'),
-                showCloseButton: true,
-                loading: true,
-            },
+    // 图片就绪后由扫描动画接替, 避免用户把下载时间当成扫描时间。
+    // 只在页面内展示: 这是取图阶段的提示, 交给 popup 会为一句过程提示另开一个窗口,
+    // 而图片到手后没有任何通知能替换它, 窗口就一直停在"正在获取图片"。
+    // 返回收起函数, 由调用方在图片就绪或改由超时提示接管时收掉
+    function notifyFetching(): () => void {
+        void fire({
+            toast: true,
+            icon: 'info',
+            title: t('fetchingImage'),
+            text: t('fetchingImageHint'),
+            showCloseButton: true,
+            didOpen: () => showLoading(),
         });
+        const seq = notifyState.seq;
+        return () => closeIfCurrent(seq);
     }
 
     // 未扫描到码: 只有调用方真的能再试一次时才给出重试按钮,
