@@ -14,7 +14,7 @@ import {
 // pending: popup 入口在挂载前读完存储的待展示通知, 首帧就要把它渲染出来,
 // 让窗口第一次成型就是通知高度 (见 entrypoints/popup/main.ts)
 export function usePopupNoticeHost(pending?: PopupNoticeRecord) {
-    const { fire, showLoading } = useNotify();
+    const { close: closeNotice, fire, showLoading } = useNotify();
 
     // 当前由 popup 展示的远程通知 ID, 用于忽略已被替换的通知
     let activeId: number | null = null;
@@ -106,6 +106,15 @@ export function usePopupNoticeHost(pending?: PopupNoticeRecord) {
         window.close();
     }
 
+    // 发起方撤掉一条已无必要的提示 (取图提示): 收起通知并关窗,
+    // 之后的扫描结果通知会重新打开 popup。这不算用户处理完, 不走 runAction 与收尾
+    function dismissById(id: number) {
+        if (activeId !== id) return;
+        activeId = null;
+        closeNotice();
+        window.close();
+    }
+
     // 挂载前预读到的通知在 setup 阶段就交给通知状态: fire() 同步置 open,
     // 首帧渲染出来的是通知本身, 窗口才不会先按二维码面板高度成型再收缩
     if (pending) void present(pending);
@@ -114,8 +123,9 @@ export function usePopupNoticeHost(pending?: PopupNoticeRecord) {
         // popup 打开时建立长连接， 使 popup 窗口打开期间能与后台保持通信，接收内容脚本发来的通知
         port = browser.runtime.connect({ name: 'popup' });
         // 通过长连接接收内容脚本触发的新通知, 断开时后台会清理未处理的通知
-        port.onMessage.addListener((message: { action?: string; payload?: PopupNoticeRecord }) => {
+        port.onMessage.addListener((message: { action?: string; id?: number; payload?: PopupNoticeRecord }) => {
             if (message?.action === 'showNotification') void present(message.payload);
+            if (message?.action === 'dismissNotification' && message.id != null) dismissById(message.id);
         });
 
         // popup 打开前写入的通知在挂载后读取 (已预读过的那条由 handledId 挡住)

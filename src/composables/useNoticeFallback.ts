@@ -6,7 +6,7 @@ import {
     runNoticeAction,
 } from '@/services/decodeResultNotice';
 import type { PopupNoticeAction, PopupNoticePayload } from '@/services/popupNotice';
-import { showPopupNotice } from '@/services/popupNotice';
+import { dismissPopupNotice, showPopupNotice } from '@/services/popupNotice';
 import type { DecodeResult } from '@/services/qrScanner';
 import type { RecognizeHost, RetryKind } from '@/services/recognize';
 import { t } from '@/services/i18n';
@@ -52,7 +52,7 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
     // 带动作按钮的通知要等用户选择, 纯提示则不阻塞流程。
     async function deliver(rawPayload: PopupNoticePayload, onRetry?: () => void): Promise<boolean> {
         const payload = tag(rawPayload);
-        if (await showPopupNotice(payload)) return true;
+        if ((await showPopupNotice(payload)) != null) return true;
 
         const interactive = Boolean(
             payload.confirmAction || payload.cancelAction || payload.extraAction,
@@ -94,18 +94,24 @@ export function useNoticeFallback(options: NoticeFallbackOptions = {}) {
 
     // 取图耗时提示: 网络取图期间先说明"正在获取图片"并解释原因,
     // 图片就绪后由扫描动画接替, 避免用户把下载时间当成扫描时间。
-    // 只在页面内展示: 这是取图阶段的提示, 交给 popup 会为一句过程提示另开一个窗口,
-    // 而图片到手后没有任何通知能替换它, 窗口就一直停在"正在获取图片"。
-    // 返回收起函数, 由调用方在图片就绪或改由超时提示接管时收掉
-    function notifyFetching(): () => void {
-        void fire({
-            toast: true,
-            icon: 'info',
-            title: t('fetchingImage'),
-            text: t('fetchingImageHint'),
-            showCloseButton: true,
-            didOpen: () => showLoading(),
+    // 与其它通知一样交给 popup 展示, 返回收起函数: 图片到手 (或改由超时提示接管) 时
+    // 撤掉这条提示让 popup 自行关窗, 之后的扫描结果通知会重新打开它。
+    async function notifyFetching(): Promise<() => void> {
+        const payload = tag({
+            options: {
+                toast: true,
+                icon: 'info',
+                title: t('fetchingImage'),
+                text: t('fetchingImageHint'),
+                showCloseButton: true,
+                loading: true,
+            },
         });
+        const id = await showPopupNotice(payload);
+        if (id != null) return () => void dismissPopupNotice(id);
+
+        // popup 不可用: 退回页面内展示, 同样由调用方在取图结束时收起
+        void fireLocal(payload).then(settleLocal);
         const seq = notifyState.seq;
         return () => closeIfCurrent(seq);
     }

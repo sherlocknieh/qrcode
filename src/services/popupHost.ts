@@ -23,6 +23,7 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
     let lastCloseAt = 0;                            // popup 上次关闭时间
     let noticeSeq = 0;                              // 通知自增 id, 用于丢弃过期记录
     let lastFinishedId: number | null = null;       // 已收尾的通知, 用于丢弃重复的结束通知
+    let dismissedClosing = false;                   // popup 是否为撤掉提示而主动关窗
 
     // 打开 popup 窗口: 优先用 Firefox 地址栏按钮, 不可用或被拒绝时回退工具栏图标
     const open = async () => {
@@ -81,12 +82,13 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         await storageArea().set({ [POPUP_NOTICE_KEY]: rest });
     };
 
-    // 返回 false 表示当前无法显示 popup, 内容脚本将回退到页面内通知
+    // 返回 false 表示当前无法显示 popup, 内容脚本将回退到页面内通知;
+    // 成功时返回通知 id, 供发起方在提示已无必要时自行撤掉 (如取图提示)
     const showNotification = async (
         payload?: PopupNoticePayload,
         sourceTabId?: number,
-    ): Promise<boolean> => {
-        if (!payload?.options) return false;
+    ): Promise<number | null> => {
+        if (!payload?.options) return null;
 
         // 通知总是先落盘, 无论 popup 是否已打开都能读到最新一条
         const record: PopupNoticeRecord = {
@@ -100,24 +102,45 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
         if (port) {
             try {
                 port.postMessage({ action: 'showNotification', payload: record });
-                return true;
+                return record.id;
             } catch {
                 port = null;
             }
         }
 
         // popup 正在打开或刚刚打开: 它挂载后会读取最新通知
-        if (opening || Date.now() - lastOpenAt < POPUP_OPEN_GRACE) return true;
+        if (opening || Date.now() - lastOpenAt < POPUP_OPEN_GRACE) return record.id;
 
         opening = true;
         try {
             await open();
-            return true;
+            return record.id;
         } catch {
             await clearIfCurrent(record.id);
-            return false;
+            return null;
         } finally {
             opening = false;
+        }
+    };
+
+    // 撤掉一条已无必要的提示 (取图提示): 删记录并让 popup 自行关窗,
+    // 不走 finish, 免得把这次收尾当成用户处理完而通知来源页
+    const dismiss = async (id: number) => {
+        const stored = await storageArea().get(POPUP_NOTICE_KEY);
+        const current = stored?.[POPUP_NOTICE_KEY] as PopupNoticeRecord | undefined;
+        if (current?.id !== id) return;
+        await storageArea().remove(POPUP_NOTICE_KEY);
+        // 窗口马上会被关掉: 清掉打开时间, 否则后续结果通知会被"刚打开"的宽限挡下,
+        // 既不推给 popup 也不重新开窗, 用户看不到这次扫描结果
+        lastOpenAt = 0;
+        if (!port) return;
+        try {
+            port.postMessage({ action: 'dismissNotification', id });
+            // 这一页用完即走: 收掉端口引用, 免得下一条通知被推进正在关闭的窗口
+            dismissedClosing = true;
+            port = null;
+        } catch {
+            port = null;
         }
     };
 
@@ -130,6 +153,8 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
     // popup 建立长连接: 补推挂载期间写入的通知, 断开时收起未处理的通知
     const connect = (incoming: Browser.runtime.Port) => {
         if (incoming.name !== 'popup') return;
+        // 新的连接说明窗口重新开了: 撤掉提示那次关窗已经过去, 后续按正常开合处理
+        dismissedClosing = false;
         port = incoming;
         // 补推是为了堵住 openPopup 与端口连接之间的空档, 否则这条通知会一直留在存储里
         void storageArea().get(POPUP_NOTICE_KEY).then((stored) => {
@@ -140,13 +165,19 @@ const createPopupHost = (closeTab: (tabId: number) => void | Promise<unknown>) =
             if (port === incoming) port = null;
             lastOpenAt = 0;
             lastCloseAt = Date.now();
+            // 撤掉提示导致的关窗: 记录已由 dismiss 清掉, 且下一条结果通知可能刚好写入,
+            // 此时再按"popup 被关闭"清理会把它删掉, 用户就看不到扫描结果了
+            if (dismissedClosing) {
+                dismissedClosing = false;
+                return;
+            }
             // popup 关闭后清掉未处理的通知, 避免下次打开时旧通知再次出现;
             // 通知来自独立扫描页时同时关闭该标签页 (用户关掉通知即视为结束)
             void finish().catch(() => {});
         });
     };
 
-    return { open, showQrCode, showNotification, finish, keepTab, isOpen, isConnected, connect };
+    return { open, showQrCode, showNotification, dismiss, finish, keepTab, isOpen, isConnected, connect };
 };
 
 export const popupHost = createPopupHost(closeTabAndReturn);

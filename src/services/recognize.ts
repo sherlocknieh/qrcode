@@ -34,7 +34,7 @@ export type RecognizeOptions = {
     // 需要先从网络取图时提供: 取图慢于阈值时先提示"正在获取图片",
     // 避免用户把下载耗时误认为扫描耗时。本地图片/截图无需提供。
     // 返回收起函数: 图片就绪或改由超时提示接管时由这里收掉这条过程提示
-    notifyFetching?: () => (() => void) | void;
+    notifyFetching?: () => (() => void) | void | Promise<(() => void) | void>;
     // 解码结束时回调, 通常用于停止动画 (返回 Promise 时会等淡出结束再继续)
     afterDecode?: () => void | Promise<void>;
     // 未扫描到码时点击重试按钮的处理
@@ -133,7 +133,7 @@ async function loadWithFetchNotice(
     ]);
     if (settled) return settled.value;
 
-    const dismissFetching = notifyFetching();
+    const dismissFetching = await notifyFetching();
     // 取图卡住时干等下去只能让用户以为扫描挂了, 给出截屏扫描这个保底出口
     const timer = setTimeout(() => {
         dismissFetching?.();

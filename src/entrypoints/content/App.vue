@@ -350,7 +350,7 @@ function decodeAndNotify(
         noResultRetry?: RetryKind;
         errorTitle?: string;
         beforeNotice?: () => Promise<void>;
-        notifyFetching?: () => (() => void) | void;
+        notifyFetching?: () => (() => void) | void | Promise<(() => void) | void>;
         afterDecode?: () => void;
         deferResults?: boolean;
         // 需要单独接管无结果提示的流程 (截图扫描) 时传入
