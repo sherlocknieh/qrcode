@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
-import { toSvgDataUrl } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
 // 二维码生成面板: 默认只显示二维码, 点二维码展开输入框
@@ -28,7 +27,7 @@ const text = computed({
     set: (value: string) => emit('update:modelValue', value),
 });
 
-const { svg, dataUrl, error } = useQrCode(text);
+const { dataUrl, error } = useQrCode(text);
 
 const inputRef = ref<HTMLTextAreaElement>();
 const expanded = ref(!props.collapsible);
@@ -81,9 +80,9 @@ function toggleExpanded() {
     if (expanded.value) emit('expand');
 }
 
-// SVG 直接取二维码的矢量源, 避免从预览位图重新编码
+// 下载的就是预览里那份矢量图, 不再另做一次编码
 function downloadQrCode() {
-    const href = toSvgDataUrl(svg.value);
+    const href = dataUrl.value;
     if (!href) return;
     const link = document.createElement('a');
     link.href = href;
@@ -227,10 +226,12 @@ function downloadQrCode() {
     will-change: opacity;
 }
 
+/* 矢量图只画深色模块、本身透明: 预览补一层白底, 深色主题或强制暗色下码面才不会糊成一片 */
 .qr-panel-image {
     display: block;
     width: 100%;
     height: 100%;
+    background: #ffffff;
     object-fit: contain;
 }
 

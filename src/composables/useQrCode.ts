@@ -1,18 +1,15 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue';
-import { createQrCodeSvg, svgToPngDataUrl } from '@/services/qrCode';
+import { createQrCodeSvg, toSvgDataUrl } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
 // 输入防抖: 连续敲字时不必每一帧都重新编码, 150ms 内没有新输入再渲染
 const RENDER_DELAY = 150;
 
 export function useQrCode(text: Ref<string>) {
-    // svg 只留给 SVG 下载, 预览 / 复制 / PNG 下载统一用光栅化后的位图
-    const svg = ref('');
+    // 预览与下载共用同一份矢量图: 预览直接显示它, 不再光栅化成位图
     const dataUrl = ref('');
     const error = ref('');
     let timer: ReturnType<typeof setTimeout> | undefined;
-    // 光栅化是异步的: 用序号丢弃上一轮结果, 否则快速输入时会闪回旧二维码
-    let renderId = 0;
 
     const clearTimer = () => {
         if (timer === undefined) return;
@@ -20,40 +17,21 @@ export function useQrCode(text: Ref<string>) {
         timer = undefined;
     };
 
-    const clear = () => {
-        svg.value = '';
-        dataUrl.value = '';
-    };
-
-    const render = async () => {
+    const render = () => {
         clearTimer();
         const value = text.value;
-        const id = ++renderId;
         if (!value) {
-            clear();
+            dataUrl.value = '';
             error.value = '';
             return;
         }
 
-        let markup: string;
         try {
-            markup = createQrCodeSvg(value);
+            dataUrl.value = toSvgDataUrl(createQrCodeSvg(value));
+            error.value = '';
         } catch {
             // qrcode-generator 在内容超出容量时会直接抛错
-            clear();
-            error.value = t('qrGenerateFailed');
-            return;
-        }
-        svg.value = markup;
-
-        try {
-            const png = await svgToPngDataUrl(markup);
-            if (id !== renderId) return;
-            dataUrl.value = png;
-            error.value = '';
-        } catch {
-            if (id !== renderId) return;
-            clear();
+            dataUrl.value = '';
             error.value = t('qrGenerateFailed');
         }
     };
@@ -74,5 +52,5 @@ export function useQrCode(text: Ref<string>) {
 
     onScopeDispose(clearTimer);
 
-    return { svg, dataUrl, error };
+    return { dataUrl, error };
 }

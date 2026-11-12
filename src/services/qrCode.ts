@@ -6,7 +6,7 @@ qrcode.stringToBytes = (text: string) => Array.from(new TextEncoder().encode(tex
 const CELL_SIZE = 8;    // 每个模块的像素大小
 const QUIET_ZONE = 2;   // 白边宽度(模块数), 深色背景下也能扫描
 
-// 只有一份编码结果, 预览 / 复制 / 下载共用, 各种输出格式的模块数与容错级别才不会分叉
+// 只有一份编码结果, 预览与下载共用, 各种输出格式的模块数与容错级别才不会分叉
 function encodeQrCode(text: string) {
     const qr = qrcode(0, 'M'); // 尺寸自动, 容错级别中等
     qr.addData(text);
@@ -14,7 +14,7 @@ function encodeQrCode(text: string) {
     return qr;
 }
 
-// 二维码唯一的生成入口: 预览、复制、下载都基于这份矢量图, 不再各画一遍矩阵.
+// 二维码唯一的生成入口: 预览与下载都基于这份矢量图, 不再各画一遍矩阵.
 // 只画深色模块、不留白底, 叠到任意底色素材上都干净;
 // viewBox 用模块单位并配合 crispEdges, 放大到印刷尺寸也不会出现模糊间隙
 export function createQrCodeSvg(text: string): string {
@@ -38,28 +38,7 @@ export function createQrCodeSvg(text: string): string {
     );
 }
 
-// SVG 下载与光栅化共用同一条 data URL; 保存下来的是解码后的源文件, 仍是可编辑的矢量图
+// 预览与下载共用同一条 data URL: 预览直接显示矢量图, 保存下来的是解码后的源文件, 仍是可编辑的矢量图
 export function toSvgDataUrl(svg: string): string {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-// 预览、复制、PNG 下载都需要位图: 由同一份 SVG 光栅化, 并补白底,
-// 否则透明二维码贴到深色底上会看不清
-export async function svgToPngDataUrl(svg: string): Promise<string> {
-    const image = new Image();
-    image.src = toSvgDataUrl(svg);
-    await image.decode();
-
-    const canvas = document.createElement('canvas');
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas 2D context is not available.');
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0);
-
-    return canvas.toDataURL('image/png');
 }
