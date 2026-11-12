@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
+import { svgToPngDataUrl } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
 // 二维码生成面板: 默认只显示二维码, 点二维码展开输入框
@@ -27,7 +28,7 @@ const text = computed({
     set: (value: string) => emit('update:modelValue', value),
 });
 
-const { dataUrl, error } = useQrCode(text);
+const { svg, dataUrl, error } = useQrCode(text);
 
 const inputRef = ref<HTMLTextAreaElement>();
 const expanded = ref(!props.collapsible);
@@ -80,13 +81,13 @@ function toggleExpanded() {
     if (expanded.value) emit('expand');
 }
 
-// 下载的就是预览里那份矢量图, 不再另做一次编码
-function downloadQrCode() {
-    const href = dataUrl.value;
-    if (!href) return;
+// 下载 PNG: 由预览那份矢量图光栅化, 不再另做一次编码
+async function downloadQrCode() {
+    if (!svg.value) return;
+    const href = await svgToPngDataUrl(svg.value);
     const link = document.createElement('a');
     link.href = href;
-    link.download = `${t('qrFileName')}.svg`;
+    link.download = `${t('qrFileName')}.png`;
     link.click();
 }
 </script>
@@ -168,11 +169,11 @@ function downloadQrCode() {
                             <button
                                 class="qr-panel-action qr-panel-action--format"
                                 type="button"
-                                :aria-label="t('qrDownloadSvg')"
-                                :title="t('qrDownloadSvg')"
+                                :aria-label="t('qrDownloadPng')"
+                                :title="t('qrDownloadPng')"
                                 @click="downloadQrCode"
                             >
-                                <span class="qr-panel-action-label">SVG</span>
+                                <span class="qr-panel-action-label">PNG</span>
                             </button>
                         </div>
                     </div>

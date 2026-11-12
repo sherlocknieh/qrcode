@@ -315,9 +315,9 @@
     "message": "Cancel",
     "description": "Cancel button text"
   },
-  "qrDownloadSvg": {
-    "message": "Download SVG",
-    "description": "Tooltip of the button that downloads the QR code as SVG"
+  "qrDownloadPng": {
+    "message": "Download PNG",
+    "description": "Tooltip of the button that downloads the QR code as PNG"
   },
   "qrFileName": {
     "message": "QR Code",

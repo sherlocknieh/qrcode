@@ -38,7 +38,28 @@ export function createQrCodeSvg(text: string): string {
     );
 }
 
-// 预览与下载共用同一条 data URL: 预览直接显示矢量图, 保存下来的是解码后的源文件, 仍是可编辑的矢量图
+// 预览直接显示这条 data URL, 不必先光栅化
 export function toSvgDataUrl(svg: string): string {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+// 下载 PNG 时才光栅化: 由同一份 SVG 按模块像素尺寸出图, 并补白底,
+// 否则透明二维码贴到深色底上会看不清
+export async function svgToPngDataUrl(svg: string): Promise<string> {
+    const image = new Image();
+    image.src = toSvgDataUrl(svg);
+    await image.decode();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context is not available.');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0);
+
+    return canvas.toDataURL('image/png');
 }
