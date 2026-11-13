@@ -317,15 +317,11 @@
   },
   "qrDownload": {
     "message": "Download",
-    "description": "Label of the button that expands the export options"
+    "description": "Label of the button that expands or collapses the export options"
   },
   "qrExportPngWhite": {
     "message": "White PNG",
     "description": "Export option: PNG with a white background"
-  },
-  "qrExportSvgWhite": {
-    "message": "White SVG",
-    "description": "Export option: SVG with a white background"
   },
   "qrExportSvgTransparent": {
     "message": "Transparent SVG",
@@ -334,10 +330,6 @@
   "qrDownloadPngWhite": {
     "message": "Download PNG (white background)",
     "description": "Tooltip of the option that downloads a white-background QR PNG"
-  },
-  "qrDownloadSvgWhite": {
-    "message": "Download SVG (white background)",
-    "description": "Tooltip of the option that downloads a white-background QR SVG"
   },
   "qrDownloadSvgTransparent": {
     "message": "Download SVG (transparent background)",

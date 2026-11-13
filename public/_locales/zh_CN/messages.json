@@ -317,15 +317,11 @@
   },
   "qrDownload": {
     "message": "下载",
-    "description": "展开导出选项的按钮文案"
+    "description": "展开或收起导出选项的按钮文案"
   },
   "qrExportPngWhite": {
     "message": "白底 PNG",
     "description": "导出选项: 白底 PNG"
-  },
-  "qrExportSvgWhite": {
-    "message": "白底 SVG",
-    "description": "导出选项: 白底 SVG"
   },
   "qrExportSvgTransparent": {
     "message": "透明 SVG",
@@ -334,10 +330,6 @@
   "qrDownloadPngWhite": {
     "message": "下载白底 PNG",
     "description": "下载白底二维码 PNG 的选项提示"
-  },
-  "qrDownloadSvgWhite": {
-    "message": "下载白底 SVG 矢量图",
-    "description": "下载白底二维码 SVG 的选项提示"
   },
   "qrDownloadSvgTransparent": {
     "message": "下载透明背景 SVG 矢量图",

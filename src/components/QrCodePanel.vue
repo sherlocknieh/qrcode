@@ -83,14 +83,14 @@ function toggleExpanded() {
     if (expanded.value) emit('expand');
 }
 
-// 导出选项的三种形态都是同一份矢量图换输出格式或背景, 不各画一遍矩阵
-type ExportFormat = 'png-white' | 'svg-white' | 'svg-transparent';
+// 预览图本身就是白底 SVG, 右键另存为即得白底 SVG;
+// 展开的选项只补另外两种: 透明 SVG 与白底 PNG
+type ExportFormat = 'png-white' | 'svg-transparent';
 
-// 三种导出只在格式与背景上不同: 选项直接写文字, 不叠图标
+// 选项直接写文字, 不叠图标
 const EXPORT_OPTIONS: { format: ExportFormat; label: string; hint: string }[] = [
-    { format: 'png-white', label: 'qrExportPngWhite', hint: 'qrDownloadPngWhite' },
-    { format: 'svg-white', label: 'qrExportSvgWhite', hint: 'qrDownloadSvgWhite' },
     { format: 'svg-transparent', label: 'qrExportSvgTransparent', hint: 'qrDownloadSvgTransparent' },
+    { format: 'png-white', label: 'qrExportPngWhite', hint: 'qrDownloadPngWhite' },
 ];
 
 // 下载按钮点开后才露出选项: 盖住右侧的扫描入口, 选完、点别处或鼠标移开就收起
@@ -131,16 +131,20 @@ onScopeDispose(() => {
     window.removeEventListener('keydown', closeExportOnOutside, true);
 });
 
-// 导出都基于预览那份矢量图; 白底只是多叠一层底色, 编码本身不变
+// 导出都基于同一份矢量图: 白底只是多叠一层底色, 编码本身不变
 async function exportQrCode(format: ExportFormat) {
     if (!svg.value) return;
     exportOpen.value = false;
 
-    const hasWhite = format !== 'svg-transparent';
-    const markup = hasWhite ? withWhiteBackground(svg.value) : svg.value;
-    const extension = format.startsWith('png') ? 'png' : 'svg';
-    const href = extension === 'png' ? await svgToPngDataUrl(markup) : toSvgDataUrl(markup);
+    const white = withWhiteBackground(svg.value);
+    if (format === 'svg-transparent') {
+        saveFile(toSvgDataUrl(svg.value), 'svg');
+        return;
+    }
+    saveFile(await svgToPngDataUrl(white), 'png');
+}
 
+function saveFile(href: string, extension: string) {
     const link = document.createElement('a');
     link.href = href;
     link.download = `${t('qrFileName')}.${extension}`;
@@ -474,15 +478,11 @@ async function exportQrCode(format: ExportFormat) {
     min-width: 0;
 }
 
-/* 触发器铺满自己的格子, 沿用动作按钮的下载图标 */
+/* 触发器铺满自己的格子, 沿用动作按钮的下载图标; 展开后它仍是收起开关, 一直可点 */
 .qr-panel-export-trigger {
     flex: 1;
     width: 100%;
     --qr-action-icon: var(--qr-download);
-}
-
-.qr-panel-export-trigger[aria-expanded='true'] {
-    visibility: hidden;
 }
 
 /* 还没有二维码可导出时按钮不可点, 也不该给出可点的光标 */
@@ -491,22 +491,24 @@ async function exportQrCode(format: ExportFormat) {
     cursor: default;
 }
 
-/* 选项行铺满整条动作行并盖住前两个按钮: 列宽模板与动作行完全一致,
-   选项自然落在三个按钮正上方 */
+/* 选项行与动作行用同一套三列模板: 两个选项落在左边两格, 第三格留给下载按钮本身.
+   容器不接收指针, 只有选项自身可点, 第三格上的点击照常落到收起开关上 */
 .qr-panel-export-options {
     position: absolute;
     inset: 0;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
+    pointer-events: none;
     /* 压在扫描入口上面, 展开期间前两个按钮点不到 */
     z-index: 2;
 }
 
 .qr-panel-export-option {
-    /* 只有一行文字, 与动作按钮同高同宽 */
+    /* 只有一行文字, 与动作按钮同高同宽; 容器不接收指针, 选项自身要能点 */
     display: flex;
     min-width: 0;
+    pointer-events: auto;
     align-items: center;
     justify-content: center;
     min-height: 52px;
