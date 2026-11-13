@@ -396,10 +396,12 @@ async function exportQrCode(format: ExportFormat) {
 }
 
 /* 展开后才出现扫描入口: 收起态只留二维码, 避免入口挤占预览.
+   三格等宽用 grid 固定列宽: flex 会按内容把格子撑得宽窄不一, 展开后与选项对不齐.
    导出选项以整条动作行为定位基准, 才能严丝合缝地盖住左边的入口 */
 .qr-panel-actions {
     position: relative;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }
 
@@ -469,7 +471,6 @@ async function exportQrCode(format: ExportFormat) {
 
 .qr-panel-export {
     display: flex;
-    flex: 1;
     min-width: 0;
 }
 
@@ -490,11 +491,13 @@ async function exportQrCode(format: ExportFormat) {
     cursor: default;
 }
 
-/* 选项行铺满整条动作行并盖住前两个按钮: 三个选项等分, 与原按钮同宽 */
+/* 选项行铺满整条动作行并盖住前两个按钮: 列宽模板与动作行完全一致,
+   选项自然落在三个按钮正上方 */
 .qr-panel-export-options {
     position: absolute;
     inset: 0;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     /* 压在扫描入口上面, 展开期间前两个按钮点不到 */
     z-index: 2;
@@ -503,7 +506,6 @@ async function exportQrCode(format: ExportFormat) {
 .qr-panel-export-option {
     /* 只有一行文字, 与动作按钮同高同宽 */
     display: flex;
-    flex: 1;
     min-width: 0;
     align-items: center;
     justify-content: center;
