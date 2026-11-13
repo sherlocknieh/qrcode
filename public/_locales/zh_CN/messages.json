@@ -315,13 +315,21 @@
     "message": "取消",
     "description": "取消按钮文本"
   },
-  "qrDownloadPng": {
-    "message": "下载 PNG 图片（白底）",
-    "description": "下载二维码 PNG 图片的按钮提示"
+  "qrDownload": {
+    "message": "下载二维码",
+    "description": "展开导出选项的按钮提示"
   },
-  "qrDownloadSvg": {
-    "message": "下载 SVG 矢量图（透明背景）",
-    "description": "下载二维码 SVG 矢量图的按钮提示"
+  "qrDownloadPngWhite": {
+    "message": "下载白底 PNG",
+    "description": "下载白底二维码 PNG 的选项提示"
+  },
+  "qrDownloadSvgWhite": {
+    "message": "下载白底 SVG 矢量图",
+    "description": "下载白底二维码 SVG 的选项提示"
+  },
+  "qrDownloadSvgTransparent": {
+    "message": "下载透明背景 SVG 矢量图",
+    "description": "下载透明背景二维码 SVG 的选项提示"
   },
   "qrFileName": {
     "message": "二维码",

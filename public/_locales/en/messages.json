@@ -315,13 +315,21 @@
     "message": "Cancel",
     "description": "Cancel button text"
   },
-  "qrDownloadPng": {
-    "message": "Download PNG (white background)",
-    "description": "Tooltip of the button that downloads the QR code as PNG"
+  "qrDownload": {
+    "message": "Download",
+    "description": "Tooltip of the button that expands the export options"
   },
-  "qrDownloadSvg": {
-    "message": "Download SVG (transparent)",
-    "description": "Tooltip of the button that downloads the QR code as SVG"
+  "qrDownloadPngWhite": {
+    "message": "Download PNG (white background)",
+    "description": "Tooltip of the option that downloads a white-background QR PNG"
+  },
+  "qrDownloadSvgWhite": {
+    "message": "Download SVG (white background)",
+    "description": "Tooltip of the option that downloads a white-background QR SVG"
+  },
+  "qrDownloadSvgTransparent": {
+    "message": "Download SVG (transparent background)",
+    "description": "Tooltip of the option that downloads a transparent QR SVG"
   },
   "qrFileName": {
     "message": "QR Code",

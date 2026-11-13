@@ -39,13 +39,20 @@ export function createQrCodeSvg(text: string): string {
     );
 }
 
+// 白底是导出选项之一, 不在编码阶段定死: 需要白底时把同样大小的底色矩形叠在模块下面
+export function withWhiteBackground(svg: string): string {
+    const size = svg.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+    if (!size) return svg;
+    const rect = `<rect width="${size[1]}" height="${size[2]}" fill="#ffffff"/>`;
+    return svg.replace(/(<svg[^>]*>)/, `$1${rect}`);
+}
+
 // 预览直接显示这条 data URL, 不必先光栅化
 export function toSvgDataUrl(svg: string): string {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-// PNG 是贴到白底上的成品图: 由同一份 SVG 光栅化并补白底,
-// 否则下载的透明二维码在深色背景里会看不清
+// 通用光栅化: 背景由传入的 SVG 决定, 导出透明或白底都走这一条
 export async function svgToPngDataUrl(svg: string): Promise<string> {
     const image = new Image();
     image.src = toSvgDataUrl(svg);
@@ -58,8 +65,6 @@ export async function svgToPngDataUrl(svg: string): Promise<string> {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context is not available.');
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0);
 
     return canvas.toDataURL('image/png');

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
-import { svgToPngDataUrl, toSvgDataUrl } from '@/services/qrCode';
+import { svgToPngDataUrl, toSvgDataUrl, withWhiteBackground } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
 // 二维码生成面板: 默认只显示二维码, 点二维码展开输入框
@@ -78,27 +78,74 @@ onMounted(fitInputHeight);
 function toggleExpanded() {
     if (!props.collapsible) return;
     expanded.value = !expanded.value;
+    // 抽屉收起后选项不再可见, 留着标记会让下次展开直接弹出选项
+    if (!expanded.value) exportOpen.value = false;
     if (expanded.value) emit('expand');
 }
 
-// 下载都基于预览那份矢量图, 不再另做一次编码
-function saveFile(href: string, extension: string) {
+// 导出选项的三种形态都是同一份矢量图换输出格式或背景, 不各画一遍矩阵
+type ExportFormat = 'png-white' | 'svg-white' | 'svg-transparent';
+type ExportBackground = 'white' | 'transparent';
+
+// 三种导出只在格式与背景上不同: 各自给出格式文字与底色角标, 悬停提示说全
+const EXPORT_OPTIONS: {
+    format: ExportFormat;
+    label: string;
+    background: ExportBackground;
+    hint: string;
+}[] = [
+    { format: 'png-white', label: 'PNG', background: 'white', hint: 'qrDownloadPngWhite' },
+    { format: 'svg-white', label: 'SVG', background: 'white', hint: 'qrDownloadSvgWhite' },
+    { format: 'svg-transparent', label: 'SVG', background: 'transparent', hint: 'qrDownloadSvgTransparent' },
+];
+
+// 下载按钮点开后才露出选项: 盖住右侧的扫描入口, 选完或点别处就收起
+const exportOpen = ref(false);
+
+function toggleExport() {
+    if (!svg.value) return;
+    exportOpen.value = !exportOpen.value;
+}
+
+// 选项面板在动作行里: 点面板之外或按 Esc 就收起
+function closeExportOnOutside(event: Event) {
+    if (!exportOpen.value) return;
+    if (event instanceof KeyboardEvent) {
+        if (event.key !== 'Escape') return;
+        exportOpen.value = false;
+        return;
+    }
+    const target = event.target as Element | null;
+    if (target?.closest('.qr-panel-export')) return;
+    exportOpen.value = false;
+}
+
+// 只在展开时挂监听, 收起后立刻摘掉
+watch(exportOpen, (open) => {
+    const method = open ? 'addEventListener' : 'removeEventListener';
+    window[method]('pointerdown', closeExportOnOutside, true);
+    window[method]('keydown', closeExportOnOutside, true);
+});
+
+onScopeDispose(() => {
+    window.removeEventListener('pointerdown', closeExportOnOutside, true);
+    window.removeEventListener('keydown', closeExportOnOutside, true);
+});
+
+// 导出都基于预览那份矢量图; 白底只是多叠一层底色, 编码本身不变
+async function exportQrCode(format: ExportFormat) {
+    if (!svg.value) return;
+    exportOpen.value = false;
+
+    const hasWhite = format !== 'svg-transparent';
+    const markup = hasWhite ? withWhiteBackground(svg.value) : svg.value;
+    const extension = format.startsWith('png') ? 'png' : 'svg';
+    const href = extension === 'png' ? await svgToPngDataUrl(markup) : toSvgDataUrl(markup);
+
     const link = document.createElement('a');
     link.href = href;
     link.download = `${t('qrFileName')}.${extension}`;
     link.click();
-}
-
-// PNG: 带白底的成品图, 直接分享或打印都不怕深色背景
-async function downloadPng() {
-    if (!svg.value) return;
-    saveFile(await svgToPngDataUrl(svg.value), 'png');
-}
-
-// SVG: 保持透明, 留给要叠到自有底色上的场景
-function downloadSvg() {
-    if (!svg.value) return;
-    saveFile(toSvgDataUrl(svg.value), 'svg');
 }
 </script>
 
@@ -176,24 +223,41 @@ function downloadSvg() {
                             >
                                 <span class="qr-panel-action-label">{{ t('qrActionCamera') }}</span>
                             </button>
-                            <button
-                                class="qr-panel-action qr-panel-action--format"
-                                type="button"
-                                :aria-label="t('qrDownloadPng')"
-                                :title="t('qrDownloadPng')"
-                                @click="downloadPng"
-                            >
-                                <span class="qr-panel-action-label">PNG</span>
-                            </button>
-                            <button
-                                class="qr-panel-action qr-panel-action--format"
-                                type="button"
-                                :aria-label="t('qrDownloadSvg')"
-                                :title="t('qrDownloadSvg')"
-                                @click="downloadSvg"
-                            >
-                                <span class="qr-panel-action-label">SVG</span>
-                            </button>
+                            <!-- 一个下载入口展开三种导出: 选项行铺满整条动作行,
+                                 从右往左展开盖住前面的扫描入口, 选完或点别处收起 -->
+                            <div class="qr-panel-export">
+                                <button
+                                    class="qr-panel-action qr-panel-action--format qr-panel-export-trigger"
+                                    type="button"
+                                    :aria-label="t('qrDownload')"
+                                    :title="t('qrDownload')"
+                                    :aria-expanded="exportOpen"
+                                    :disabled="!svg"
+                                    @click="toggleExport"
+                                >
+                                    <span class="qr-panel-action-label">{{ t('qrDownload') }}</span>
+                                </button>
+
+                                <Transition name="qr-export">
+                                    <div v-if="exportOpen" class="qr-panel-export-options">
+                                        <button
+                                            v-for="option in EXPORT_OPTIONS"
+                                            :key="option.format"
+                                            class="qr-panel-export-option"
+                                            type="button"
+                                            :aria-label="t(option.hint)"
+                                            :title="t(option.hint)"
+                                            @click="exportQrCode(option.format)"
+                                        >
+                                            <span
+                                                class="qr-panel-export-swatch"
+                                                :class="`qr-panel-export-swatch--${option.background}`"
+                                            ></span>
+                                            <span class="qr-panel-action-label">{{ option.label }}</span>
+                                        </button>
+                                    </div>
+                                </Transition>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -336,8 +400,10 @@ function downloadSvg() {
     padding: 8px;
 }
 
-/* 展开后才出现扫描入口: 收起态只留二维码, 避免入口挤占预览 */
+/* 展开后才出现扫描入口: 收起态只留二维码, 避免入口挤占预览.
+   导出选项以整条动作行为定位基准, 才能严丝合缝地盖住左边的入口 */
 .qr-panel-actions {
+    position: relative;
     display: flex;
     gap: 8px;
 }
@@ -406,13 +472,108 @@ function downloadSvg() {
     --qr-action-icon: var(--qr-scan-camera);
 }
 
-/* 下载按钮使用统一图标, 下方文字标明导出的格式 */
+/* 下载入口使用统一图标, 文案说明它展开的是导出选项 */
 .qr-panel-action--format {
     --qr-action-icon: var(--qr-download);
 }
 
-.qr-panel-action--format .qr-panel-action-label {
-    letter-spacing: 0.04em;
+.qr-panel-export {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+}
+
+/* 触发器铺满自己的格子, 样式仍沿用动作按钮 */
+.qr-panel-export-trigger {
+    flex: 1;
+    width: 100%;
+}
+
+.qr-panel-export-trigger[aria-expanded='true'] {
+    visibility: hidden;
+}
+
+/* 还没有二维码可导出时按钮不可点, 也不该给出可点的光标 */
+.qr-panel-export-trigger:disabled {
+    color: #cbd5e1;
+    cursor: default;
+}
+
+/* 选项行铺满整条动作行并盖住前两个按钮: 三个选项等分, 与原按钮同宽 */
+.qr-panel-export-options {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: 8px;
+    /* 压在扫描入口上面, 展开期间前两个按钮点不到 */
+    z-index: 2;
+}
+
+.qr-panel-export-option {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 52px;
+    padding: 6px 2px;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.qr-panel-export-option:hover {
+    color: #0f172a;
+    background: #eef2f7;
+    border-color: #cbd5e1;
+}
+
+.qr-panel-export-option:active {
+    background: #e2e8f0;
+}
+
+.qr-panel-export-option:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: -1px;
+}
+
+/* 底色角标: 一眼区分白底与透明, 透明用棋盘格 */
+.qr-panel-export-swatch {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+}
+
+.qr-panel-export-swatch--white {
+    background: #ffffff;
+}
+
+.qr-panel-export-swatch--transparent {
+    background-image:
+        linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%),
+        linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%);
+    background-position: 0 0, 4px 4px;
+    background-size: 8px 8px;
+}
+
+/* 从右往左展开: 收起时贴着下载按钮那一侧缩回去, 像是从按钮里滑出来 */
+.qr-export-enter-active,
+.qr-export-leave-active {
+    transform-origin: right center;
+    transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.qr-export-enter-from,
+.qr-export-leave-to {
+    opacity: 0;
+    transform: scaleX(0.2);
 }
 
 /* 高度下限一行 (1.5em 行高 + padding 与边框), 上限 25vh 后转为框内滚动,
