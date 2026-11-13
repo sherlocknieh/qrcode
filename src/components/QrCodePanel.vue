@@ -85,21 +85,15 @@ function toggleExpanded() {
 
 // 导出选项的三种形态都是同一份矢量图换输出格式或背景, 不各画一遍矩阵
 type ExportFormat = 'png-white' | 'svg-white' | 'svg-transparent';
-type ExportBackground = 'white' | 'transparent';
 
-// 三种导出只在格式与背景上不同: 各自给出格式文字与底色角标, 悬停提示说全
-const EXPORT_OPTIONS: {
-    format: ExportFormat;
-    label: string;
-    background: ExportBackground;
-    hint: string;
-}[] = [
-    { format: 'png-white', label: 'PNG', background: 'white', hint: 'qrDownloadPngWhite' },
-    { format: 'svg-white', label: 'SVG', background: 'white', hint: 'qrDownloadSvgWhite' },
-    { format: 'svg-transparent', label: 'SVG', background: 'transparent', hint: 'qrDownloadSvgTransparent' },
+// 三种导出只在格式与背景上不同: 选项直接写文字, 不叠图标
+const EXPORT_OPTIONS: { format: ExportFormat; label: string; hint: string }[] = [
+    { format: 'png-white', label: 'qrExportPngWhite', hint: 'qrDownloadPngWhite' },
+    { format: 'svg-white', label: 'qrExportSvgWhite', hint: 'qrDownloadSvgWhite' },
+    { format: 'svg-transparent', label: 'qrExportSvgTransparent', hint: 'qrDownloadSvgTransparent' },
 ];
 
-// 下载按钮点开后才露出选项: 盖住右侧的扫描入口, 选完或点别处就收起
+// 下载按钮点开后才露出选项: 盖住右侧的扫描入口, 选完、点别处或鼠标移开就收起
 const exportOpen = ref(false);
 
 function toggleExport() {
@@ -107,7 +101,7 @@ function toggleExport() {
     exportOpen.value = !exportOpen.value;
 }
 
-// 选项面板在动作行里: 点面板之外或按 Esc 就收起
+// 选项面板在动作行里: 点面板之外、按 Esc、或指针离开整块区域就收起
 function closeExportOnOutside(event: Event) {
     if (!exportOpen.value) return;
     if (event instanceof KeyboardEvent) {
@@ -117,6 +111,11 @@ function closeExportOnOutside(event: Event) {
     }
     const target = event.target as Element | null;
     if (target?.closest('.qr-panel-export')) return;
+    exportOpen.value = false;
+}
+
+// 指针离开这个包裹层才算移开: 触发器与选项之间的间隙不会误触发
+function closeExportOnLeave() {
     exportOpen.value = false;
 }
 
@@ -225,9 +224,9 @@ async function exportQrCode(format: ExportFormat) {
                             </button>
                             <!-- 一个下载入口展开三种导出: 选项行铺满整条动作行,
                                  从右往左展开盖住前面的扫描入口, 选完或点别处收起 -->
-                            <div class="qr-panel-export">
+                            <div class="qr-panel-export" @pointerleave="closeExportOnLeave">
                                 <button
-                                    class="qr-panel-action qr-panel-action--format qr-panel-export-trigger"
+                                    class="qr-panel-action qr-panel-export-trigger"
                                     type="button"
                                     :aria-label="t('qrDownload')"
                                     :title="t('qrDownload')"
@@ -249,11 +248,7 @@ async function exportQrCode(format: ExportFormat) {
                                             :title="t(option.hint)"
                                             @click="exportQrCode(option.format)"
                                         >
-                                            <span
-                                                class="qr-panel-export-swatch"
-                                                :class="`qr-panel-export-swatch--${option.background}`"
-                                            ></span>
-                                            <span class="qr-panel-action-label">{{ option.label }}</span>
+                                            {{ t(option.label) }}
                                         </button>
                                     </div>
                                 </Transition>
@@ -268,7 +263,7 @@ async function exportQrCode(format: ExportFormat) {
 
 <style scoped>
 .qr-panel {
-    /* 二维码结果动作图标: 下载 */
+    /* 导出入口图标: 下载箭头 */
     --qr-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2.5v7'/%3E%3Cpath d='m5 6.5 3 3 3-3'/%3E%3Cpath d='M3 12.5h10'/%3E%3C/svg%3E");
     /* 扫码入口图标: 屏幕 / 摄像头, 画成单色由 currentColor 上色 */
     --qr-scan-screen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1.5' y='2.5' width='13' height='9' rx='1.5'/%3E%3Cpath d='M8 11.5v2'/%3E%3Cpath d='M5.5 14h5'/%3E%3Cpath d='M4.5 7h7'/%3E%3C/svg%3E");
@@ -472,21 +467,17 @@ async function exportQrCode(format: ExportFormat) {
     --qr-action-icon: var(--qr-scan-camera);
 }
 
-/* 下载入口使用统一图标, 文案说明它展开的是导出选项 */
-.qr-panel-action--format {
-    --qr-action-icon: var(--qr-download);
-}
-
 .qr-panel-export {
     display: flex;
     flex: 1;
     min-width: 0;
 }
 
-/* 触发器铺满自己的格子, 样式仍沿用动作按钮 */
+/* 触发器铺满自己的格子, 沿用动作按钮的下载图标 */
 .qr-panel-export-trigger {
     flex: 1;
     width: 100%;
+    --qr-action-icon: var(--qr-download);
 }
 
 .qr-panel-export-trigger[aria-expanded='true'] {
@@ -510,15 +501,19 @@ async function exportQrCode(format: ExportFormat) {
 }
 
 .qr-panel-export-option {
+    /* 只有一行文字, 与动作按钮同高同宽 */
     display: flex;
     flex: 1;
-    flex-direction: column;
     min-width: 0;
     align-items: center;
     justify-content: center;
-    gap: 4px;
     min-height: 52px;
     padding: 6px 2px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
     color: #475569;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -540,27 +535,6 @@ async function exportQrCode(format: ExportFormat) {
 .qr-panel-export-option:focus-visible {
     outline: 2px solid #93c5fd;
     outline-offset: -1px;
-}
-
-/* 底色角标: 一眼区分白底与透明, 透明用棋盘格 */
-.qr-panel-export-swatch {
-    flex: none;
-    width: 14px;
-    height: 14px;
-    border: 1px solid #cbd5e1;
-    border-radius: 3px;
-}
-
-.qr-panel-export-swatch--white {
-    background: #ffffff;
-}
-
-.qr-panel-export-swatch--transparent {
-    background-image:
-        linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%),
-        linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%);
-    background-position: 0 0, 4px 4px;
-    background-size: 8px 8px;
 }
 
 /* 从右往左展开: 收起时贴着下载按钮那一侧缩回去, 像是从按钮里滑出来 */

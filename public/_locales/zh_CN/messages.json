@@ -316,8 +316,20 @@
     "description": "取消按钮文本"
   },
   "qrDownload": {
-    "message": "下载二维码",
-    "description": "展开导出选项的按钮提示"
+    "message": "下载",
+    "description": "展开导出选项的按钮文案"
+  },
+  "qrExportPngWhite": {
+    "message": "白底 PNG",
+    "description": "导出选项: 白底 PNG"
+  },
+  "qrExportSvgWhite": {
+    "message": "白底 SVG",
+    "description": "导出选项: 白底 SVG"
+  },
+  "qrExportSvgTransparent": {
+    "message": "透明 SVG",
+    "description": "导出选项: 透明背景 SVG"
   },
   "qrDownloadPngWhite": {
     "message": "下载白底 PNG",

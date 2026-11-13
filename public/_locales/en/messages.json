@@ -317,7 +317,19 @@
   },
   "qrDownload": {
     "message": "Download",
-    "description": "Tooltip of the button that expands the export options"
+    "description": "Label of the button that expands the export options"
+  },
+  "qrExportPngWhite": {
+    "message": "White PNG",
+    "description": "Export option: PNG with a white background"
+  },
+  "qrExportSvgWhite": {
+    "message": "White SVG",
+    "description": "Export option: SVG with a white background"
+  },
+  "qrExportSvgTransparent": {
+    "message": "Transparent SVG",
+    "description": "Export option: SVG with a transparent background"
   },
   "qrDownloadPngWhite": {
     "message": "Download PNG (white background)",
