@@ -114,7 +114,7 @@ function closeExportOnOutside(event: Event) {
     exportOpen.value = false;
 }
 
-// 指针离开这个包裹层才算移开: 触发器与选项之间的间隙不会误触发
+// 指针离开整条动作行才算移开: 选项之间、选项与按钮之间的间隙不会误触发
 function closeExportOnLeave() {
     exportOpen.value = false;
 }
@@ -207,7 +207,7 @@ function saveFile(href: string, extension: string) {
                         ></textarea>
 
                         <!-- 操作按钮: 下载/扫描 -->
-                        <div class="qr-panel-actions">
+                        <div class="qr-panel-actions" @pointerleave="closeExportOnLeave">
                             <button
                                 class="qr-panel-action qr-panel-action--screen"
                                 type="button"
@@ -228,7 +228,7 @@ function saveFile(href: string, extension: string) {
                             </button>
                             <!-- 一个下载入口展开三种导出: 选项行铺满整条动作行,
                                  从右往左展开盖住前面的扫描入口, 选完或点别处收起 -->
-                            <div class="qr-panel-export" @pointerleave="closeExportOnLeave">
+                            <div class="qr-panel-export">
                                 <button
                                     class="qr-panel-action qr-panel-export-trigger"
                                     type="button"
