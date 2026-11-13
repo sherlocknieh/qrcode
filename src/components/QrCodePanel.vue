@@ -227,12 +227,10 @@ async function downloadQrCode() {
     will-change: opacity;
 }
 
-/* 矢量图只画深色模块、本身透明: 预览补一层白底, 深色主题或强制暗色下码面才不会糊成一片 */
 .qr-panel-image {
     display: block;
     width: 100%;
     height: 100%;
-    background: #ffffff;
     object-fit: contain;
 }
 
