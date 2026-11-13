@@ -316,8 +316,12 @@
     "description": "Cancel button text"
   },
   "qrDownloadPng": {
-    "message": "Download PNG",
+    "message": "Download PNG (white background)",
     "description": "Tooltip of the button that downloads the QR code as PNG"
+  },
+  "qrDownloadSvg": {
+    "message": "Download SVG (transparent)",
+    "description": "Tooltip of the button that downloads the QR code as SVG"
   },
   "qrFileName": {
     "message": "QR Code",

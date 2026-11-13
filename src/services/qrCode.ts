@@ -14,8 +14,9 @@ function encodeQrCode(text: string) {
     return qr;
 }
 
-// 二维码唯一的生成入口: 预览与下载都基于这份矢量图, 不再各画一遍矩阵.
-// 白底画进矢量图本身: 深色主题或自动暗色下, 透明码面会与背景糊成一片;
+// 二维码唯一的生成入口: 预览与两次下载都基于这份矢量图, 不再各画一遍矩阵.
+// 只画深色模块、不带白底: 贴到深色素材上的 SVG 需要透明,
+// 需要白底的地方 (预览与 PNG) 由各自的输出补;
 // viewBox 用模块单位并配合 crispEdges, 放大到印刷尺寸也不会出现模糊间隙
 export function createQrCodeSvg(text: string): string {
     const qr = encodeQrCode(text);
@@ -34,7 +35,6 @@ export function createQrCodeSvg(text: string): string {
     return (
         `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelSize}" height="${pixelSize}" ` +
         `viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges">` +
-        `<rect width="${size}" height="${size}" fill="#ffffff"/>` +
         `<path fill="#000000" d="${path}"/></svg>`
     );
 }
@@ -44,7 +44,8 @@ export function toSvgDataUrl(svg: string): string {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-// 下载 PNG 时才光栅化: 由同一份 SVG 按模块像素尺寸出图, 白底已在矢量图里
+// PNG 是贴到白底上的成品图: 由同一份 SVG 光栅化并补白底,
+// 否则下载的透明二维码在深色背景里会看不清
 export async function svgToPngDataUrl(svg: string): Promise<string> {
     const image = new Image();
     image.src = toSvgDataUrl(svg);
@@ -57,6 +58,8 @@ export async function svgToPngDataUrl(svg: string): Promise<string> {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context is not available.');
 
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0);
 
     return canvas.toDataURL('image/png');

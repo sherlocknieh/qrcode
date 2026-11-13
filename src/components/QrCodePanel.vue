@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useQrCode } from '@/composables/useQrCode';
-import { svgToPngDataUrl } from '@/services/qrCode';
+import { svgToPngDataUrl, toSvgDataUrl } from '@/services/qrCode';
 import { t } from '@/services/i18n';
 
 // 二维码生成面板: 默认只显示二维码, 点二维码展开输入框
@@ -81,14 +81,24 @@ function toggleExpanded() {
     if (expanded.value) emit('expand');
 }
 
-// 下载 PNG: 由预览那份矢量图光栅化, 不再另做一次编码
-async function downloadQrCode() {
-    if (!svg.value) return;
-    const href = await svgToPngDataUrl(svg.value);
+// 下载都基于预览那份矢量图, 不再另做一次编码
+function saveFile(href: string, extension: string) {
     const link = document.createElement('a');
     link.href = href;
-    link.download = `${t('qrFileName')}.png`;
+    link.download = `${t('qrFileName')}.${extension}`;
     link.click();
+}
+
+// PNG: 带白底的成品图, 直接分享或打印都不怕深色背景
+async function downloadPng() {
+    if (!svg.value) return;
+    saveFile(await svgToPngDataUrl(svg.value), 'png');
+}
+
+// SVG: 保持透明, 留给要叠到自有底色上的场景
+function downloadSvg() {
+    if (!svg.value) return;
+    saveFile(toSvgDataUrl(svg.value), 'svg');
 }
 </script>
 
@@ -171,9 +181,18 @@ async function downloadQrCode() {
                                 type="button"
                                 :aria-label="t('qrDownloadPng')"
                                 :title="t('qrDownloadPng')"
-                                @click="downloadQrCode"
+                                @click="downloadPng"
                             >
                                 <span class="qr-panel-action-label">PNG</span>
+                            </button>
+                            <button
+                                class="qr-panel-action qr-panel-action--format"
+                                type="button"
+                                :aria-label="t('qrDownloadSvg')"
+                                :title="t('qrDownloadSvg')"
+                                @click="downloadSvg"
+                            >
+                                <span class="qr-panel-action-label">SVG</span>
                             </button>
                         </div>
                     </div>
@@ -227,10 +246,12 @@ async function downloadQrCode() {
     will-change: opacity;
 }
 
+/* 矢量源本身透明: 预览垫一层白底, 深色主题下码面才不会与背景糊成一片 */
 .qr-panel-image {
     display: block;
     width: 100%;
     height: 100%;
+    background: #ffffff;
     object-fit: contain;
 }
 
